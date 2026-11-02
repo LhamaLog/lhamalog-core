@@ -8,25 +8,32 @@ import org.testcontainers.grafana.LgtmStackContainer;
 import org.testcontainers.mongodb.MongoDBContainer;
 import org.testcontainers.utility.DockerImageName;
 
+/** Fixed image tags: Mongo and Redis match infra/local/compose.yaml. */
 @TestConfiguration(proxyBeanMethods = false)
-class TestcontainersConfiguration {
+public class TestcontainersConfiguration {
+
+	static final String LGTM_IMAGE = "grafana/otel-lgtm:0.37.0";
+
+	static final String MONGO_IMAGE = "mongo:8.0.34";
+
+	static final String REDIS_IMAGE = "redis:8.2.10";
 
 	@Bean
 	@ServiceConnection
 	LgtmStackContainer grafanaLgtmContainer() {
-		return new LgtmStackContainer(DockerImageName.parse("grafana/otel-lgtm:latest"));
+		return new LgtmStackContainer(DockerImageName.parse(LGTM_IMAGE));
 	}
 
 	@Bean
 	@ServiceConnection
 	MongoDBContainer mongoDbContainer() {
-		return new MongoDBContainer(DockerImageName.parse("mongo:latest"));
+		return new MongoDBContainer(DockerImageName.parse(MONGO_IMAGE));
 	}
 
 	@Bean
 	@ServiceConnection(name = "redis")
 	GenericContainer<?> redisContainer() {
-		return new GenericContainer<>(DockerImageName.parse("redis:latest")).withExposedPorts(6379);
+		return new GenericContainer<>(DockerImageName.parse(REDIS_IMAGE)).withExposedPorts(6379);
 	}
 
 }
