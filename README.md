@@ -28,7 +28,20 @@ java -jar target/lhamalog-core-0.0.1-SNAPSHOT.jar
 Perfil local: `./mvnw spring-boot:run -Dspring-boot.run.profiles=local`.
 
 ## Infra local
-MongoDB, Redis e Elasticsearch locais pelo docker-compose da equipe (o mesmo do lhamalog-finder: `docker compose up -d` / `make infra-up`). Os testes usam Testcontainers e sobem os containers sozinhos.
+MongoDB (banco do Core, ADR_116), Redis e OpenObserve (log store da plataforma, ADR_168, substitui o Elasticsearch) sobem pelo compose em `infra/local/compose.yaml`, com tags de imagem fixas (`mongo:8.0.34`, `redis:8.2.10`, `public.ecr.aws/zinclabs/openobserve:v1.1.2`).
+
+1. Copie `infra/local/.env.example` para `infra/local/.env` e preencha as senhas (o `.env` nao e versionado).
+2. Suba: `make infra-up` ou `docker compose -f infra/local/compose.yaml up -d`.
+3. Exporte no terminal as variaveis da aplicacao (`MONGODB_URI`, `REDIS_PASSWORD`, `OPENOBSERVE_AUTH`; exemplos no `.env.example`) e rode `make run-local`.
+4. Derrube: `make infra-down`.
+
+Os testes usam Testcontainers (`mongo:8.0.34`, `redis:8.2.10`, `grafana/otel-lgtm:0.37.0`) e sobem os containers sozinhos.
+
+## Spec Kit
+O repositorio usa o GitHub Spec Kit (`.specify/`, comandos `/speckit-*` em `.cursor/skills/`). Toda feature segue specify, plan, tasks e implement; regras em `.specify/memory/constitution.md`.
+
+## Seguranca
+`config.SecurityConfig` aplica um baseline minimo: `/actuator/health` e `/actuator/info` publicos, o resto autenticado. A validacao de JWT da Clerk (resource server) entra em feature propria.
 
 ## Dependências
 Antes de adicionar qualquer biblioteca, ver Drive da equipe > Arquitetura > Dependências específicas dos módulos (evita bibliotecas com a mesma função).
