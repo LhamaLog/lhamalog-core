@@ -1,11 +1,12 @@
 <!--
 Sync Impact Report
-- Version change: (template) -> 1.0.0 (ratificacao inicial do lhamalog-core)
-- Principles: I. Spec Kit; II. Regra 60/40 de codigo por IA; III. Testes antes do merge;
-  IV. Ingles no codigo, portugues na documentacao; V. Segredos fora do codigo e do commit
-- Templates requiring updates: nenhum (templates padrao do Spec Kit)
-- Follow-up TODOs: confirmar com a equipe se a regra 60/40 segue valida (o lhamalog-collector
-  a removeu na v2.0.0 da constituicao dele, em 2026-10-31)
+- Version change: 1.0.0 -> 2.0.0 (MAJOR: principio II removido e redefinido)
+- Modified principles:
+  - II. Regra 60/40 de codigo por IA -> II. IA pode implementar 100%, com revisao e dominio do desenvolvedor
+- Added sections: nenhuma
+- Removed sections: nenhuma (a regra 60/40 e as marcas de autoria saem do principio II e do fluxo de merge)
+- Templates requiring updates: nenhum (templates padrao do Spec Kit, sem referencia a 60/40)
+- Follow-up TODOs: nenhum (alinhado a constituicao v2.0.0 do lhamalog-collector)
 -->
 # LhamaLog Core Constitution
 
@@ -20,16 +21,19 @@ entrar na branch principal.
 Rationale: o Spec Kit e o contrato de escopo. Implementar antes de fechar
 specify, plan e tasks mistura entrega com requisito ainda aberto.
 
-### II. Regra 60/40 de codigo por IA (NON-NEGOTIABLE)
+### II. IA pode implementar 100%, com revisao e dominio do desenvolvedor (NON-NEGOTIABLE)
 
-No maximo 60% do codigo de uma feature MAY ser gerado por IA; pelo menos 40%
-MUST ser escrito pelo desenvolvedor, incluindo as decisoes de regra de negocio.
-As tasks MUST indicar a autoria prevista (`[IA]` ou `[Dev]`) e o merge MUST
-confirmar que a proporcao foi respeitada. O desenvolvedor MUST revisar e
-entender todo codigo gerado por IA antes do commit.
+A IA MAY implementar 100% do codigo de uma feature, inclusive a logica de
+negocio. Toda implementacao MUST seguir o Spec Kit (principio I): nenhuma linha
+de codigo entra sem spec, plan e tasks que a descrevam. O desenvolvedor MUST
+revisar cada entrega e manter o dominio do que foi implementado; a IA MUST
+explicar ao desenvolvedor o que implementou, por qual perspectiva e com quais
+decisoes, e as decisoes MUST ficar registradas nos artefatos do Spec Kit
+(research, plan, tasks). Tasks nao levam marca de autoria.
 
-Rationale: o desenvolvedor precisa dominar e conseguir manter o Core, que e o
-unico ponto de contato do front e concentra assinatura, tenants e permissoes.
+Rationale: a regra 60/40 foi derrubada no alinhamento de gestores de
+2026-10-31. O controle passa a ser o Spec Kit como documentacao viva e a
+revisao do desenvolvedor, que precisa entender e conseguir manter o Core.
 
 ### III. Testes antes do merge (NON-NEGOTIABLE)
 
@@ -80,7 +84,7 @@ constituicao e MUST ser registrada aqui antes de entrar no codigo.
   Exemplo: `feature/LLT-82-inicializacao-core`.
 - A mensagem de commit MUST seguir `<CHAVE-JIRA>: <descricao>` (ADR_148).
   Exemplo: `LLT-82: inicializacao do modulo: Core`.
-- O merge MUST confirmar, nesta ordem: Spec Kit completo, regra 60/40,
+- O merge MUST confirmar, nesta ordem: Spec Kit completo, revisao do desenvolvedor sobre o que a IA implementou,
   build e testes locais verdes, branch e commit no padrao, e ausencia de segredos.
 
 ## Governance
@@ -96,4 +100,4 @@ Revisao de conformidade: specify, plan, tasks e o review de merge MUST checar
 os cinco principios, o stack e o fluxo. Violacao bloqueia o merge ate a
 correcao ou ate uma emenda explicita desta constituicao.
 
-**Version**: 1.0.0 | **Ratified**: 2026-11-02 | **Last Amended**: 2026-11-02
+**Version**: 2.0.0 | **Ratified**: 2026-11-02 | **Last Amended**: 2026-11-02
