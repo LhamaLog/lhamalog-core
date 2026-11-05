@@ -1,5 +1,7 @@
 # lhamalog-core
 
+Empresa e Produtos: endpoints e persistência Mongo implementados na branch local `dev/empresa-produtos`. [Especificação](specs/001-empresa-produtos/spec.md), [contrato](specs/001-empresa-produtos/contracts/api.md) e [execução/testes](specs/001-empresa-produtos/quickstart.md).
+
 API pública do LhamaLog: assinatura, multi-tenant (Clerk Organizations), papéis e matriz de alertas, WebSocket e único ponto de contato do front.
 
 Parte da plataforma LhamaLog (SaaS multi-tenant de análise de logs com IA). Pacote base `br.com.lhamalog.core`, groupId `br.com.lhamalog`. Gerado no Spring Initializr: Java 25, Spring Boot 4.1.1, Maven. Estrutura proposta: hexagonal leve.
@@ -41,7 +43,7 @@ Os testes usam Testcontainers (`mongo:8.0.34`, `redis:8.2.10`, `grafana/otel-lgt
 O repositorio usa o GitHub Spec Kit (`.specify/`, comandos `/speckit-*` em `.cursor/skills/`). Toda feature segue specify, plan, tasks e implement; regras em `.specify/memory/constitution.md`.
 
 ## Seguranca
-`config.SecurityConfig` aplica um baseline minimo: `/actuator/health` e `/actuator/info` publicos, o resto autenticado. A validacao de JWT da Clerk (resource server) entra em feature propria.
+`config.SecurityConfig` valida JWT Clerk por JWKS, issuer, validade e origem permitida. `/actuator/health` e `/actuator/info` permanecem publicos. Configure CLERK_ISSUER, CLERK_JWKS_URI e CLERK_AUTHORIZED_PARTIES. Sem configuracao, a API rejeita tokens. Empresa vem da organizacao ativa; Produtos exigem vinculo ou papel administrativo configurado. Veja o guia da feature.
 
 ## Dependências
 Antes de adicionar qualquer biblioteca, ver Drive da equipe > Arquitetura > Dependências específicas dos módulos (evita bibliotecas com a mesma função).
@@ -65,3 +67,6 @@ Ao subir, o servico registra em INFO uma linha padrao, emitida por `config.Start
 ## Perfis (ADR_151)
 - `local` (padrao): `application-local.properties`, valores de desenvolvimento sobrescreviveis por variavel de ambiente.
 - `prod`: `application-prod.properties`, so variaveis de ambiente (`SPRING_PROFILES_ACTIVE=prod`).
+## Aplicação completa no Docker
+
+Com Core e Web em pastas irmãs e infra/local/.env configurado, execute: `docker compose --env-file infra/local/.env -f infra/local/compose.app.yaml up -d --build`. O Compose inclui a infraestrutura existente e inicia Spring e Vite. Guia compartilhado: ../lhamalog_docs/planejamento/ambiente-local.md. Sem chave Clerk, os serviços iniciam, mas login/telas autenticadas ficam indisponíveis e a API permanece protegida.

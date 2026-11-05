@@ -1,0 +1,50 @@
+# Executar na raiz do Core; requer lhamalog-web ao lado do repositorio Core.
+name: lhamalog-core-local
+include:
+  - compose.yaml
+
+services:
+  core:
+    build:
+      context: ../..
+      dockerfile: infra/local/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      MONGODB_URI: ${MONGODB_URI_DOCKER:?configure a URI Mongo com host mongo em infra/local/.env}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?configure REDIS_PASSWORD}
+      OTLP_ENABLED: "false"
+      CLERK_ISSUER: ${CLERK_ISSUER:-}
+      CLERK_JWKS_URI: ${CLERK_JWKS_URI:-}
+      CLERK_AUTHORIZED_PARTIES: http://localhost:5173
+      CLERK_ADMIN_ROLES: ${CLERK_ADMIN_ROLES:-admin}
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ../../../lhamalog-web
+      dockerfile: infra/local/Dockerfile
+      args:
+        NODE_VERSION: "26.12.1"
+    environment:
+      VITE_API_URL: http://localhost:8080
+      VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-}
+    ports:
+      - "127.0.0.1:5173:5173"
+    init: true
+    depends_on:
+      core:
+        condition: service_healthy
