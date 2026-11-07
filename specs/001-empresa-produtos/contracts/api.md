@@ -2,8 +2,8 @@
 
 Authorization: Bearer JWT Clerk. Empresa selecionada exclusivamente por o.id, compatibilidade com org_id v1. Rotas sem organização retornam 403. Membro válido da organização pode consultar e manter Empresa; Produto requer AcessoProduto ou papel administrador validado. IDs de outra empresa respondem 404, sem exposição de existência.
 
-- GET /api/company → 200 {id, clerkOrgId, data, context, address, version}. Cadastro ausente retorna estrutura vazia, version null, para primeiro preenchimento; não grava em GET.
-- PUT /api/company ← {data, context, address, version} → 200 documento persistido. Contextos/campos vazios permitidos. Version null apenas para criação inicial.
+- GET /api/company → 200 {id, clerkOrgId, data, context, address, version} e, na extensão atual, preferences, shared, logo, summary, capabilities, limitations e audit. Cadastro ausente retorna estrutura vazia, version null, para primeiro preenchimento; não grava em GET.
+- PUT /api/company ← {data, context, address, version} continua aceito. preferences é opcional. Chave ausente preserva o valor já gravado; string vazia limpa. O contrato dos campos novos está em [company-settings.md](company-settings.md). Version null apenas para criação inicial.
 - GET /api/products → 200 lista somente dos produtos acessíveis da empresa, ordenada por nome/id.
 - POST /api/products ← {name, description, category, productVersion, context} → 201 Produto. Empresa vem da sessão; criador recebe acesso. Sem limite por plano.
 - GET /api/products/{id} → 200 Produto acessível.
