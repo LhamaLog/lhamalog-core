@@ -69,7 +69,7 @@ final class SettingsEcho {
 								: new CompanySettingsState.Logo(logo.store().fileName(), logo.store().contentType())),
 				new CompanySettingsState.Context(names(context, "environmentTypes", 30, 80, "settings.context.environmentTypes", errors),
 						systems(context, errors), text(context, "criticalWindows", 200, "settings.context.criticalWindows", errors),
-						text(context, "description", 2000, "settings.context.description", errors)),
+						text(context, "description", CompanyContextLimits.DESCRIPTION_MAX, "settings.context.description", errors)),
 				new CompanySettingsState.Address(postal, text(address, "country", 60, "settings.address.country", errors),
 						text(address, "street", 200, "settings.address.street", errors),
 						text(address, "number", 30, "settings.address.number", errors),

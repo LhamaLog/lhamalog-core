@@ -69,6 +69,21 @@ public class CompanyController {
 				.cacheControl(CacheControl.noStore()).body(logo.content());
 	}
 
+	@GetMapping("/context/revisions")
+	public CompanyContextViews.RevisionList contextRevisions(@AuthenticationPrincipal Jwt jwt) {
+		return CompanyContextViews.RevisionList.from(service.contextRevisions(session(jwt).tenantId()));
+	}
+
+	@GetMapping("/context/revisions/{revision}")
+	public CompanyContextViews.Revision contextRevision(@AuthenticationPrincipal Jwt jwt, @PathVariable long revision) {
+		return CompanyContextViews.Revision.from(service.contextRevision(session(jwt).tenantId(), revision));
+	}
+
+	@GetMapping("/context/prompt")
+	public CompanyContextPrompt contextPrompt(@AuthenticationPrincipal Jwt jwt) {
+		return service.contextPrompt(session(jwt).tenantId());
+	}
+
 	@GetMapping("/postal-code/{cep}")
 	public void postalCode(@AuthenticationPrincipal Jwt jwt, @PathVariable String cep) {
 		session(jwt);

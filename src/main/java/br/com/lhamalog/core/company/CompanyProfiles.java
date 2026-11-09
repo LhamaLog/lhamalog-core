@@ -78,7 +78,8 @@ final class CompanyProfiles {
 				chips(context, "environments", currentContext.environments(), errors),
 				text(context, "criticalWindows", currentContext.criticalWindows(), TEXT, false, "context.criticalWindows", errors),
 				systems(context, currentContext.monitoredSystems(), errors),
-				text(context, "description", currentContext.description(), 5000, true, "context.description", errors));
+				text(context, "description", currentContext.description(), CompanyContextLimits.DESCRIPTION_MAX, true,
+						"context.description", errors));
 		Company.Address mergedAddress = new Company.Address(
 				text(address, "street", currentAddress.street(), TEXT, false, "address.street", errors),
 				text(address, "number", currentAddress.number(), 30, false, "address.number", errors),

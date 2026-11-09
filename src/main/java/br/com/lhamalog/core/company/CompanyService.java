@@ -2,6 +2,7 @@ package br.com.lhamalog.core.company;
 
 import java.time.Instant;
 import java.util.Base64;
+import java.util.List;
 import java.util.Objects;
 
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -17,10 +18,13 @@ import tools.jackson.databind.JsonNode;
 public class CompanyService {
 	private final CompanyRepository companies;
 	private final CompanyLogoRepository logos;
+	private final CompanyContextRevisionRepository revisions;
 
-	public CompanyService(CompanyRepository companies, CompanyLogoRepository logos) {
+	public CompanyService(CompanyRepository companies, CompanyLogoRepository logos,
+			CompanyContextRevisionRepository revisions) {
 		this.companies = companies;
 		this.logos = logos;
+		this.revisions = revisions;
 	}
 
 	public CompanyResponse get(String tenantId) {
@@ -41,7 +45,21 @@ public class CompanyService {
 			logos.save(draft.logo().store());
 		}
 		Company saved = companies.save(audited(draft.company(), current.version(), userId));
+		recordContextChange(current, saved, userId);
 		return CompanyResponses.from(saved, draft.logo().delete() ? null : logos.findById(tenantId).orElse(null));
+	}
+
+	public List<CompanyContextRevision> contextRevisions(String tenantId) {
+		return revisions.findByTenantIdOrderByRevisionDesc(tenantId);
+	}
+
+	public CompanyContextRevision contextRevision(String tenantId, long revision) {
+		return revisions.findByTenantIdAndRevision(tenantId, revision)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Revisão de contexto não encontrada."));
+	}
+
+	public CompanyContextPrompt contextPrompt(String tenantId) {
+		return CompanyContextPrompt.from(CompanyContextSnapshot.of(load(tenantId)));
 	}
 
 	public CompanyResponse saveLogo(String tenantId, String userId, Long version, String originalName, byte[] content) {
@@ -99,5 +117,16 @@ public class CompanyService {
 		if (!Objects.equals(current, requested)) {
 			throw new OptimisticLockingFailureException("Company version conflict");
 		}
+	}
+
+	private void recordContextChange(Company before, Company after, String userId) {
+		CompanyContextSnapshot previous = CompanyContextSnapshot.of(before);
+		CompanyContextSnapshot next = CompanyContextSnapshot.of(after);
+		if (previous.equals(next)) {
+			return;
+		}
+		long revision = revisions.findByTenantIdOrderByRevisionDesc(after.id()).stream()
+				.mapToLong(CompanyContextRevision::revision).max().orElse(0L) + 1L;
+		revisions.save(CompanyContextRevision.of(after.id(), revision, Instant.now(), userId, next));
 	}
 }

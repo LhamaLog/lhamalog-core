@@ -147,7 +147,7 @@ class CompanySettingsTests {
 		});
 		when(logos.findById(any())).thenAnswer(invocation -> Optional.ofNullable(
 				logo.get() != null && logo.get().id().equals(invocation.getArgument(0)) ? logo.get() : null));
-		CompanyService service = new CompanyService(companies, logos);
+		CompanyService service = new CompanyService(companies, logos, mock(CompanyContextRevisionRepository.class));
 		byte[] svg = """
 				<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script><rect width="1" height="1" onload="alert(1)"/></svg>
 				""".getBytes(StandardCharsets.UTF_8);
@@ -227,7 +227,7 @@ class CompanySettingsTests {
 		});
 		when(logos.findById(any())).thenAnswer(invocation -> Optional.ofNullable(
 				logo.get() != null && logo.get().id().equals(invocation.getArgument(0)) ? logo.get() : null));
-		return new CompanyService(companies, logos);
+		return new CompanyService(companies, logos, mock(CompanyContextRevisionRepository.class));
 	}
 
 	private CompanyService service(AtomicReference<Company> stored) {
@@ -235,7 +235,7 @@ class CompanySettingsTests {
 		when(companies.findById(any())).thenAnswer(invocation -> Optional.ofNullable(
 				stored.get() != null && stored.get().id().equals(invocation.getArgument(0)) ? stored.get() : null));
 		when(companies.save(any())).thenAnswer(invocation -> persist(stored, invocation.getArgument(0)));
-		return new CompanyService(companies, mock(CompanyLogoRepository.class));
+		return new CompanyService(companies, mock(CompanyLogoRepository.class), mock(CompanyContextRevisionRepository.class));
 	}
 
 	private static Company persist(AtomicReference<Company> stored, Company company) {
