@@ -5,15 +5,16 @@ else
 MVNW := ./mvnw
 endif
 
-# Ambiente local (ADR_151): tudo em infra/local/
-COMPOSE := docker compose -f infra/local/compose.yaml
+# Compose v2 na raiz. Nao usa down -v nem prune.
+COMPOSE := docker compose
+COMPOSE_OBS := docker compose -f compose.yaml -f compose.observability.yaml
 
-.PHONY: run run-local build test verify clean infra-up infra-down infra-ps infra-logs infra-config
+.PHONY: run run-local build test verify clean up down logs status infra-up infra-down infra-ps infra-logs infra-config obs-up obs-down config
 
 run:
 	$(MVNW) spring-boot:run
 
-# Roda com o perfil local (MongoDB, Redis e OpenObserve de infra/local)
+# Roda com o perfil local (MongoDB e Redis do compose; OpenObserve e opcional)
 run-local:
 	$(MVNW) spring-boot:run -Dspring-boot.run.profiles=local
 
@@ -29,20 +30,41 @@ verify:
 clean:
 	$(MVNW) clean
 
-# Sobe o ambiente local em segundo plano
-infra-up:
-	$(COMPOSE) up -d
+# API + Mongo + Redis. Equivale a: docker compose up -d --build
+up:
+	$(COMPOSE) up -d --build
 
-# Para e remove os containers (os volumes com os dados sao mantidos)
-infra-down:
+# Remove containers e a rede do projeto. Os volumes nomeados permanecem.
+down:
 	$(COMPOSE) down
 
-infra-ps:
-	$(COMPOSE) ps
-
-infra-logs:
+logs:
 	$(COMPOSE) logs -f
 
-# Valida o compose.yaml (e o .env, se existir)
-infra-config:
+status:
+	$(COMPOSE) ps
+
+config:
 	$(COMPOSE) config -q
+
+# So Mongo e Redis, sem construir a API (Java no host).
+infra-up:
+	$(COMPOSE) up -d mongo redis
+
+# Para Mongo e Redis. Nao remove a API e nao apaga volumes.
+infra-down:
+	$(COMPOSE) stop mongo redis
+
+infra-ps: status
+
+infra-logs:
+	$(COMPOSE) logs -f mongo redis
+
+infra-config: config
+
+# OpenObserve opcional, mesmo projeto/volume de antes.
+obs-up:
+	$(COMPOSE_OBS) up -d --build
+
+obs-down:
+	docker compose -f compose.observability.yaml stop openobserve

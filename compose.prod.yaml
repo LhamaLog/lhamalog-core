@@ -1,0 +1,82 @@
+# RASCUNHO NAO VALIDADO. Nao e um deploy de producao.
+# `docker compose up` nao carrega este arquivo. Nao houve teste de subida, TLS,
+# cofre de segredo, backup automatizado nem aceite. Nao descreva este arquivo como pronto.
+# Projeto proprio, de proposito: nao reutiliza e nao apaga os volumes lhamalog-core-local_*.
+# Variaveis com prefixo PROD_ para o .env de desenvolvimento nao satisfazer este arquivo.
+# Mongo e Redis nao publicam porta no host. Sem teto de CPU/memoria.
+name: lhamalog-core-prod
+
+services:
+  mongo:
+    image: mongo:8.0.34
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${PROD_MONGO_ROOT_USERNAME:?defina PROD_MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${PROD_MONGO_ROOT_PASSWORD:?defina PROD_MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${PROD_MONGO_APP_DATABASE:-lhamalog_core}
+      MONGO_APP_DATABASE: ${PROD_MONGO_APP_DATABASE:-lhamalog_core}
+      MONGO_APP_USERNAME: ${PROD_MONGO_APP_USERNAME:?defina PROD_MONGO_APP_USERNAME}
+      MONGO_APP_PASSWORD: ${PROD_MONGO_APP_PASSWORD:?defina PROD_MONGO_APP_PASSWORD}
+    volumes:
+      - mongo-data:/data/db
+      - ./infra/local/mongo-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    image: redis:8.2.10
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${PROD_REDIS_PASSWORD:?defina PROD_REDIS_PASSWORD}"]
+    environment:
+      REDISCLI_AUTH: ${PROD_REDIS_PASSWORD:?defina PROD_REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/local/Dockerfile
+    image: lhamalog-core:prod-unvalidated
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: "8080"
+      MONGODB_URI: ${PROD_MONGODB_URI:?defina PROD_MONGODB_URI com host mongo e senha codificada}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${PROD_REDIS_PASSWORD:?defina PROD_REDIS_PASSWORD}
+      REDIS_SSL_ENABLED: ${PROD_REDIS_SSL_ENABLED:-false}
+      OTLP_ENABLED: ${PROD_OTLP_ENABLED:-false}
+      OTLP_METRICS_URL: ${PROD_OTLP_METRICS_URL:?defina PROD_OTLP_METRICS_URL}
+      OTLP_TRACES_URL: ${PROD_OTLP_TRACES_URL:?defina PROD_OTLP_TRACES_URL}
+      CLERK_ISSUER: ${PROD_CLERK_ISSUER:?defina PROD_CLERK_ISSUER}
+      CLERK_JWKS_URI: ${PROD_CLERK_JWKS_URI:?defina PROD_CLERK_JWKS_URI}
+      CLERK_AUTHORIZED_PARTIES: ${PROD_CLERK_AUTHORIZED_PARTIES:?defina PROD_CLERK_AUTHORIZED_PARTIES}
+      CLERK_ADMIN_ROLES: ${PROD_CLERK_ADMIN_ROLES:-admin}
+    ports:
+      - "${PROD_API_BIND_ADDRESS:?defina PROD_API_BIND_ADDRESS, por exemplo 127.0.0.1}:${PROD_API_PORT:-8080}:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+volumes:
+  mongo-data:
+  redis-data:

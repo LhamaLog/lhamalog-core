@@ -10,6 +10,8 @@ Primeiro validar JWT Clerk no Core, depois implementar Empresa, depois Produtos.
 
 Reutilizar `infra/local/compose.yaml` por inclusão em `compose.app.yaml`, com o mesmo nome de projeto e volumes. Acrescentar imagem Java 25 em múltiplos estágios e frontend pelo Dockerfile existente no repositório irmão. Mongo/Redis devem estar saudáveis antes do Core, e Core antes do Web. Por orientação posterior do usuário, Clerk fica sem chave nesta etapa: permitir iniciar serviços, mantendo API fechada e aceite autenticado pendente; nenhuma autenticação alternativa. Segredos somente no `.env` ignorado. Validar configuração sem imprimir segredos, build das imagens, saúde e reinício quando Docker e a configuração real estiverem disponíveis. Registrar pendências explicitamente.
 
+Atualização: o build do Web irmão foi retirado. Cada repositório sobe sozinho. O Core publica a API em `http://localhost:8080` e o Web permanece em `http://localhost:5173`, sem rede Docker compartilhada obrigatória. O procedimento vigente está no README.
+
 ## Contexto técnico
 
 Java 25, Spring Boot 4.1.1, Maven Wrapper, Spring Security resource server já instalado, MongoDB. Testes JUnit/MockMvc e Testcontainers com imagens fixas. Não adicionar SDK Clerk: usar JWKS e o decoder Spring existente. API REST com DTOs explícitos; nunca aceitar documento Mongo direto do cliente. Índices tenantId e isolamento obrigatório nas consultas. Sem meta numérica de performance não documentada.
