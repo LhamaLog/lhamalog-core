@@ -5,7 +5,6 @@ import br.com.lhamalog.core.usage.application.UsageFactService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import java.time.Instant;
-import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -15,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @Validated
@@ -37,10 +35,10 @@ public class UsageFactsController {
 	}
 
 	@GetMapping
-	public List<UsageFactRequest> find(@RequestParam @NotBlank String tenantId,
-			@RequestParam @NotBlank String productId, @RequestParam Instant from, @RequestParam Instant to) {
-		if (!from.isBefore(to)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid time window");
-		return usageFacts.find(tenantId, productId, from, to);
+	public UsageFactPageResponse find(@RequestParam @NotBlank String tenantId,
+			@RequestParam @NotBlank String productId, @RequestParam Instant from, @RequestParam Instant to,
+			@RequestParam(required = false) Integer limit, @RequestParam(required = false) String cursor) {
+		return usageFacts.find(tenantId, productId, from, to, limit, cursor);
 	}
 
 	@GetMapping("/current-cycle")

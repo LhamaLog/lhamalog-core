@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.lhamalog.core.usage.api.UsageDomain;
 import br.com.lhamalog.core.usage.api.UsageFactRequest;
-import br.com.lhamalog.core.usage.infrastructure.UsageFactRepository;
+import br.com.lhamalog.core.usage.infrastructure.InMemoryUsageFactRepository;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -14,8 +14,8 @@ class UsageFactIdempotencyIntegrationTest {
 
 	@Test
 	void sameFactIsRecordedOnceButAConflictingBodyIsRejected() {
-		UsageFactRepository.InMemory repository = new UsageFactRepository.InMemory();
-		UsageFactService service = new UsageFactService(repository, new PlanSubscriptionRepository.InMemory(),
+		InMemoryUsageFactRepository repository = new InMemoryUsageFactRepository();
+		UsageFactService service = new UsageFactService(repository, new InMemoryPlanSubscriptionRepository(),
 				() -> Instant.parse("2026-11-09T12:00:00Z"));
 		UsageFactRequest fact = fact("fact-1", "batch-1", 500);
 
