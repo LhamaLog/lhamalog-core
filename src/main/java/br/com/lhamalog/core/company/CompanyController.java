@@ -42,20 +42,29 @@ public class CompanyController {
 
 	@PutMapping
 	public CompanyResponse save(@AuthenticationPrincipal Jwt jwt, @RequestBody String body) {
-		CompanySession session = session(jwt);
+		CompanySession session = requireAdministrator(jwt);
 		return service.save(session.tenantId(), session.userId(), json(body));
+	}
+
+	@DeleteMapping
+	public CompanyResponse deleteRegistration(@AuthenticationPrincipal Jwt jwt) {
+		CompanySession session = requireAdministrator(jwt);
+		return service.deleteRegistration(session.tenantId());
 	}
 
 	@PostMapping(value = "/logo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	public CompanyResponse uploadLogo(@AuthenticationPrincipal Jwt jwt, @RequestParam(required = false) Long version,
-			@RequestParam("file") MultipartFile file) throws java.io.IOException {
-		CompanySession session = session(jwt);
+			@RequestParam(value = "file", required = false) MultipartFile file) throws java.io.IOException {
+		CompanySession session = requireAdministrator(jwt);
+		if (file == null || file.isEmpty()) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Envie o arquivo do logotipo.");
+		}
 		return service.saveLogo(session.tenantId(), session.userId(), version, file.getOriginalFilename(), file.getBytes());
 	}
 
 	@DeleteMapping("/logo")
 	public CompanyResponse deleteLogo(@AuthenticationPrincipal Jwt jwt, @RequestParam(required = false) Long version) {
-		CompanySession session = session(jwt);
+		CompanySession session = requireAdministrator(jwt);
 		return service.deleteLogo(session.tenantId(), session.userId(), version);
 	}
 
@@ -107,6 +116,15 @@ public class CompanyController {
 
 	private CompanySession session(Jwt jwt) {
 		return sessions.resolve(jwt);
+	}
+
+	private CompanySession requireAdministrator(Jwt jwt) {
+		CompanySession session = session(jwt);
+		if (!session.administrator()) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+					"Somente o administrador da empresa pode alterar este cadastro.");
+		}
+		return session;
 	}
 
 	private static ResponseStatusException unavailable(String message) {

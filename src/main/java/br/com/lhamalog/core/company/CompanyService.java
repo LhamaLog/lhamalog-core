@@ -90,6 +90,21 @@ public class CompanyService {
 		return CompanyResponses.from(companies.save(updated), null);
 	}
 
+	/**
+	 * Removes this organization's registration documents only.
+	 * Products, product access, and the identity provider organization stay.
+	 * No audit collection, metric, or event is written.
+	 */
+	public CompanyResponse deleteRegistration(String tenantId) {
+		if (companies.findById(tenantId).isEmpty()) {
+			return CompanyResponses.from(Company.empty(tenantId), null);
+		}
+		companies.deleteById(tenantId);
+		logos.deleteById(tenantId);
+		revisions.deleteByTenantId(tenantId);
+		return CompanyResponses.from(Company.empty(tenantId), null);
+	}
+
 	public CompanyLogo logo(String tenantId) {
 		Company current = companies.findById(tenantId)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "A empresa não tem logotipo."));

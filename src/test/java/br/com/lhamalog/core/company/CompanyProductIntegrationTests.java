@@ -43,7 +43,7 @@ class CompanyProductIntegrationTests {
 	@Test
 	void companyPersistsAndIsIsolatedAndRejectsStaleVersion() throws Exception {
 		String tenant = organization();
-		var actor = session(tenant, "user_a", "member");
+		var actor = session(tenant, "user_a", "admin");
 		String body = """
 				{"data":{"legalName":"Empresa A","tradeName":"A","document":"","size":"","registrationDate":null},
 				 "context":{"sector":"Tecnologia","mission":"","targetAudience":"","differentiators":"","language":""},
@@ -63,7 +63,7 @@ class CompanyProductIntegrationTests {
 	@Test
 	void companySettingsReloadFromTheSameTenant() throws Exception {
 		String tenant = organization();
-		var actor = session(tenant, "user_a", "member");
+		var actor = session(tenant, "user_a", "admin");
 		String body = """
 				{"data":{"legalName":"Empresa Persistida","document":"11.444.777/0001-61","email":"pessoa@example.com",
 				 "sector":"Tecnologia / SaaS","timezone":"America/Sao_Paulo","language":"pt-BR"},
@@ -97,6 +97,10 @@ class CompanyProductIntegrationTests {
 		mvc.perform(get("/api/company")).andExpect(status().isUnauthorized());
 		mvc.perform(get("/api/company").with(jwt())).andExpect(status().isForbidden());
 		mvc.perform(put("/api/company").with(session(organization(), "user", "member"))
+				.contentType(MediaType.APPLICATION_JSON).content("{}"))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.message").value("Somente o administrador da empresa pode alterar este cadastro."));
+		mvc.perform(put("/api/company").with(session(organization(), "user", "admin"))
 				.contentType(MediaType.APPLICATION_JSON).content("{}"))
 				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.fieldErrors.data").exists());
 	}

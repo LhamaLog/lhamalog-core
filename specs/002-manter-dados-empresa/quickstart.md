@@ -30,6 +30,18 @@ Os detalhes de status e corpo estão no contrato. Cada item abaixo precisa apare
 6. **Isolamento.** Organizações A e B têm cadastros diferentes. Consulta, alteração e exclusão com a sessão de A deixam B igual e oculto. Um corpo com o id de B ainda afeta só A. Membro de A que cita B recebe 403 e as duas empresas ficam como estavam.
 7. **Caminhos fora desta entrega.** Consulta de CEP, exportação de PDF e sincronização continuam 501 para administrador e membro.
 
+## Resultado em 2026-11-11
+
+`./mvnw test` com JDK 25.0.5, sem Docker:
+
+- `CompanyContextTests`: 3 passaram.
+- `CompanySettingsTests`: 7 passaram.
+- `CompanyProductIntegrationTests`: 5 ignorados, porque `TEST_MONGODB_URI` não está definida.
+- `CompanyRegistrationHttpTests`: 7 erros ao subir o contexto. O Testcontainers não encontrou Docker (`Could not find a valid Docker environment`). A classe não foi executada e não está aprovada.
+- `SecurityConfigTests` e `LhamalogCoreApplicationTests`, em execução separada, falharam pelo mesmo motivo.
+
+`./mvnw verify` não foi dado como aprovado. O portão local continua exigindo Docker com as imagens fixas de `TestcontainersConfiguration`.
+
 ## Fora desta validação
 
 Não há cenário de tela. Não há chamada à Clerk para apagar organização. Não há verificação de faturamento, token, alerta ou métrica.

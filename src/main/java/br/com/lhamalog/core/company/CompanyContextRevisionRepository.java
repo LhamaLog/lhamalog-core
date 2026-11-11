@@ -9,4 +9,6 @@ public interface CompanyContextRevisionRepository extends MongoRepository<Compan
 	List<CompanyContextRevision> findByTenantIdOrderByRevisionDesc(String tenantId);
 
 	Optional<CompanyContextRevision> findByTenantIdAndRevision(String tenantId, long revision);
+
+	void deleteByTenantId(String tenantId);
 }

@@ -29,8 +29,8 @@ description: "Task list for manter dados da empresa"
 
 **Purpose**: Confirmar que a entrega reusa o Core e não abre stack nem configuração nova
 
-- [ ] T001 Confirmar que `pom.xml` permanece em Java 25 e Spring Boot 4.1.1, sem dependência nova para esta feature
-- [ ] T002 [P] Confirmar que `src/main/resources/application.properties` mantém `clerk.administrator-roles=${CLERK_ADMIN_ROLES:admin}` como única origem dos papéis de administrador
+- [X] T001 Confirmar que `pom.xml` permanece em Java 25 e Spring Boot 4.1.1, sem dependência nova para esta feature
+- [X] T002 [P] Confirmar que `src/main/resources/application.properties` mantém `clerk.administrator-roles=${CLERK_ADMIN_ROLES:admin}` como única origem dos papéis de administrador
 
 ---
 
@@ -40,8 +40,8 @@ description: "Task list for manter dados da empresa"
 
 **⚠️ CRITICAL**: Nenhuma história começa antes desta fase
 
-- [ ] T003 Adicionar `requireAdministrator` em `src/main/java/br/com/lhamalog/core/company/CompanyController.java`: quando `CompanySession.administrator()` for falso, lançar 403 com a mensagem "Somente o administrador da empresa pode alterar este cadastro.", diferente de "Selecione uma empresa para continuar." Ainda não chamar o método nos endpoints
-- [ ] T004 [P] Adicionar `deleteByTenantId(String tenantId)` em `src/main/java/br/com/lhamalog/core/company/CompanyContextRevisionRepository.java`, removendo só revisões cujo `tenantId` seja exatamente o informado
+- [X] T003 Adicionar `requireAdministrator` em `src/main/java/br/com/lhamalog/core/company/CompanyController.java`: quando `CompanySession.administrator()` for falso, lançar 403 com a mensagem "Somente o administrador da empresa pode alterar este cadastro.", diferente de "Selecione uma empresa para continuar." Ainda não chamar o método nos endpoints
+- [X] T004 [P] Adicionar `deleteByTenantId(String tenantId)` em `src/main/java/br/com/lhamalog/core/company/CompanyContextRevisionRepository.java`, removendo só revisões cujo `tenantId` seja exatamente o informado
 
 **Checkpoint**: O helper de administrador e a remoção de revisões por organização existem
 
@@ -57,12 +57,12 @@ description: "Task list for manter dados da empresa"
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T005 [US1] Criar `src/test/java/br/com/lhamalog/core/company/CompanyRegistrationHttpTests.java` com `@Import(TestcontainersConfiguration.class)`, `@SpringBootTest` e `@AutoConfigureMockMvc`, sem `TEST_MONGODB_URI` e sem tag `latest`. O teste `adminRegistersAndUpdatesOwnCompany` usa JWT sintético `o.id` e `o.rol=admin` e falha até T006. Cobrir: primeira gravação com `version: null`; campo omitido na alteração permanece; versão divergente responde 409 e o documento fica como estava. Incluir troca e remoção de logotipo pelo administrador
+- [X] T005 [US1] Criar `src/test/java/br/com/lhamalog/core/company/CompanyRegistrationHttpTests.java` com `@Import(TestcontainersConfiguration.class)`, `@SpringBootTest` e `@AutoConfigureMockMvc`, sem `TEST_MONGODB_URI` e sem tag `latest`. O teste `adminRegistersAndUpdatesOwnCompany` usa JWT sintético `o.id` e `o.rol=admin` e falha até T006. Cobrir: primeira gravação com `version: null`; campo omitido na alteração permanece; versão divergente responde 409 e o documento fica como estava. Incluir troca e remoção de logotipo pelo administrador
 
 ### Implementation for User Story 1
 
-- [ ] T006 [US1] Chamar `requireAdministrator` no início de `PUT /api/company`, `POST /api/company/logo` e `DELETE /api/company/logo` em `src/main/java/br/com/lhamalog/core/company/CompanyController.java`, antes de ler corpo, arquivo ou versão. Em `POST /api/company/logo`, aceitar arquivo ausente no parâmetro para a checagem ocorrer primeiro; arquivo ausente de administrador continua erro de pedido inválido. Manter em `src/main/java/br/com/lhamalog/core/company/CompanyService.java` as regras: cadastro incompleto continua aceito; campo preenchido continua validado; campos omitidos numa alteração permanecem
-- [ ] T007 [US1] Atualizar `src/test/java/br/com/lhamalog/core/company/CompanyProductIntegrationTests.java` para que as gravações de empresa usem papel `admin`. O `PUT` de membro deixa de ser o caso de validação 400. Acrescentar um `PUT` de administrador com corpo inválido que ainda recebe 400
+- [X] T006 [US1] Chamar `requireAdministrator` no início de `PUT /api/company`, `POST /api/company/logo` e `DELETE /api/company/logo` em `src/main/java/br/com/lhamalog/core/company/CompanyController.java`, antes de ler corpo, arquivo ou versão. Em `POST /api/company/logo`, aceitar arquivo ausente no parâmetro para a checagem ocorrer primeiro; arquivo ausente de administrador continua erro de pedido inválido. Manter em `src/main/java/br/com/lhamalog/core/company/CompanyService.java` as regras: cadastro incompleto continua aceito; campo preenchido continua validado; campos omitidos numa alteração permanecem
+- [X] T007 [US1] Atualizar `src/test/java/br/com/lhamalog/core/company/CompanyProductIntegrationTests.java` para que as gravações de empresa usem papel `admin`. O `PUT` de membro deixa de ser o caso de validação 400. Acrescentar um `PUT` de administrador com corpo inválido que ainda recebe 400
 
 **Checkpoint**: O administrador cadastra, altera e recebe 409 na versão antiga. A história se prova sem a exclusão
 
@@ -76,11 +76,11 @@ description: "Task list for manter dados da empresa"
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T008 [US2] Acrescentar em `src/test/java/br/com/lhamalog/core/company/CompanyRegistrationHttpTests.java` os testes `memberReadsAndCannotChange`, `nonAdminSlugCannotChange` e `sessionRulesStayDistinct`. Membro com organização recebe 200 na leitura. `PUT`, `POST /api/company/logo` e `DELETE /api/company/logo` respondem 403 com "Somente o administrador da empresa pode alterar este cadastro." e os dados não mudam. Slug `owner` ou `Administrador`, fora de `CLERK_ADMIN_ROLES` padrão `admin`, segue o membro. Pedido sem JWT responde 401. JWT sem organização responde 403 com "Selecione uma empresa para continuar." Os testes falham até T009
+- [X] T008 [US2] Acrescentar em `src/test/java/br/com/lhamalog/core/company/CompanyRegistrationHttpTests.java` os testes `memberReadsAndCannotChange`, `nonAdminSlugCannotChange` e `sessionRulesStayDistinct`. Membro com organização recebe 200 na leitura. `PUT`, `POST /api/company/logo` e `DELETE /api/company/logo` respondem 403 com "Somente o administrador da empresa pode alterar este cadastro." e os dados não mudam. Slug `owner` ou `Administrador`, fora de `CLERK_ADMIN_ROLES` padrão `admin`, segue o membro. Pedido sem JWT responde 401. JWT sem organização responde 403 com "Selecione uma empresa para continuar." Os testes falham até T009
 
 ### Implementation for User Story 2
 
-- [ ] T009 [US2] Ajustar a ordem em `src/main/java/br/com/lhamalog/core/company/CompanyController.java` para o membro receber 403 antes da validação de JSON, de arquivo e de versão. A mensagem do membro permanece "Somente o administrador da empresa pode alterar este cadastro." Não alterar `src/main/java/br/com/lhamalog/core/shared/CompanySession.java`: sessão sem organização continua "Selecione uma empresa para continuar."
+- [X] T009 [US2] Ajustar a ordem em `src/main/java/br/com/lhamalog/core/company/CompanyController.java` para o membro receber 403 antes da validação de JSON, de arquivo e de versão. A mensagem do membro permanece "Somente o administrador da empresa pode alterar este cadastro." Não alterar `src/main/java/br/com/lhamalog/core/shared/CompanySession.java`: sessão sem organização continua "Selecione uma empresa para continuar."
 
 **Checkpoint**: Leitura do membro e recusa das gravações existentes funcionam sem o endpoint novo de exclusão
 
@@ -94,12 +94,12 @@ description: "Task list for manter dados da empresa"
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T010 [US3] Acrescentar `adminDeletesRegistrationAndMemberCannot` em `src/test/java/br/com/lhamalog/core/company/CompanyRegistrationHttpTests.java`, falhando até T012. Afirmar: exclusão com cadastro responde 200 no mesmo formato do GET sem cadastro e `version` nula; segundo DELETE sem documento termina sem efeito e também responde 200; logotipo seguinte responde 404; revisões da organização ficam vazias; `Produto` e `AcessoProduto` continuam com o `tenantId`; novo `PUT` com `version: null` não restaura os valores removidos; `PUT` com a versão anterior responde 409; membro recebe 403 e o documento fica como estava
+- [X] T010 [US3] Acrescentar `adminDeletesRegistrationAndMemberCannot` em `src/test/java/br/com/lhamalog/core/company/CompanyRegistrationHttpTests.java`, falhando até T012. Afirmar: exclusão com cadastro responde 200 no mesmo formato do GET sem cadastro e `version` nula; segundo DELETE sem documento termina sem efeito e também responde 200; logotipo seguinte responde 404; revisões da organização ficam vazias; `Produto` e `AcessoProduto` continuam com o `tenantId`; novo `PUT` com `version: null` não restaura os valores removidos; `PUT` com a versão anterior responde 409; membro recebe 403 e o documento fica como estava
 
 ### Implementation for User Story 3
 
-- [ ] T011 [US3] Implementar `deleteRegistration(String tenantId)` em `src/main/java/br/com/lhamalog/core/company/CompanyService.java`. Sem documento `Tenant`, devolver a empresa vazia dessa organização, com `version` nula, sem apagar outra organização. Com documento, remover `Tenant`, `TenantLogo` e as revisões daquele `tenantId` via `deleteByTenantId`. Não chamar repositório de `Produto` nem de `AcessoProduto` e não chamar a Clerk
-- [ ] T012 [US3] Adicionar `DELETE /api/company` em `src/main/java/br/com/lhamalog/core/company/CompanyController.java`, sem corpo e sem versão, chamando `requireAdministrator` e em seguida `deleteRegistration` só com o id da sessão
+- [X] T011 [US3] Implementar `deleteRegistration(String tenantId)` em `src/main/java/br/com/lhamalog/core/company/CompanyService.java`. Sem documento `Tenant`, devolver a empresa vazia dessa organização, com `version` nula, sem apagar outra organização. Com documento, remover `Tenant`, `TenantLogo` e as revisões daquele `tenantId` via `deleteByTenantId`. Não chamar repositório de `Produto` nem de `AcessoProduto` e não chamar a Clerk
+- [X] T012 [US3] Adicionar `DELETE /api/company` em `src/main/java/br/com/lhamalog/core/company/CompanyController.java`, sem corpo e sem versão, chamando `requireAdministrator` e em seguida `deleteRegistration` só com o id da sessão
 
 **Checkpoint**: A exclusão esvazia o cadastro da organização e preserva o produto
 
@@ -113,11 +113,11 @@ description: "Task list for manter dados da empresa"
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T013 [US4] Acrescentar `operationsStayInsideTheSessionOrganization` em `src/test/java/br/com/lhamalog/core/company/CompanyRegistrationHttpTests.java`, falhando até T014. Duas organizações com cadastros diferentes: consulta, `PUT` e `DELETE` da sessão A deixam B intacto e oculto. Corpo com `organizationId` de B ainda grava só em A, porque id de organização enviado no corpo continua ignorado. Membro de A recebe 403 e nenhum dos dois cadastros muda
+- [X] T013 [US4] Acrescentar `operationsStayInsideTheSessionOrganization` em `src/test/java/br/com/lhamalog/core/company/CompanyRegistrationHttpTests.java`, falhando até T014. Duas organizações com cadastros diferentes: consulta, `PUT` e `DELETE` da sessão A deixam B intacto e oculto. Corpo com `organizationId` de B ainda grava só em A, porque id de organização enviado no corpo continua ignorado. Membro de A recebe 403 e nenhum dos dois cadastros muda
 
 ### Implementation for User Story 4
 
-- [ ] T014 [US4] Garantir em `src/main/java/br/com/lhamalog/core/company/CompanyController.java` e `src/main/java/br/com/lhamalog/core/company/CompanyService.java` que gravação e exclusão usam somente o id da sessão. A exclusão não recebe id no caminho nem no corpo. Não acrescentar parâmetro de organização no `DELETE`
+- [X] T014 [US4] Garantir em `src/main/java/br/com/lhamalog/core/company/CompanyController.java` e `src/main/java/br/com/lhamalog/core/company/CompanyService.java` que gravação e exclusão usam somente o id da sessão. A exclusão não recebe id no caminho nem no corpo. Não acrescentar parâmetro de organização no `DELETE`
 
 **Checkpoint**: As quatro histórias passam na classe HTTP nova
 
@@ -127,9 +127,9 @@ description: "Task list for manter dados da empresa"
 
 **Purpose**: Fechar a regressão dos caminhos fora da entrega e o portão de teste
 
-- [ ] T015 [P] Acrescentar em `src/test/java/br/com/lhamalog/core/company/CompanyRegistrationHttpTests.java` que `GET /api/company/postal-code/{cep}`, `POST /api/company/actions/export-pdf` e `POST /api/company/actions/sync` continuam 501 para administrador e para membro
-- [ ] T016 [P] Confirmar em `src/main/java/br/com/lhamalog/core/company/CompanyService.java` que a exclusão não cria coleção, métrica nem evento de auditoria
-- [ ] T017 Executar `.\mvnw.cmd verify` conforme `specs/002-manter-dados-empresa/quickstart.md` e registrar o resultado nesse arquivo
+- [X] T015 [P] Acrescentar em `src/test/java/br/com/lhamalog/core/company/CompanyRegistrationHttpTests.java` que `GET /api/company/postal-code/{cep}`, `POST /api/company/actions/export-pdf` e `POST /api/company/actions/sync` continuam 501 para administrador e para membro
+- [X] T016 [P] Confirmar em `src/main/java/br/com/lhamalog/core/company/CompanyService.java` que a exclusão não cria coleção, métrica nem evento de auditoria
+- [X] T017 Executar `.\mvnw.cmd verify` conforme `specs/002-manter-dados-empresa/quickstart.md` e registrar o resultado nesse arquivo
 
 ---
 
