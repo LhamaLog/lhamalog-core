@@ -29,8 +29,8 @@ description: "Task list for convidar usuário para a empresa"
 
 **Purpose**: Confirmar que a entrega não abre stack, SDK, e-mail nem segredo
 
-- [ ] T001 Confirmar que `pom.xml` permanece em Java 25 e Spring Boot 4.1.1, sem dependência nova, sem SDK da Clerk e sem biblioteca de e-mail
-- [ ] T002 [P] Confirmar que `src/main/resources/application.properties` mantém `clerk.administrator-roles=${CLERK_ADMIN_ROLES:admin}` e não ganha outra chave. Confirmar que `.env.example`, `.env.prod.example`, `compose.yaml` e `compose.prod.yaml` não ganham `CLERK_SECRET_KEY` nem valor que comece com `sk_`
+- [x] T001 Confirmar que `pom.xml` permanece em Java 25 e Spring Boot 4.1.1, sem dependência nova, sem SDK da Clerk e sem biblioteca de e-mail
+- [x] T002 [P] Confirmar que `src/main/resources/application.properties` mantém `clerk.administrator-roles=${CLERK_ADMIN_ROLES:admin}` e não ganha outra chave. Confirmar que `.env.example`, `.env.prod.example`, `compose.yaml` e `compose.prod.yaml` não ganham `CLERK_SECRET_KEY` nem valor que comece com `sk_`
 
 ---
 
@@ -40,7 +40,7 @@ description: "Task list for convidar usuário para a empresa"
 
 **⚠️ CRITICAL**: Nenhuma história começa antes desta fase
 
-- [ ] T003 Confirmar que `src/main/java/br/com/lhamalog/core/shared/CompanySession.java` segue lendo a empresa em `o.id` e o cargo em `o.rol`, com fallback `org_id` e `org_role` somente quando o mapa `o` está ausente, e que remove um prefixo `org:` do cargo. Confirmar que `src/main/java/br/com/lhamalog/core/shared/CompanySessionResolver.java` segue com o padrão `admin`. Não criar classe, documento nem controlador de convite em `src/main/java`
+- [x] T003 Confirmar que `src/main/java/br/com/lhamalog/core/shared/CompanySession.java` segue lendo a empresa em `o.id` e o cargo em `o.rol`, com fallback `org_id` e `org_role` somente quando o mapa `o` está ausente, e que remove um prefixo `org:` do cargo. Confirmar que `src/main/java/br/com/lhamalog/core/shared/CompanySessionResolver.java` segue com o padrão `admin`. Não criar classe, documento nem controlador de convite em `src/main/java`
 
 **Checkpoint**: O mapeamento da sessão permanece o atual e não existe recurso de convite
 
@@ -54,11 +54,11 @@ description: "Task list for convidar usuário para a empresa"
 
 ### Tests for User Story 1
 
-- [ ] T004 [US1] Criar `src/test/java/br/com/lhamalog/core/company/OrganizationInviteBoundaryTests.java` com `@Import(TestcontainersConfiguration.class)`, `@SpringBootTest` e `@AutoConfigureMockMvc`, as mesmas propriedades `management.otlp.metrics.export.enabled=false` e `management.tracing.export.otlp.enabled=false` de `CompanyRegistrationHttpTests`, sem `TEST_MONGODB_URI`, sem tag `latest` e sem `CLERK_SECRET_KEY`. O teste `invitePathsStayUnmapped` usa JWT sintético com `sub`, `o.id` e `o.rol` `admin` e espera 404 em `POST /api/invitations`, `POST /api/company/invitations`, `POST /api/organization-invitations` e `POST /api/invitations/accept`. O teste `invitePathsRejectAnonymous` espera 401 nesses mesmos caminhos sem JWT. O teste deve passar com o roteamento atual. Se o status autenticado não for 404, não criar rota para ajustá-lo
+- [x] T004 [US1] Criar `src/test/java/br/com/lhamalog/core/company/OrganizationInviteBoundaryTests.java` com `@Import(TestcontainersConfiguration.class)`, `@SpringBootTest` e `@AutoConfigureMockMvc`, as mesmas propriedades `management.otlp.metrics.export.enabled=false` e `management.tracing.export.otlp.enabled=false` de `CompanyRegistrationHttpTests`, sem `TEST_MONGODB_URI`, sem tag `latest` e sem `CLERK_SECRET_KEY`. O teste `invitePathsStayUnmapped` usa JWT sintético com `sub`, `o.id` e `o.rol` `admin` e espera 404 em `POST /api/invitations`, `POST /api/company/invitations`, `POST /api/organization-invitations` e `POST /api/invitations/accept`. O teste `invitePathsRejectAnonymous` espera 401 nesses mesmos caminhos sem JWT. O teste deve passar com o roteamento atual. Se o status autenticado não for 404, não criar rota para ajustá-lo
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] Não criar controlador, serviço nem cliente HTTP em `src/main/java`. Não alterar `pom.xml`. O e-mail vazio ("Informe o e-mail.") e o e-mail irreconhecível ("Informe um e-mail válido.") ficam no Web, como em `specs/004-convidar-usuario-empresa/contracts/organization-invite.md`. O prazo de 7 dias fica no dashboard da Clerk, documentado nesse contrato, e não vira campo em `src/main/java`
+- [x] T005 [US1] Não criar controlador, serviço nem cliente HTTP em `src/main/java`. Não alterar `pom.xml`. O e-mail vazio ("Informe o e-mail.") e o e-mail irreconhecível ("Informe um e-mail válido.") ficam no Web, como em `specs/004-convidar-usuario-empresa/contracts/organization-invite.md`. O prazo de 7 dias fica no dashboard da Clerk, documentado nesse contrato, e não vira campo em `src/main/java`
 
 **Checkpoint**: O Core não envia convite. A história de envio se prova pela ausência de caminho
 
@@ -72,12 +72,12 @@ description: "Task list for convidar usuário para a empresa"
 
 ### Tests for User Story 2
 
-- [ ] T006 [P] [US2] Estender `src/test/java/br/com/lhamalog/core/config/CompanySessionTests.java`. Com `CompanySessionResolver("admin")`, `o.rol` `admin` e `org:admin` produzem `administrator()` verdadeiro; `o.rol` `member` e `org:member` produzem `administrator()` falso. Sem o mapa `o`, `org_role` `admin` e `org:admin` são administrador e `org_role` `member` e `org:member` não são. A empresa da sessão é o `o.id` ou, na forma antiga, o `org_id`. Não tratar o texto "Administrador" como administrador
-- [ ] T007 [US2] Acrescentar `acceptedMemberIsNotAdministrator` e `acceptedAdministratorCanUpdateCompany` em `src/test/java/br/com/lhamalog/core/company/OrganizationInviteBoundaryTests.java`. A forma antiga do JWT traz `org_id` e `org_role` e não traz o mapa `o`. A forma atual traz `o.id` e `o.rol`. Primeiro um administrador com `o.rol` `admin` grava `{"data":{"legalName":"Empresa Convidada","document":""},"context":{"description":"Aceite"},"address":{},"organizationId":"org_outra","version":null}` e o `GET` devolve `id` da organização da sessão e o nome gravado. Na mesma organização, para `o.rol` `member` e `org:member`, e para `org_role` `member` e `org:member`: `GET /api/company` devolve esse nome, `GET /api/user/profile` responde 200 e `PUT /api/company` com corpo `{"role":"admin"}` responde 403 com "Somente o administrador da empresa pode alterar este cadastro." O `GET` seguinte mantém o nome. Para `o.rol` `org:admin` e para `org_role` `admin` e `org:admin`, cada um na própria organização, o mesmo `PUT` com `version` nula responde 200. JWT sem `o.id` e sem `org_id` em `GET /api/company` responde 403 com "Selecione uma empresa para continuar."
+- [x] T006 [P] [US2] Estender `src/test/java/br/com/lhamalog/core/config/CompanySessionTests.java`. Com `CompanySessionResolver("admin")`, `o.rol` `admin` e `org:admin` produzem `administrator()` verdadeiro; `o.rol` `member` e `org:member` produzem `administrator()` falso. Sem o mapa `o`, `org_role` `admin` e `org:admin` são administrador e `org_role` `member` e `org:member` não são. A empresa da sessão é o `o.id` ou, na forma antiga, o `org_id`. Não tratar o texto "Administrador" como administrador
+- [x] T007 [US2] Acrescentar `acceptedMemberIsNotAdministrator` e `acceptedAdministratorCanUpdateCompany` em `src/test/java/br/com/lhamalog/core/company/OrganizationInviteBoundaryTests.java`. A forma antiga do JWT traz `org_id` e `org_role` e não traz o mapa `o`. A forma atual traz `o.id` e `o.rol`. Primeiro um administrador com `o.rol` `admin` grava `{"data":{"legalName":"Empresa Convidada","document":""},"context":{"description":"Aceite"},"address":{},"organizationId":"org_outra","version":null}` e o `GET` devolve `id` da organização da sessão e o nome gravado. Na mesma organização, para `o.rol` `member` e `org:member`, e para `org_role` `member` e `org:member`: `GET /api/company` devolve esse nome, `GET /api/user/profile` responde 200 e `PUT /api/company` com corpo `{"role":"admin"}` responde 403 com "Somente o administrador da empresa pode alterar este cadastro." O `GET` seguinte mantém o nome. Para `o.rol` `org:admin` e para `org_role` `admin` e `org:admin`, cada um na própria organização, o mesmo `PUT` com `version` nula responde 200. JWT sem `o.id` e sem `org_id` em `GET /api/company` responde 403 com "Selecione uma empresa para continuar."
 
 ### Implementation for User Story 2
 
-- [ ] T008 [US2] Não alterar `src/main/java/br/com/lhamalog/core/company/CompanyController.java` nem `src/main/java/br/com/lhamalog/core/profile/UserProfileController.java` para criar aceite. O vínculo permanece a sessão descrita em `specs/004-convidar-usuario-empresa/data-model.md`. Não gravar cargo, e-mail nem convite em `UserProfile`. Se T006 ou T007 falharem no papel `org:member` ou `org:admin`, corrigir só a leitura já existente em `src/main/java/br/com/lhamalog/core/shared/CompanySession.java`
+- [x] T008 [US2] Não alterar `src/main/java/br/com/lhamalog/core/company/CompanyController.java` nem `src/main/java/br/com/lhamalog/core/profile/UserProfileController.java` para criar aceite. O vínculo permanece a sessão descrita em `specs/004-convidar-usuario-empresa/data-model.md`. Não gravar cargo, e-mail nem convite em `UserProfile`. Se T006 ou T007 falharem no papel `org:member` ou `org:admin`, corrigir só a leitura já existente em `src/main/java/br/com/lhamalog/core/shared/CompanySession.java`
 
 **Checkpoint**: Membro e administrador recém-aceitos caem nas regras atuais. Não há rota de aceite
 
@@ -91,11 +91,11 @@ description: "Task list for convidar usuário para a empresa"
 
 ### Tests for User Story 3
 
-- [ ] T009 [US3] Acrescentar `pendingListRevokeAndResendStayOutsideCore` em `src/test/java/br/com/lhamalog/core/company/OrganizationInviteBoundaryTests.java`. Com `o.rol` `admin`, `GET /api/invitations` e `POST /api/invitations/revoke` respondem 404. Com `o.rol` `member`, os mesmos caminhos respondem 404, não 200. O teste não define data de expiração nem segredo
+- [x] T009 [US3] Acrescentar `pendingListRevokeAndResendStayOutsideCore` em `src/test/java/br/com/lhamalog/core/company/OrganizationInviteBoundaryTests.java`. Com `o.rol` `admin`, `GET /api/invitations` e `POST /api/invitations/revoke` respondem 404. Com `o.rol` `member`, os mesmos caminhos respondem 404, não 200. O teste não define data de expiração nem segredo
 
 ### Implementation for User Story 3
 
-- [ ] T010 [US3] Não criar coleção nem campo de convite, prazo, revogação ou reenvio em `src/main/java`. Não alterar `src/main/resources/application.properties` para guardar os 7 dias. A renovação do prazo no reenvio permanece na Clerk, como em `specs/004-convidar-usuario-empresa/contracts/organization-invite.md`
+- [x] T010 [US3] Não criar coleção nem campo de convite, prazo, revogação ou reenvio em `src/main/java`. Não alterar `src/main/resources/application.properties` para guardar os 7 dias. A renovação do prazo no reenvio permanece na Clerk, como em `specs/004-convidar-usuario-empresa/contracts/organization-invite.md`
 
 **Checkpoint**: Expiração, revogação e reenvio não têm código neste repositório
 
@@ -105,9 +105,9 @@ description: "Task list for convidar usuário para a empresa"
 
 **Purpose**: Fechar o isolamento já existente, a ausência de segredo e o portão de teste
 
-- [ ] T011 [P] Confirmar que `operationsStayInsideTheSessionOrganization` em `src/test/java/br/com/lhamalog/core/company/CompanyRegistrationHttpTests.java` continua sendo a prova de que outra empresa citada no pedido não é a empresa da sessão. Não duplicar esse teste
-- [ ] T012 [P] Confirmar que `src/main/java/br/com/lhamalog/core/product/ProductService.java` e `src/main/java/br/com/lhamalog/core/profile/UserProfileService.java` não passam a ler convite. LLT-168, LLT-169, LLT-170, LLT-171, LLT-172, LLT-173 e LLT-174 permanecem fora
-- [ ] T013 Executar o `verify` descrito em `specs/004-convidar-usuario-empresa/quickstart.md` (`./mvnw verify` ou `.\mvnw.cmd verify`) e confirmar `CompanySessionTests` e `OrganizationInviteBoundaryTests` verdes, com Mongo `mongo:8.0.34` e sem segredo no comando
+- [x] T011 [P] Confirmar que `operationsStayInsideTheSessionOrganization` em `src/test/java/br/com/lhamalog/core/company/CompanyRegistrationHttpTests.java` continua sendo a prova de que outra empresa citada no pedido não é a empresa da sessão. Não duplicar esse teste
+- [x] T012 [P] Confirmar que `src/main/java/br/com/lhamalog/core/product/ProductService.java` e `src/main/java/br/com/lhamalog/core/profile/UserProfileService.java` não passam a ler convite. LLT-168, LLT-169, LLT-170, LLT-171, LLT-172, LLT-173 e LLT-174 permanecem fora
+- [x] T013 Executar o `verify` descrito em `specs/004-convidar-usuario-empresa/quickstart.md` (`./mvnw verify` ou `.\mvnw.cmd verify`) e confirmar `CompanySessionTests` e `OrganizationInviteBoundaryTests` verdes, com Mongo `mongo:8.0.34` e sem segredo no comando
 
 ---
 
