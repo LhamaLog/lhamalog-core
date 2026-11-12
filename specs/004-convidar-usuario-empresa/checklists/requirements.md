@@ -13,8 +13,8 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
-- [ ] Requirements are testable and unambiguous
+- [x] No [NEEDS CLARIFICATION] markers remain
+- [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
 - [x] All acceptance scenarios are defined
@@ -24,14 +24,14 @@
 
 ## Feature Readiness
 
-- [ ] All functional requirements have clear acceptance criteria
+- [x] All functional requirements have clear acceptance criteria
 - [x] User scenarios cover primary flows
 - [x] Feature meets measurable outcomes defined in Success Criteria
 - [x] No implementation details leak into specification
 
 ## Notes
 
-- Validação em 2026-11-12. Três itens ficam abertos de propósito: a spec ainda tem três marcadores `[NEEDS CLARIFICATION]` (FR-004 canal e Web, FR-008 cargos, FR-011 guarda do convite e do vínculo). O prazo em dias (FR-002) e o reenvio também aguardam resposta e por isso não foram chutados. O plano não começa antes dessas respostas.
-- `Clerk`, `CLERK_ADMIN_ROLES`, a recusa de sessão e as mensagens de e-mail permanecem porque descrevem quem é administrador hoje, o que a pessoa vê com e-mail inválido e o que acontece sem empresa selecionada. Não desenham armazenamento nem endpoint.
-- A configuração do dashboard da Clerk está nas Assumptions como lista do que outra pessoa precisaria configurar se o convite for de organização. Nenhum segredo foi escrito.
-- Os critérios de sucesso medem tempo de envio, vínculo no aceite, recusa de convite vencido ou revogado, isolamento do administrador e ausência de segredo versionado.
+- Validação em 2026-11-12, depois das respostas. Os marcadores `[NEEDS CLARIFICATION]` saíram. Canal, guarda, cargos, prazo de 7 dias, reenvio e telas de entrada estão em Clarifications.
+- `Clerk`, `CLERK_ADMIN_ROLES`, a recusa de sessão e as mensagens de e-mail permanecem porque descrevem quem envia o convite, quem é administrador, o que a pessoa vê com e-mail inválido no Web e o que acontece sem empresa selecionada. Não desenham endpoint novo no Core.
+- A configuração do dashboard da Clerk está nas Assumptions como lista do que outra pessoa configura. Nenhum segredo foi escrito.
+- Os critérios de sucesso medem tempo de envio, sessão depois do aceite, recusa de convite vencido ou revogado, isolamento do administrador e ausência de segredo versionado.

@@ -6,127 +6,141 @@
 
 **Status**: Draft
 
-**Input**: User description: "LLT-167 Convidar usuário para a empresa (épico LLT-99, feature LLT-119 Gestão de usuários). Como administrador, quero convidar pessoas para acessar o sistema com um cargo. O convite é enviado por e-mail com prazo de validade. Ao aceitar, o usuário fica vinculado ao tenant com o cargo escolhido. Convite expirado ou revogado não pode ser usado. A tela fica no Web. Configuração do dashboard da Clerk é tarefa de outra pessoa. Nenhum segredo entra neste repositório."
+**Input**: User description: "LLT-167 Convidar usuário para a empresa (épico LLT-99, feature LLT-119 Gestão de usuários). Como administrador, quero convidar pessoas para acessar o sistema com um cargo. O convite é enviado por e-mail com prazo de validade. Ao aceitar, o usuário fica vinculado ao tenant com o cargo escolhido. Convite expirado ou revogado não pode ser usado."
+
+## Clarifications
+
+### Session 2026-11-12
+
+Decisões finais do produto, alinhadas com o Web. Substituem os marcadores que estavam em aberto.
+
+- Q: Quem envia o e-mail e como o Web participa? → A: O Web cria o convite de organização da Clerk na sessão do administrador, pelo SDK do navegador. A Clerk envia o e-mail, controla a validade e a revogação. O Core não envia e-mail, não chama a Clerk e não usa chave secreta.
+- Q: O Core guarda o convite e o vínculo? → A: Não. O Core não guarda convite nem vínculo. Depois do aceite, a sessão com a organização e o cargo é o vínculo.
+- Q: Quais cargos o convite oferece? → A: Só o administrador pode convidar. No convite ele escolhe se a pessoa entra como Administrador (`admin`) ou Membro (`member`).
+- Q: Qual é a validade? → A: 7 dias, contados do envio. A configuração fica no dashboard da Clerk e é feita por outra pessoa. Esta entrega só documenta.
+- Q: O convite pode ser reenviado? → A: Sim. O administrador vê a lista de pendentes, pode revogar e reenviar. Isso é feito no Web, via Clerk.
+- Q: Onde a pessoa aceita? → A: Nas telas de entrada que já existem. Não há rota nova no Web nem no Core.
 
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Enviar convite com cargo e prazo (Priority: P1)
 
-Como administrador da empresa selecionada, quero convidar uma pessoa por e-mail, já com um cargo, para que ela receba um convite com prazo de validade e saiba a qual empresa está sendo chamada.
+Como administrador da empresa selecionada, quero convidar uma pessoa por e-mail, já como Administrador ou Membro, para que ela receba um convite com prazo de 7 dias.
 
-**Why this priority**: Sem o envio, a pessoa não recebe acesso e os outros critérios não têm o que aceitar, expirar ou revogar.
+**Why this priority**: Sem o envio, não há o que aceitar, expirar, revogar ou reenviar.
 
-**Independent Test**: Com sessão de administrador e empresa selecionada, informar um e-mail válido e um cargo permitido e confirmar. A pessoa recebe um e-mail de convite com prazo. Um membro sem papel de administrador não envia. Sem sessão, a resposta é 401. Sem empresa selecionada, vale a recusa já usada no produto.
+**Independent Test**: No Web, com a sessão de administrador, informar um e-mail válido e o cargo `admin` ou `member`. O Web cria o convite de organização na Clerk pelo SDK do navegador. A pessoa recebe o e-mail. O Core não envia e-mail, não chama a Clerk e não oferece caminho de convite. Um membro não dispara esse fluxo.
 
 **Acceptance Scenarios**:
 
-1. **Given** o administrador está na empresa selecionada, **When** informa o e-mail de uma pessoa que ainda não está vinculada e um cargo permitido e confirma, **Then** essa pessoa recebe um e-mail de convite para essa empresa, com o cargo escolhido e um prazo de validade.
-2. **Given** o convite foi enviado, **When** a pessoa recebe o e-mail, **Then** o e-mail é o convite para aquela empresa e esse convite deixa de poder ser aceito depois do prazo.
-3. **Given** a sessão é de um membro sem papel de administrador, **When** ele tenta enviar um convite, **Then** o convite não é enviado e a sessão dele continua válida.
-4. **Given** não há sessão, **When** alguém tenta enviar um convite, **Then** a resposta é 401 e nenhum convite é enviado.
-5. **Given** a sessão não tem empresa selecionada, **When** o administrador tenta enviar um convite, **Then** a operação é recusada com "Selecione uma empresa para continuar." e nenhum convite é enviado.
-6. **Given** o administrador informa e-mail vazio, **When** confirma, **Then** a operação é recusada com "Informe o e-mail." e nenhum convite é enviado.
-7. **Given** o administrador informa um e-mail irreconhecível, **When** confirma, **Then** a operação é recusada com "Informe um e-mail válido." e nenhum convite é enviado.
+1. **Given** o administrador está na empresa selecionada, **When** informa o e-mail de uma pessoa e o cargo Administrador ou Membro e confirma no Web, **Then** o Web cria o convite de organização da Clerk na sessão do navegador e a pessoa recebe o e-mail para essa empresa, com esse cargo e prazo de 7 dias.
+2. **Given** o administrador informa e-mail vazio, **When** confirma no Web, **Then** o Web recusa com "Informe o e-mail." e não chama a Clerk.
+3. **Given** o administrador informa um e-mail irreconhecível, **When** confirma no Web, **Then** o Web recusa com "Informe um e-mail válido." e não chama a Clerk.
+4. **Given** a sessão é de um membro, **When** ele tenta convidar, **Then** o Web não cria convite e a sessão dele continua válida. No Core, essa sessão segue sem poder de administrador nas regras já existentes.
+5. **Given** não há sessão, **When** alguém tenta usar o Core, **Then** a resposta é 401.
+6. **Given** a sessão não tem empresa selecionada, **When** alguém tenta usar o Core, **Then** a operação é recusada com "Selecione uma empresa para continuar."
 
 ---
 
 ### User Story 2 - Aceitar e ficar na empresa com o cargo (Priority: P1)
 
-Como pessoa convidada, quero aceitar o convite dentro do prazo para acessar aquela empresa com o cargo que o administrador escolheu.
+Como pessoa convidada, quero aceitar o convite nas telas de entrada que já existem para acessar aquela empresa como Administrador ou Membro, conforme o convite.
 
-**Why this priority**: O aceite é o que cria o vínculo. Sem ele, o e-mail não entrega acesso.
+**Why this priority**: O aceite é o que cria o acesso. O Core reconhece esse acesso pela sessão, não por um registro próprio.
 
-**Independent Test**: A pessoa aceita um convite pendente, dentro do prazo, que não foi revogado. Ela passa a acessar somente aquela empresa, com o cargo do convite. Aceitar de novo não cria outro vínculo. Convidar quem já está vinculado não muda o cargo.
+**Independent Test**: A pessoa aceita pela tela de entrada já existente. A sessão seguinte traz a organização do convite e o cargo `admin` ou `member`. No Core, `admin` (e `org:admin`) é administrador e `member` (e `org:member`) não é. Não surge rota nova. O cadastro da empresa, os produtos, o perfil e o acesso por produto permanecem como estavam.
 
 **Acceptance Scenarios**:
 
-1. **Given** existe um convite pendente dentro do prazo para a empresa A com um cargo permitido, **When** a pessoa aceita, **Then** ela fica vinculada à empresa A com esse cargo.
-2. **Given** o convite é da empresa A, **When** a pessoa aceita, **Then** ela não fica vinculada a outra empresa por causa desse convite.
-3. **Given** a pessoa já aceitou o convite, **When** o mesmo convite é usado de novo, **Then** nenhum vínculo adicional é criado.
-4. **Given** a pessoa já está vinculada à empresa com um cargo, **When** o administrador envia outro convite para o mesmo e-mail, **Then** o cargo vigente não muda e não nasce um segundo vínculo. Mudar o cargo de quem já entrou fica na LLT-170.
-5. **Given** a pessoa aceita o convite, **When** o acesso passa a valer, **Then** o cadastro da empresa, os produtos, o perfil de nome, idioma e fuso, as notificações e o acesso por produto permanecem como estavam.
+1. **Given** a pessoa aceita um convite pendente dentro de 7 dias para a empresa A como Membro, **When** entra pelas telas já existentes, **Then** a sessão traz a empresa A e o cargo `member`, e o Core trata essa sessão como membro, não como administrador.
+2. **Given** a pessoa aceita um convite pendente dentro de 7 dias para a empresa A como Administrador, **When** entra pelas telas já existentes, **Then** a sessão traz a empresa A e o cargo `admin`, e o Core trata essa sessão como administrador.
+3. **Given** o convite é da empresa A, **When** a pessoa aceita, **Then** a sessão não passa a valer para outra empresa por causa desse convite.
+4. **Given** a pessoa já está na empresa com um cargo, **When** o administrador envia outro convite para o mesmo e-mail, **Then** o cargo vigente da sessão não muda por uma gravação do Core. Trocar o cargo de quem já entrou fica na LLT-170.
+5. **Given** a pessoa aceita, **When** passa a usar o Core, **Then** o cadastro da empresa, os produtos, o perfil e o acesso por produto permanecem como estavam. O Core não grava convite nem vínculo.
 
 ---
 
-### User Story 3 - Convite expirado ou revogado não entra (Priority: P1)
+### User Story 3 - Convite expirado, revogado ou reenviado (Priority: P1)
 
-Como administrador, quero que um convite vencido ou que eu revoguei não dê acesso, para que um link antigo não coloque alguém na empresa.
+Como administrador, quero ver os convites pendentes, revogar, reenviar e confiar que um convite vencido ou revogado não dá acesso.
 
-**Why this priority**: É critério de aceite explícito. Enviar e aceitar sem essa trava deixaria o prazo e a revogação sem efeito.
+**Why this priority**: O prazo de 7 dias, a revogação e o reenvio são o controle do convite. Sem isso, um link antigo continuaria valendo.
 
-**Independent Test**: Um convite é aceito depois do prazo e o vínculo não nasce. Outro convite é revogado pelo administrador da mesma empresa e, em seguida, a tentativa de aceite não vincula ninguém. Revogar um convite já aceito não remove a pessoa.
+**Independent Test**: No Web, o administrador vê a lista de pendentes da Clerk, revoga um e reenvia outro. Um convite com mais de 7 dias, ou revogado, não é aceito pela Clerk e não produz sessão daquela empresa. O Core não lista, não revoga e não reenvia.
 
 **Acceptance Scenarios**:
 
-1. **Given** o prazo do convite já passou e ele não foi aceito, **When** a pessoa tenta aceitar, **Then** o aceite é recusado e ela não fica vinculada à empresa.
-2. **Given** o convite ainda está pendente, **When** o administrador da mesma empresa o revoga, **Then** uma tentativa posterior de aceite é recusada e nenhum vínculo novo nasce.
-3. **Given** a pessoa já aceitou e está vinculada, **When** alguém tenta revogar o convite que ela usou, **Then** o vínculo já criado permanece. Tirar o acesso de quem já entrou fica na LLT-168.
-4. **Given** a sessão é de um membro sem papel de administrador, **When** ele tenta revogar um convite da empresa, **Then** o convite continua pendente e utilizável até o prazo.
+1. **Given** passaram 7 dias do envio e o convite não foi aceito, **When** a pessoa tenta aceitar, **Then** a Clerk recusa e não nasce sessão dessa empresa por esse convite.
+2. **Given** o convite ainda está pendente, **When** o administrador o revoga no Web, **Then** a Clerk recusa um aceite posterior e não nasce sessão dessa empresa por esse convite.
+3. **Given** o convite está pendente, **When** o administrador reenvia no Web, **Then** a Clerk reenvia o e-mail e o prazo volta a contar 7 dias a partir desse reenvio.
+4. **Given** a pessoa já aceitou e a sessão dela já traz a empresa e o cargo, **When** alguém revoga o convite que ela usou, **Then** a sessão já emitida não é apagada por este fluxo. Tirar o acesso de quem já entrou fica na LLT-168.
+5. **Given** a sessão é de um membro, **When** ele tenta ver pendentes, revogar ou reenviar, **Then** o Web não faz essa operação na Clerk.
 
 ---
 
 ### Edge Cases
 
-- E-mail vazio é recusado com "Informe o e-mail." E-mail irreconhecível é recusado com "Informe um e-mail válido." Nenhum convite sai nesses casos.
-- Sessão ausente responde 401 e não envia, não aceita no lugar de outra pessoa e não revoga. Sessão sem empresa usa "Selecione uma empresa para continuar."
-- Membro sem papel de administrador não envia e não revoga. A recusa não encerra a sessão. Nome exibido parecido com administrador não concede esse poder: vale o identificador de papel já usado no produto.
-- Identificador de outra empresa enviado no pedido é ignorado. O convite é sempre da empresa da sessão.
-- Convite já aceito não pode ser aceito outra vez.
-- Convite expirado não pode ser aceito. Convite revogado não pode ser aceito.
-- Revogar não desfaz aceite já concluído.
-- Convidar um e-mail que já está vinculado à mesma empresa não cria segundo vínculo e não troca o cargo.
-- Enviar ou aceitar convite não altera cadastro da empresa, produtos, perfil, notificações nem acesso por produto.
-- O número de dias do prazo, a possibilidade de reenviar o mesmo convite, a lista fechada de cargos, quem envia o e-mail e onde o convite fica guardado aguardam esclarecimento. Esta spec não escolhe essas respostas.
-- Nenhum segredo é gravado para fazer o convite funcionar.
+- E-mail vazio é recusado no Web com "Informe o e-mail." E-mail irreconhecível é recusado no Web com "Informe um e-mail válido." A Clerk não é chamada.
+- Sessão ausente no Core responde 401. Sessão sem empresa usa "Selecione uma empresa para continuar."
+- Membro não convida, não lista pendentes, não revoga e não reenvia. Quem faz isso é o Web, via Clerk, só na sessão de administrador. A recusa não encerra a sessão.
+- O nome exibido "Administrador" não torna a sessão administradora. O identificador é `admin`. `member` não é administrador.
+- O identificador com prefixo `org:` equivale ao identificador sem prefixo: `org:admin` é administrador e `org:member` é membro, com a lista atual cujo padrão é `admin`.
+- Identificador de outra empresa enviado ao Core é ignorado. O convite criado no Web usa a organização da sessão do administrador.
+- Convite já aceito não é aceito de novo. O Core não cria um segundo vínculo porque não guarda vínculo.
+- Convite expirado não é aceito. Convite revogado não é aceito. Os dois casos ficam na Clerk.
+- Revogar o convite não remove quem já entrou.
+- Reenviar é ação do administrador no Web e renova o prazo para 7 dias. O Core não reenvia.
+- Aceitar não altera cadastro da empresa, produtos, perfil nem acesso por produto.
+- Não há rota nova de aceite. A pessoa usa as telas de entrada já existentes.
+- Nenhum segredo é gravado para o convite funcionar.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: O administrador da empresa selecionada MUST poder convidar uma pessoa informando o e-mail e um cargo permitido. O convite MUST ser enviado por e-mail e MUST indicar a empresa e o cargo escolhido.
-- **FR-002**: O convite MUST ter um prazo de validade contado a partir do envio. Depois desse instante, o convite MUST NOT ser aceito e MUST NOT criar vínculo. A quantidade de dias do prazo padrão aguarda esclarecimento e MUST NOT ser tratada como decidida nesta spec.
-- **FR-003**: O administrador da mesma empresa MUST poder revogar um convite ainda pendente. O convite revogado MUST NOT ser aceito e MUST NOT criar vínculo. A revogação de um convite já aceito MUST NOT remover a pessoa que já entrou.
-- **FR-004**: O canal do e-mail e a participação do Web MUST seguir [NEEDS CLARIFICATION: quem envia o e-mail e como o Web participa — convite de organização da Clerk disparado na sessão do administrador no Web, e-mail próprio do Core, ou o Core pedindo o envio à Clerk].
-- **FR-005**: Ao aceitar dentro do prazo um convite pendente e não revogado, a pessoa MUST ficar vinculada somente à empresa desse convite, com o cargo escolhido nele.
-- **FR-006**: Um convite já aceito MUST NOT ser aceito de novo e MUST NOT criar outro vínculo.
-- **FR-007**: Convidar um e-mail que já está vinculado à mesma empresa MUST NOT criar segundo vínculo e MUST NOT alterar o cargo vigente. A troca de cargo de quem já entrou permanece na LLT-170.
-- **FR-008**: Os cargos oferecidos no convite MUST ser [NEEDS CLARIFICATION: quais cargos existem e onde ficam — apenas administrador e membro já reconhecidos na sessão, os exemplos Administrador, Gestor e Visualizador da LLT-169, ou um cargo informado livremente até o catálogo ser fechado]. O nome exibido do cargo MUST NOT conceder poder de administrador.
-- **FR-009**: Membro sem papel de administrador MUST NOT enviar nem revogar convite. A recusa MUST NOT encerrar a sessão. Sessão ausente MUST responder 401 e MUST impedir envio e revogação. Sessão sem empresa selecionada MUST ser recusada com "Selecione uma empresa para continuar."
-- **FR-010**: O convite MUST pertencer à empresa da sessão. Identificador de outra empresa enviado pelo cliente MUST ser ignorado.
-- **FR-011**: A guarda do convite e do vínculo MUST seguir [NEEDS CLARIFICATION: o Core guarda o convite e o vínculo, guarda só o convite pendente, ou não guarda nenhum dos dois porque a organização da sessão já representa o vínculo depois do aceite].
-- **FR-012**: E-mail vazio MUST ser recusado com "Informe o e-mail." E-mail irreconhecível MUST ser recusado com "Informe um e-mail válido." Nessas recusas nenhum convite MUST ser enviado. Se o esclarecimento entregar o formulário à Clerk, o efeito MUST permanecer: e-mail inválido não gera convite.
+- **FR-001**: O administrador da empresa selecionada MUST poder convidar uma pessoa informando o e-mail e um dos cargos `admin` ou `member`. O Web MUST criar o convite de organização da Clerk na sessão do navegador. A Clerk MUST enviar o e-mail. O Core MUST NOT enviar e-mail e MUST NOT oferecer caminho de convite.
+- **FR-002**: O convite MUST valer 7 dias contados do envio. Depois desse prazo, a Clerk MUST NOT aceitar o convite e MUST NOT emitir sessão dessa empresa por ele. O reenvio MUST recomeçar a contagem de 7 dias. O valor MUST ser configurado no dashboard da Clerk por outra pessoa. O Core MUST NOT guardar esse prazo.
+- **FR-003**: O administrador MUST poder revogar um convite pendente no Web, via Clerk. O convite revogado MUST NOT ser aceito e MUST NOT gerar sessão dessa empresa. Revogar o convite de quem já aceitou MUST NOT remover a pessoa. Essa remoção permanece na LLT-168. O Core MUST NOT oferecer revogação.
+- **FR-004**: O canal MUST ser o SDK do navegador, na sessão do administrador. A Clerk controla e-mail, validade e revogação. O Core MUST NOT chamar a Clerk e MUST NOT usar chave secreta.
+- **FR-005**: Ao aceitar dentro do prazo, a pessoa MUST ficar vinculada somente à empresa do convite, com o cargo escolhido. O vínculo MUST ser a sessão que traz essa organização e esse cargo. O aceite MUST usar as telas de entrada já existentes. O Web e o Core MUST NOT criar rota nova de aceite.
+- **FR-006**: Um convite já aceito MUST NOT ser aceito de novo. O Core MUST NOT criar outro vínculo, porque não guarda vínculo.
+- **FR-007**: Convidar um e-mail que já está na mesma empresa MUST NOT fazer o Core trocar o cargo vigente. A troca de cargo de quem já entrou permanece na LLT-170.
+- **FR-008**: O convite MUST oferecer só Administrador (`admin`) e Membro (`member`). Só o administrador MUST poder convidar. O nome exibido do cargo MUST NOT conceder poder de administrador. No Core, com a lista cujo padrão é `admin`, os identificadores `admin` e `org:admin` MUST ser administrador, e `member` e `org:member` MUST NOT ser administrador.
+- **FR-009**: Membro MUST NOT enviar, listar pendentes, revogar nem reenviar. Essa restrição é do Web e da Clerk. No Core, a sessão de membro MUST continuar recusada nas alterações de administrador já existentes, sem encerrar a sessão. Sessão ausente MUST responder 401. Sessão sem empresa MUST ser recusada com "Selecione uma empresa para continuar."
+- **FR-010**: O convite MUST pertencer à organização da sessão do administrador. Identificador de outra empresa enviado ao Core MUST ser ignorado, como nas operações já existentes.
+- **FR-011**: O Core MUST NOT guardar convite nem vínculo. Depois do aceite, a sessão com a organização e o cargo MUST ser o vínculo.
+- **FR-012**: E-mail vazio MUST ser recusado no Web com "Informe o e-mail." E-mail irreconhecível MUST ser recusado no Web com "Informe um e-mail válido." Nesses casos o Web MUST NOT chamar a Clerk. O Core não valida o e-mail do convite.
 - **FR-013**: Esta entrega MUST NOT incluir listar, editar ou desativar usuários (LLT-168), fechar o catálogo e a matriz de permissões (LLT-169), atribuir outro cargo a quem já está vinculado (LLT-170), restringir acesso por produto (LLT-171), preferência de forma de e-mail (LLT-172), canais de notificação (LLT-173) nem perfil de nome, idioma e fuso (LLT-174).
-- **FR-014**: Esta entrega MUST NOT gravar segredo em código, teste, exemplo ou documentação versionada. Chave secreta da Clerk, inclusive valor que comece com `sk_` ou a variável `CLERK_SECRET_KEY`, MUST NOT entrar neste repositório. A configuração do dashboard da Clerk, quando o esclarecimento escolher esse caminho, é tarefa de outra pessoa.
-- **FR-015**: Envio por administrador, recusa de quem não é administrador, aceite dentro do prazo com o cargo escolhido, recusa de convite expirado e recusa de convite revogado MUST ser demonstrados por testes antes do merge. A forma do teste acompanha a decisão de canal do esclarecimento. O teste MUST afirmar a ausência de segredo versionado.
+- **FR-014**: Esta entrega MUST NOT gravar segredo em código, teste, exemplo ou documentação versionada. Chave secreta da Clerk, inclusive valor que comece com `sk_` ou a variável `CLERK_SECRET_KEY`, MUST NOT entrar neste repositório. A configuração do dashboard da Clerk é tarefa de outra pessoa. Esta entrega só documenta o que configurar.
+- **FR-015**: O Core MUST demonstrar por testes que uma sessão recém-aceita com cargo `member` ou `org:member` é membro e que uma sessão com cargo `admin` ou `org:admin` é administrador, nas regras já existentes, inclusive na forma antiga do papel (`org_role`). Os testes MUST mostrar que não há caminho de convite, aceite, revogação ou reenvio no Core e que não há segredo versionado. O e-mail, os 7 dias, a lista de pendentes, a revogação e o reenvio são provados no Web, contra a Clerk, e não por um enviador neste repositório.
+- **FR-016**: O administrador MUST poder ver a lista de convites pendentes e reenviar um convite pendente no Web, via Clerk. O Core MUST NOT listar pendentes e MUST NOT reenviar.
 
 ### Key Entities *(include if feature involves data)*
 
-- **Convite**: Chamado de uma pessoa, por e-mail, para uma empresa, com um cargo e um prazo. Pode estar pendente, aceito, expirado ou revogado. Onde ele fica guardado está em aberto no FR-011. Reenviar o mesmo convite não faz parte do aceite escrito.
-- **Pessoa convidada**: Identificada pelo e-mail enquanto o convite está pendente. Depois do aceite, é a pessoa vinculada à empresa com o cargo do convite.
-- **Administrador**: Quem pode enviar e revogar. É quem possui identificador de papel na lista já configurada de papéis administrativos da organização (`CLERK_ADMIN_ROLES`, padrão `admin`). O nome exibido do papel não basta.
-- **Empresa**: A organização da sessão. É o tenant do convite. O cliente não escolhe outra.
-- **Cargo**: O papel aplicado no aceite. A lista que o convite pode oferecer está em aberto no FR-008. A matriz do que cada cargo pode fazer fica na LLT-169 e na LLT-170.
-- **Vínculo**: A pessoa passa a pertencer à empresa com um cargo. Hoje o produto reconhece essa pertença pela organização da sessão e reconhece administrador pela lista acima. Se este serviço também grava o vínculo está em aberto no FR-011.
+- **Convite**: Chamado criado na Clerk, pelo Web, para um e-mail, uma organização e um cargo (`admin` ou `member`), com prazo de 7 dias. Pode estar pendente, aceito, expirado ou revogado. O Core não o guarda.
+- **Pessoa convidada**: Identificada pelo e-mail enquanto o convite está pendente na Clerk. Depois do aceite, é a pessoa da sessão.
+- **Administrador**: Quem pode convidar, listar pendentes, revogar e reenviar. No Core, é a sessão cujo identificador de papel, sem o prefixo `org:`, está na lista `CLERK_ADMIN_ROLES` (padrão `admin`).
+- **Membro**: A sessão com identificador `member`. Não convida e não administra o cadastro da empresa.
+- **Empresa**: A organização da sessão. É o tenant do convite. O cliente não escolhe outra no Core.
+- **Vínculo**: Não é um documento do Core. É a sessão que traz a organização e o cargo depois do aceite.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: Um administrador envia um convite com e-mail e cargo em até 2 minutos, e a pessoa recebe um e-mail com prazo de validade.
-- **SC-002**: Em 100% dos aceites feitos dentro do prazo, de convite pendente e não revogado, a pessoa fica vinculada só à empresa do convite e com o cargo escolhido nele.
-- **SC-003**: Em 100% das tentativas com convite expirado ou revogado, nenhum vínculo novo é criado.
-- **SC-004**: Em 100% das tentativas de envio ou revogação por quem não é administrador, ou sem empresa selecionada, nenhum convite novo sai e nenhum convite pendente muda de estado.
+- **SC-001**: Um administrador envia um convite com e-mail e cargo `admin` ou `member` em até 2 minutos, e a pessoa recebe um e-mail com prazo de 7 dias.
+- **SC-002**: Em 100% dos aceites feitos dentro de 7 dias, a próxima entrada pelas telas já existentes produz sessão só da empresa do convite e com o cargo escolhido. O Core trata `admin` como administrador e `member` como membro.
+- **SC-003**: Em 100% das tentativas com convite expirado ou revogado, a Clerk não emite sessão dessa empresa por esse convite.
+- **SC-004**: Em 100% das tentativas de envio, listagem, revogação ou reenvio por quem não é administrador, nenhum convite novo sai e nenhum pendente muda.
 - **SC-005**: Depois da entrega, o material versionado continua sem chave secreta da plataforma de identidade.
 
 ## Assumptions
 
 - A branch de trabalho é `LLT-167-convidar-usuario-para-a-empresa`, criada a partir do HEAD de `LLT-174-manter-perfil-do-usuario`. Esta especificação não abre pull request e não grava nada nas branches LLT-174 ou LLT-175.
-- A empresa do convite é a organização da sessão. O produto já recusa sessão sem empresa com "Selecione uma empresa para continuar." e já trata como administrador somente o identificador presente em `CLERK_ADMIN_ROLES` (padrão `admin`). Papéis como `member`, `owner` e o nome exibido "Administrador" não são administrador, salvo se o identificador estiver nessa lista.
-- Não existe no Core envio de e-mail, coleção de convite nem coleção de vínculo da pessoa com a empresa. O e-mail guardado no cadastro da empresa é contato da empresa, não caixa de saída. O vínculo de acesso a produto é outra relação e permanece na LLT-171. O perfil da pessoa não guarda e-mail nem cargo.
-- O acesso atual existe quando a sessão traz a empresa. A plataforma dessa sessão é a Clerk. Um registro só no Core, sem a pessoa entrar na organização da sessão, não passaria nas regras já existentes de empresa e de papel. Por isso o canal do e-mail e a guarda do vínculo ficaram em aberto, em vez de serem escolhidos aqui.
-- A tela de convidar fica no Web, em outro repositório, no mesmo espírito da LLT-174. Está em aberto se o Web dispara o convite na sessão do navegador ou se chama o Core.
-- O prazo existe. A quantidade de dias padrão não foi escolhida. Reenviar o mesmo convite não está no aceite. Esta versão não exige reenvio. As duas decisões ficam no esclarecimento e não entram como regra fechada.
-- Convite é de uso único: aceito uma vez, não serve de novo. Enquanto houver convite pendente para o mesmo e-mail na mesma empresa, outro envio não cria um segundo pendente. Essa espera pode ser revista se o esclarecimento escolher reenvio.
-- A configuração do dashboard da Clerk é tarefa de outra pessoa. Se o esclarecimento escolher convite de organização, o que precisaria ser configurado lá, sem valor secreto neste repositório, é: convites de organização habilitados; cargos que o convite pode atribuir, com os mesmos identificadores que a sessão já compara; prazo de validade do convite; página para onde a pessoa vai depois de aceitar; texto do e-mail de convite. Nenhum desses itens é configurado por esta entrega.
-- Autenticação, organizações e a instância Clerk continuam com quem já cuida dessa plataforma. Esta feature não os substitui e não adiciona chave secreta.
-- LLT-168, LLT-169, LLT-170, LLT-171, LLT-172, LLT-173 e LLT-174 permanecem fora. A LLT-169 continua sendo o lugar do catálogo de cargos. Esta história só precisa da lista mínima que o convite pode oferecer, e essa lista ainda não foi escolhida.
+- A empresa do convite é a organização ativa na sessão do administrador. O Core já recusa sessão sem empresa com "Selecione uma empresa para continuar." e já trata como administrador somente o identificador presente em `CLERK_ADMIN_ROLES` (padrão `admin`), depois de remover o prefixo `org:`.
+- O Core não envia e-mail e não passa a enviar. O e-mail do cadastro da empresa continua sendo contato da empresa. Não há coleção de convite nem de vínculo. O acesso por produto permanece na LLT-171. O perfil da pessoa não guarda e-mail nem cargo.
+- O acesso ao Core continua exigindo sessão com empresa. A plataforma dessa sessão é a Clerk. Um registro só no Core não concederia acesso.
+- A tela de convidar, a lista de pendentes, a revogação e o reenvio ficam no Web, em outro repositório. O aceite reutiliza as telas de entrada já existentes.
+- A lista do que outra pessoa configura no dashboard da Clerk, sem valor secreto neste repositório, é: convites de organização habilitados; cargos atribuíveis `admin` e `member`, os mesmos identificadores que a sessão compara; prazo de 7 dias; página de aceite apontando para as telas de entrada já existentes, sem rota nova; texto do e-mail de convite. Esta entrega não configura o dashboard.
+- Autenticação, organizações e a instância Clerk continuam com quem já cuida dessa plataforma. Esta feature não os substitui.
+- LLT-168, LLT-169, LLT-170, LLT-171, LLT-172, LLT-173 e LLT-174 permanecem fora. A LLT-169 continua sendo o lugar de qualquer cargo além de `admin` e `member`.
