@@ -36,9 +36,22 @@ Os detalhes de status e corpo estão no contrato. Cada item abaixo precisa apare
 8. **Identidade.** A gravação do nome sucede sem `CLERK_SECRET_KEY` e sem cliente da Clerk. A consulta e a resposta do `PUT` devolvem o nome gravado. A suíte afirma que o Core não chama a Clerk. Atualizar a identidade na sessão do navegador (`user.update`) é do Web, depois do sucesso, e não entra nesta suíte.
 9. **Fora desta entrega.** A suíte não cria painel, agendamento de varredura, envio de e-mail nem campo de notificação. CEP, PDF e sincronização da empresa não são alterados por estes testes.
 
-## Resultado
+## Resultado em 2026-11-12
 
-Ainda não executado. Esta execução para na especificação. O `verify` fica para a implementação das tasks, que deve registrar aqui o resultado.
+`bash ./mvnw verify` com JDK Temurin 25.0.5. O `./mvnw` do repositório não está executável neste ambiente; o comando foi o mesmo wrapper. A máquina não tem Docker.
+
+- `CompanyContextTests`: 3 passaram.
+- `CompanySettingsTests`: 7 passaram.
+- `CompanySessionTests`: 2 passaram.
+- `ClerkTokenValidatorTests`: 5 passaram.
+- `ApiSecurityTests`: 2 passaram.
+- `CompanyProductIntegrationTests`: 5 ignorados, porque `TEST_MONGODB_URI` não está definida.
+- `UserProfileHttpTests`: 6 erros ao subir o contexto. O Testcontainers não encontrou Docker (`Could not find a valid Docker environment`). A classe não foi executada e não está aprovada.
+- `CompanyRegistrationHttpTests`: 7 erros pelo mesmo motivo.
+- `SecurityConfigTests`: 2 erros pelo mesmo motivo.
+- `LhamalogCoreApplicationTests`: 1 erro pelo mesmo motivo.
+
+Totais do Surefire: 40 testes, 0 falhas de asserção, 16 erros de contexto, 5 ignorados. `./mvnw verify` não foi dado como aprovado. O portão local continua exigindo Docker com as imagens fixas de `TestcontainersConfiguration`, inclusive `mongo:8.0.34`. Os testes HTTP do perfil permanecem na suíte e não foram enfraquecidos.
 
 ## Fora desta validação
 
