@@ -31,7 +31,7 @@ O perfil é novo. O cadastro da empresa permanece o de [Manter dados da empresa]
 
 - **Empresa** (`Tenant`), **logotipo** (`TenantLogo`) e **histórico** (`TenantContextRevision`) não são lidos nem gravados pela manutenção do perfil. O fuso e o idioma da empresa continuam os campos já existentes.
 - **Produto** (`Produto`) e **vínculo** (`AcessoProduto`) permanecem.
-- A pessoa na Clerk não é lida nem atualizada. Não há coleção de auditoria nova.
+- A pessoa na Clerk não é lida nem atualizada por este Core. Depois do `PUT` aceito, o Web atualiza a identidade na sessão do navegador (`user.update`). Não há coleção de auditoria nova.
 
 ## Isolamento
 

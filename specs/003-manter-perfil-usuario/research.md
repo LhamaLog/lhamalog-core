@@ -32,7 +32,7 @@
   - `timezone`: obrigatório; aliases "(UTC-03:00) Brasília" e "(UTC-03:00) Brasilia" viram `America/Sao_Paulo`; o valor normalizado precisa ser aceito por `java.time.ZoneId.of`; a resposta grava `ZoneId.of(valor).getId()`; vazio com "Informe o fuso horário."; inválido com "Informe um fuso horário válido."
   - `version`: ausente ou `null` significa versão ausente; número integral é a versão pedida; outro tipo responde em `version` com "Confira o preenchimento deste campo."
 - **Rationale**: O cadastro da empresa já reconhece esses rótulos, esse formato de idioma e esse identificador de fuso. Repetir a regra no pacote `profile` evita que a gravação do perfil entre no merge da empresa. O limite 200 é `CompanyProfiles` texto curto.
-- **Alternatives considered**: Lista fechada só com `pt-BR` e `en`. O exemplo do produto cita esses dois, e o cadastro da empresa já aceita etiqueta mais ampla; fechar a lista agora rejeitaria `en-US`, que o mesmo formato já aceita. Bean Validation genérica perderia as mensagens específicas. Aceitar fuso vazio, como a empresa aceita, deixaria o perfil sem o dado que a história pede.
+- **Alternatives considered**: Lista fechada só com `pt-BR` e `en`. A tela do Web só oferece esses dois, e o produto confirmou que o Core não recusa `en-US`. Fechar a lista no Core rejeitaria uma etiqueta que o cadastro da empresa já aceita. Bean Validation genérica perderia as mensagens específicas. Aceitar fuso vazio, como a empresa aceita, deixaria o perfil sem o dado que a história pede. O JSON do fuso da pessoa é `timezone`. `timeZone` continua só no cadastro da empresa (`settings.data.timeZone`) e não entra neste contrato.
 
 ## Versão
 
@@ -43,25 +43,21 @@
 ## Consulta sem perfil
 
 - **Decision**: `GET` sem documento devolve `displayName` vazio, `language` `pt-BR`, `timezone` `America/Sao_Paulo` e `version` nula. Não há insert.
-- **Rationale**: O produto e a documentação estão em português e o exemplo de fuso da história é `America/Sao_Paulo`. O nome fica vazio porque a Clerk não é lida. A empresa também não grava na consulta.
+- **Rationale**: O produto e a documentação estão em português e o exemplo de fuso da história é `America/Sao_Paulo`. O nome fica vazio porque o Core não lê a identidade. A empresa também não grava na consulta.
 - **Alternatives considered**: Gravar o padrão no primeiro GET. Uma consulta passaria a criar documento e a disputar versão. Devolver idioma e fuso vazios empurraria o padrão para cada cliente.
 
-## Gap da escrita do nome na Clerk
+## Quem atualiza o nome na Clerk
 
-- **Decision**: Não atualizar a Clerk nesta entrega. Não acrescentar dependência, propriedade, cliente HTTP, webhook nem outro autenticador. `UserProfileService` só lê e grava `UserProfile`. A consulta devolve `displayName` persistido. O gap fica registrado aqui e no contrato, como item em aberto.
-- **Rationale**: A integração existente não consegue escrever o nome. Inventar o cliente seria a plataforma nova que o pedido proíbe.
-- **O que já existe**:
+- **Decision**: O Core grava `displayName` no MongoDB e o devolve no `GET` e no `PUT` aceito. Quem devolve o nome à Clerk é o Web, depois desse `PUT` com sucesso, pela sessão do navegador (`user.update`). O Core não acrescenta `CLERK_SECRET_KEY`, SDK da Clerk, cliente de Backend API nem `PATCH /v1/users`. `UserProfileService` só lê e grava `UserProfile`. Os testes HTTP afirmam que o Core não chama a Clerk. O critério de aceite da identidade fica atendido por essa divisão, sem segredo neste repositório.
+- **Rationale**: O produto tirou o write-back do Core. A integração já presente só valida o JWT da sessão. Crescer um segredo aqui duplicaria o que o Web faz na sessão do navegador e colocaria segredo num repositório que não precisa dele.
+- **O que já existe e permanece**:
   - `SecurityConfig` valida o JWT com `clerk.issuer` (`CLERK_ISSUER`), `clerk.jwks-uri` (`CLERK_JWKS_URI`) e `clerk.authorized-parties` (`CLERK_AUTHORIZED_PARTIES`).
   - `ClerkTokenValidator` exige `sub`, expiração, not-before, `azp` autorizado e `sts` diferente de `pending`. Não lê nome.
   - `CompanySession` usa o `sub` como `userId`.
   - `clerk.administrator-roles` (`CLERK_ADMIN_ROLES`, padrão `admin`) só distingue administrador da empresa.
   - `pom.xml` não declara SDK da Clerk. O README marca o SDK como pendente e diz que a chave secreta não entra neste Core.
-- **O que falta, e por isso o write-back não cabe nesta entrega**:
-  - Não há variável de segredo da Clerk em `application.properties`, `.env.example`, `.env.prod.example`, `compose.yaml` nem `compose.prod.yaml`. Nenhum valor de segredo deve ser escrito para fechar esse buraco aqui.
-  - Não há cliente nem método que chame a API de backend da Clerk.
-  - O JWT validado hoje não traz o nome. Não há leitura de usuário na Clerk.
-  - A atualização pública de usuário da Clerk, se um dia a integração existir, seria `PATCH https://api.clerk.com/v1/users/{user_id}` com o `user_id` igual ao `sub` e autorização pelo segredo. O corpo dessa API separa `first_name` e `last_name`. Este contrato tem um único `displayName`. Como o cliente não será criado agora, este plano não define como partir o nome.
-- **Alternatives considered**: Adicionar `CLERK_SECRET_KEY` e um `RestClient` nesta história. Isso desenha a integração que o pedido manda não criar. Ler o nome de `unsafeMetadata` contradiz o modelo já aceito em Empresa e Produtos. Webhook de usuário é plataforma Clerk, fora desta entrega.
+  - Não há `CLERK_SECRET_KEY` em `application.properties`, `.env.example`, `.env.prod.example`, `compose.yaml` nem `compose.prod.yaml`. Esta entrega não cria essa variável e não grava valor de segredo.
+- **Alternatives considered**: Adicionar `CLERK_SECRET_KEY` e um cliente para `PATCH https://api.clerk.com/v1/users/{user_id}`. O produto rejeitou: o Web chama `user.update` na sessão do navegador. Essa API de backend separa `first_name` e `last_name`; este contrato tem um único `displayName` e o Core não parte esse texto. Ler o nome de `unsafeMetadata` contradiz o modelo já aceito em Empresa e Produtos. Webhook de usuário é plataforma Clerk, fora desta entrega.
 
 ## Fuso horário e consumidores
 

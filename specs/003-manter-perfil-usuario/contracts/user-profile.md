@@ -35,7 +35,11 @@ O 401 é o mesmo dos demais caminhos sem JWT. O teste afirma o status, como já 
 | `timezone` | sim | identificador aceito por `ZoneId`, devolvido como `getId()` | `America/Sao_Paulo` |
 | `version` | não; omitido ou `null` na primeira gravação | versão otimista depois da primeira gravação | `null` |
 
+O nome do campo de fuso neste recurso é `timezone`. `timeZone` não é aceito como substituto e não é devolvido aqui. Esse outro nome continua só no cadastro da empresa.
+
 `userId`, `id`, `clerkUserId`, `organizationId` e `tenantId` enviados no JSON são ignorados. Não voltam na resposta.
+
+`pt-BR`, `en` e `en-US` são idiomas válidos. A tela do Web só oferece `pt-BR` e `en`. Este contrato não recusa `en-US`.
 
 Aliases aceitos e normalizados na gravação:
 
@@ -68,7 +72,7 @@ Com perfil gravado, 200:
 }
 ```
 
-O `displayName` é o último nome gravado no LhamaLog. Não é lido da Clerk.
+O `displayName` é o último nome gravado no LhamaLog. Não é lido da Clerk. A resposta do `PUT` aceito devolve o mesmo valor gravado, para o Web atualizar a identidade em seguida.
 
 ## PUT /api/user/profile
 
@@ -129,10 +133,24 @@ Em todo 400 e no 409, o perfil gravado permanece como estava. O 403 de empresa n
 - Um corpo que cita outra pessoa ou outra empresa ainda grava só o perfil da sessão.
 - `GET` e `PUT` do perfil não alteram `GET /api/company`. Fuso e idioma da empresa ficam nos campos que já existem (`preferences.timezone`, `data.timezone`, `shared.timezone`, `settings.data.timeZone`, e os campos de idioma correspondentes).
 
+## Nome e Clerk
+
+Este contrato é a fonte da verdade do perfil para o Core e para o Web.
+
+Depois de um `PUT /api/user/profile` com sucesso, o Web atualiza a identidade na sessão do navegador com `user.update`. O Core não faz essa chamada. O `displayName` gravado e devolvido aqui é o nome do LhamaLog.
+
+Fora deste recurso, de propósito:
+
+- não criar `CLERK_SECRET_KEY`;
+- não adicionar SDK da Clerk;
+- não adicionar cliente de Backend API;
+- não chamar `PATCH /v1/users`.
+
+O critério de aceite da identidade continua atendido por essa divisão, sem segredo neste repositório. A integração já presente no Core só valida o JWT (`CLERK_ISSUER`, `CLERK_JWKS_URI`, `CLERK_AUTHORIZED_PARTIES`).
+
 ## Fora deste contrato
 
-- Não há chamada à Clerk. O write-back do nome é item em aberto: a integração atual só valida o JWT (`CLERK_ISSUER`, `CLERK_JWKS_URI`, `CLERK_AUTHORIZED_PARTIES`) e não tem segredo nem cliente para `PATCH /v1/users/{user_id}`. Este contrato não cria essa chamada. O `displayName` devolvido é o gravado no Core.
 - Não há painel, agendamento de varredura nem e-mail neste Core. O `timezone` fica disponível nesta resposta para esses consumidores nas entregas deles.
-- O Core não traduz mensagens por causa de `language`. O Web aplica o idioma na interface.
+- O Core não traduz mensagens por causa de `language`. O Web aplica o idioma na interface e só oferece `pt-BR` e `en` na tela. `en-US` continua válido neste contrato.
 - E-mail da pessoa e notificações não têm campo aqui (LLT-172 e LLT-173).
 - CEP, PDF e sincronização da empresa continuam 501 e não fazem parte deste recurso.

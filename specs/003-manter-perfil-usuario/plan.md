@@ -12,9 +12,9 @@ A pessoa autenticada consulta e grava o próprio nome, idioma e fuso horário. O
 
 O fuso fica só no perfil. Não há painel, agendamento de varredura nem envio de e-mail neste Core, então nenhum consumidor é ligado. O idioma é gravado e devolvido; as mensagens atuais permanecem em português.
 
-O nome gravado é o que a consulta devolve. A Clerk, neste repositório, só valida o JWT da sessão. Não há cliente nem segredo para atualizar a pessoa. Esse write-back fica em aberto e não vira integração nova. O detalhe está em [research.md](research.md).
+O nome gravado é o que a consulta e a gravação aceita devolvem. Devolver esse nome à Clerk é do Web, na sessão do navegador (`user.update`), depois do `PUT` com sucesso. O Core não acrescenta `CLERK_SECRET_KEY`, SDK, cliente de backend nem `PATCH /v1/users`. O critério de aceite da identidade fica atendido por essa divisão, sem segredo neste repositório. O detalhe está em [research.md](research.md).
 
-O Web, em outro repositório, consome o contrato [user-profile.md](contracts/user-profile.md).
+O Web, em outro repositório, consome o contrato [user-profile.md](contracts/user-profile.md) como fonte da verdade. A tela só oferece `pt-BR` e `en`. O Core continua aceitando `en-US`. O campo de fuso no JSON é `timezone`, não `timeZone`.
 
 ## Technical Context
 
@@ -32,7 +32,7 @@ O Web, em outro repositório, consome o contrato [user-profile.md](contracts/use
 
 **Performance Goals**: Um perfil por pessoa. A meta da spec é consultar e confirmar a alteração em até 1 minuto. Sem meta nova de vazão.
 
-**Constraints**: Pessoa vem de `sub` do JWT, via `CompanySession.userId()`. Empresa continua obrigatória na sessão (`o.id`, com o fallback já existente `org_id`); sem empresa, a mensagem segue "Selecione uma empresa para continuar." Sem segredo em código, teste ou spec. Sem escrita na Clerk. Sem painel, agenda ou e-mail novos. Fuso e idioma da empresa não são lidos nem gravados por este fluxo.
+**Constraints**: Pessoa vem de `sub` do JWT, via `CompanySession.userId()`. Empresa continua obrigatória na sessão (`o.id`, com o fallback já existente `org_id`); sem empresa, a mensagem segue "Selecione uma empresa para continuar." Sem segredo em código, teste ou spec. Sem `CLERK_SECRET_KEY`, sem SDK da Clerk, sem cliente de backend e sem `PATCH /v1/users`. Sem painel, agenda ou e-mail novos. Fuso e idioma da empresa não são lidos nem gravados por este fluxo. O perfil continua um por pessoa. LLT-172 e LLT-173 ficam fora.
 
 **Scale/Scope**: Três campos e a versão. Sem tela neste repositório. Sem tradução do produto. LLT-172 e LLT-173 ficam fora.
 
@@ -46,11 +46,11 @@ Constituição do Core 2.0.0, conferida antes da pesquisa:
 - **II. Revisão do desenvolvedor**: as decisões ficam em `research.md`, neste plano, no modelo e no contrato. Tasks descrevem o que a implementação fará, sem marca de autoria.
 - **III. Testes antes do merge**: a evidência prevista é teste HTTP no `verify`, com Testcontainers e tag fixa. Esta execução não roda o `verify` porque não há código da feature.
 - **IV. Inglês no código, português na documentação**: artefatos deste plano em português. Nomes novos de classe, método, campo e caminho em inglês.
-- **V. Segredos**: testes usam JWT sintético do MockMvc. Nenhum token, senha ou chave entra no repositório. O gap da Clerk cita o nome da variável ausente, nunca um valor.
+- **V. Segredos**: testes usam JWT sintético do MockMvc. Nenhum token, senha ou chave entra no repositório. `CLERK_SECRET_KEY` não é criada. O nome da variável ausente não traz valor.
 - **Stack**: Java 25, Spring Boot 4.1.1 e MongoDB permanecem. Sem emenda da constituição.
 - **Fluxo de branch e commit**: o nome da branch e a mensagem de commit desta spec divergem do texto da constituição. O desvio está justificado abaixo, por instrução explícita desta execução. A constituição não é emendada aqui.
 
-**Revisão após o desenho**: contrato, modelo e quickstart mantêm o mesmo stack, o mesmo JWT e o mesmo isolamento por pessoa da sessão. A coleção nova não traz SDK, segredo nem chamada externa. O portão de teste continua sendo o `verify` com `mongo:8.0.34`. O write-back da Clerk permanece item em aberto, sem desenho de cliente. O desvio de branch e de commit permanece, pela instrução desta execução.
+**Revisão após o desenho**: contrato, modelo e quickstart mantêm o mesmo stack, o mesmo JWT e o mesmo isolamento por pessoa da sessão. A coleção nova não traz SDK, segredo nem chamada externa. O portão de teste continua sendo o `verify` com `mongo:8.0.34`. O retorno do nome à Clerk é do Web (`user.update`), depois do `PUT` aceito. O desvio de branch e de commit permanece, pela instrução desta execução. O alinhamento de 2026-11-12 não muda fuso, perfil por pessoa nem o fora de escopo de LLT-172 e LLT-173.
 
 ## Project Structure
 

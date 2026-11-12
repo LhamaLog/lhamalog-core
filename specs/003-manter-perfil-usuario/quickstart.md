@@ -33,7 +33,7 @@ Os detalhes de status e corpo estão no contrato. Cada item abaixo precisa apare
 5. **Papel.** Membro, com slug fora de `CLERK_ADMIN_ROLES`, consulta e grava o próprio perfil com sucesso.
 6. **Sessão.** Pedido sem autenticação responde 401. JWT sem empresa responde 403 com "Selecione uma empresa para continuar." e não grava.
 7. **Empresa intacta.** Depois de gravar fuso e idioma no perfil, `GET /api/company` mantém o fuso e o idioma que a empresa já tinha.
-8. **Identidade.** A gravação do nome sucede sem variável de segredo da Clerk. A consulta devolve o nome gravado. A suíte não chama a Clerk.
+8. **Identidade.** A gravação do nome sucede sem `CLERK_SECRET_KEY` e sem cliente da Clerk. A consulta e a resposta do `PUT` devolvem o nome gravado. A suíte afirma que o Core não chama a Clerk. Atualizar a identidade na sessão do navegador (`user.update`) é do Web, depois do sucesso, e não entra nesta suíte.
 9. **Fora desta entrega.** A suíte não cria painel, agendamento de varredura, envio de e-mail nem campo de notificação. CEP, PDF e sincronização da empresa não são alterados por estes testes.
 
 ## Resultado
@@ -42,4 +42,4 @@ Ainda não executado. Esta execução para na especificação. O `verify` fica p
 
 ## Fora desta validação
 
-Não há cenário de tela. Não há `PATCH` na Clerk. Não há segredo em variável de ambiente neste guia. Não há verificação de e-mail da pessoa nem de notificação.
+Não há cenário de tela. Não há `user.update`, `PATCH /v1/users`, SDK da Clerk nem `CLERK_SECRET_KEY`. Não há verificação de e-mail da pessoa nem de notificação.

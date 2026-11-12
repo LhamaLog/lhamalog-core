@@ -4,6 +4,8 @@ Data: 2026-11-12. Artefatos lidos: `spec.md`, `plan.md`, `tasks.md`, `research.m
 
 A passagem inicial achou os itens abaixo. Os de severidade alta e média foram corrigidos nos artefatos antes deste registro. Nenhum código de aplicação foi escrito.
 
+Alinhamento posterior no mesmo dia, confirmado pelo produto: o retorno do nome à Clerk é do Web (`user.update` na sessão do navegador, depois do `PUT` aceito). O Core guarda `displayName` e não cria `CLERK_SECRET_KEY`, SDK, cliente de backend nem `PATCH /v1/users`. Os testes que afirmam que o Core não chama a Clerk permanecem. O contrato HTTP não mudou de caminho nem de campos (`displayName`, `language`, `timezone`, `version`). A tela só oferece `pt-BR` e `en`; o Core continua aceitando `en-US`. Fuso só persistido, perfil por pessoa com empresa selecionada, e LLT-172/LLT-173 fora, permanecem.
+
 | ID | Category | Severity | Location(s) | Summary | Recommendation |
 |----|----------|----------|-------------|---------|----------------|
 | I1 | Inconsistency | HIGH | tasks.md T005; research.md validação | O teste citava o idioma `xx` como inválido. O formato `^[a-z]{2}(-[A-Z]{2})?$` aceita `xx`. | Corrigido: o exemplo inválido passou a ser `pt_BR`. |
@@ -11,7 +13,7 @@ A passagem inicial achou os itens abaixo. Os de severidade alta e média foram c
 | U1 | Underspecification | MEDIUM | spec.md FR-015; contract; tasks T008 | O contrato e as tasks exigiam 401 sem sessão. A spec só dizia que a sessão ausente impede o acesso. | Corrigido: a spec passa a exigir 401, no mesmo espírito da LLT-175. |
 | U2 | Underspecification | MEDIUM | spec.md edge cases; research versão | Duas primeiras gravações sem versão não estavam descritas. As duas podem passar da leitura e colidir na chave. | Corrigido: a spec, o modelo, o contrato, a pesquisa, o quickstart e T006 tratam essa colisão como 409 já existente. |
 | T1 | Terminology | LOW | spec.md; contracts/user-profile.md | A spec diz nome, idioma e fuso. O JSON diz `displayName`, `language` e `timezone`. | Mantido de propósito. A pesquisa ganhou a seção Terminologia com o mapa. |
-| D1 | Duplication | LOW | spec.md FR-010 e FR-011 | Os dois pedem que a consulta devolva o nome gravado no LhamaLog. | Mantido. FR-011 acrescenta o item em aberto da Clerk, que FR-010 não cobre. |
+| D1 | Duplication | LOW | spec.md FR-010 e FR-011 | Os dois pedem que a consulta devolva o nome gravado no LhamaLog. | Mantido. FR-011 acrescenta que o Web atualiza a Clerk e que o Core não chama a Clerk. |
 | C1 | Constitution | LOW | plan.md Complexity Tracking; constitution fluxo | A branch não é `feature/LLT-174-...` e o commit de spec não usa dois-pontos. | Exceção aceita nesta execução, registrada no plano. A constituição não foi emendada. A branch não foi renomeada. |
 
 **Coverage Summary Table:**
@@ -28,7 +30,7 @@ A passagem inicial achou os itens abaixo. Os de severidade alta e média foram c
 | FR-008 | Sim | T005, T006 | 400 não altera o perfil |
 | FR-009 | Sim | T014 | Mensagens permanecem em português |
 | FR-010 | Sim | T006, T010 | Nome devolvido é o gravado |
-| FR-011 | Sim | T001, T002, T011 | Sem cliente, SDK ou segredo novo |
+| FR-011 | Sim | T001, T002, T010, T011 | Web faz `user.update`; Core não chama a Clerk |
 | FR-012 | Sim | T010, T011 | Segundo GET não relê a Clerk |
 | FR-013 | Sim | T003, T008 | Um perfil por pessoa |
 | FR-014 | Sim | T008, T009 | Identificadores do corpo ignorados |
@@ -42,7 +44,7 @@ A passagem inicial achou os itens abaixo. Os de severidade alta e média foram c
 | SC-002 | Sim | T005 | Consulta seguinte e 409 |
 | SC-003 | Sim | T008, T009 | Isolamento |
 | SC-004 | Sim | T012, T013 | Empresa intacta |
-| SC-005 | Sim | T010, T011 | Nome gravado e gap da Clerk |
+| SC-005 | Sim | T010, T011 | Nome gravado; identidade fica no Web |
 | SC-006 | Sim | T013, T014 | Sem consumidores novos e sem tradução |
 
 **Constitution Alignment Issues:**
@@ -71,4 +73,4 @@ Itens só de leitura que permanecem de propósito:
 - C1: branch `LLT-174-manter-perfil-do-usuario` e commit de spec sem dois-pontos.
 - D1: FR-010 e FR-011 compartilham a frase do nome gravado.
 - T1: vocabulário de negócio na spec e campos em inglês no JSON.
-- O write-back do nome na Clerk continua item em aberto. Não é defeito de cobertura: FR-011 manda não criar a integração que o repositório ainda não tem.
+- O retorno do nome à Clerk não é item em aberto. FR-011 entrega essa responsabilidade ao Web (`user.update`) e mantém o Core sem segredo e sem chamada.

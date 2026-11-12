@@ -30,7 +30,7 @@ description: "Task list for manter perfil do usuário"
 **Purpose**: Confirmar que a entrega reusa o Core e não abre stack, SDK nem segredo
 
 - [ ] T001 Confirmar que `pom.xml` permanece em Java 25 e Spring Boot 4.1.1, sem dependência nova e sem SDK da Clerk
-- [ ] T002 [P] Confirmar que `src/main/resources/application.properties` mantém só `clerk.issuer`, `clerk.jwks-uri`, `clerk.authorized-parties` e `clerk.administrator-roles`, e que `.env.example`, `.env.prod.example`, `compose.yaml` e `compose.prod.yaml` não ganham variável de segredo da Clerk. Não alterar `src/main/java/br/com/lhamalog/core/config/SecurityConfig.java`: `anyRequest` autenticado já cobre `/api/**`
+- [ ] T002 [P] Confirmar que `src/main/resources/application.properties` mantém só `clerk.issuer`, `clerk.jwks-uri`, `clerk.authorized-parties` e `clerk.administrator-roles`, e que `.env.example`, `.env.prod.example`, `compose.yaml` e `compose.prod.yaml` não ganham `CLERK_SECRET_KEY` nem outra variável de segredo da Clerk. Não alterar `src/main/java/br/com/lhamalog/core/config/SecurityConfig.java`: `anyRequest` autenticado já cobre `/api/**`
 
 ---
 
@@ -57,7 +57,7 @@ description: "Task list for manter perfil do usuário"
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T005 [US1] Criar `src/test/java/br/com/lhamalog/core/profile/UserProfileHttpTests.java` com `@Import(TestcontainersConfiguration.class)`, `@SpringBootTest` e `@AutoConfigureMockMvc`, sem `TEST_MONGODB_URI`, sem tag `latest` e sem segredo da Clerk. O teste `savesAndReadsOwnProfile` usa JWT sintético `sub` e `o.id`/`o.rol` e falha até T007. Cobrir: `GET /api/user/profile` inicial com `displayName` "", `language` "pt-BR", `timezone` "America/Sao_Paulo" e `version` nula, e um segundo `GET` ainda com `version` nula; `PUT` com `version` nula; `GET` devolve os três valores; segundo `PUT` com a versão vigente muda só o valor reenviado diferente e mantém os outros dois; `PUT` com a versão antiga responde 409 e a consulta fica no segundo salvamento; nome vazio responde 400 `fieldErrors.displayName` "Informe o nome."; nome acima de 200 caracteres responde 400 "O texto excede o limite permitido."; idioma "pt_BR" responde 400 "Informe um idioma válido."; idioma vazio responde 400 "Informe o idioma."; nome só com espaços responde 400 "Informe o nome."; fuso "Nao/Existe" responde 400 "Informe um fuso horário válido."; campo omitido responde 400 e o perfil não muda; "Português (Brasil)" volta como "pt-BR"; "(UTC-03:00) Brasília" volta como "America/Sao_Paulo"
+- [ ] T005 [US1] Criar `src/test/java/br/com/lhamalog/core/profile/UserProfileHttpTests.java` com `@Import(TestcontainersConfiguration.class)`, `@SpringBootTest` e `@AutoConfigureMockMvc`, sem `TEST_MONGODB_URI`, sem tag `latest` e sem segredo da Clerk. O teste `savesAndReadsOwnProfile` usa JWT sintético `sub` e `o.id`/`o.rol` e falha até T007. Cobrir: `GET /api/user/profile` inicial com `displayName` "", `language` "pt-BR", `timezone` "America/Sao_Paulo" e `version` nula, e um segundo `GET` ainda com `version` nula; `PUT` com `version` nula; `GET` devolve os três valores; segundo `PUT` com a versão vigente muda só o valor reenviado diferente e mantém os outros dois; `PUT` com a versão antiga responde 409 e a consulta fica no segundo salvamento; nome vazio responde 400 `fieldErrors.displayName` "Informe o nome."; nome acima de 200 caracteres responde 400 "O texto excede o limite permitido."; idioma "pt_BR" responde 400 "Informe um idioma válido."; idioma vazio responde 400 "Informe o idioma."; nome só com espaços responde 400 "Informe o nome."; fuso "Nao/Existe" responde 400 "Informe um fuso horário válido."; campo omitido responde 400 e o perfil não muda; "Português (Brasil)" volta como "pt-BR"; "en-US" é aceito e devolvido como "en-US"; "(UTC-03:00) Brasília" volta como "America/Sao_Paulo"
 
 ### Implementation for User Story 1
 
@@ -82,25 +82,25 @@ description: "Task list for manter perfil do usuário"
 
 - [ ] T009 [US2] Garantir em `src/main/java/br/com/lhamalog/core/profile/UserProfileController.java` e `src/main/java/br/com/lhamalog/core/profile/UserProfileService.java` que a chave é somente `CompanySession.userId()`. Ignorar `userId`, `id`, `clerkUserId`, `organizationId` e `tenantId` do JSON em `UserProfileRules`. Não gravar `tenantId` em `UserProfile`. Não consultar `administrator()`
 
-**Checkpoint**: Duas pessoas e duas empresas se provam sem depender do gap da Clerk
+**Checkpoint**: Duas pessoas e duas empresas se provam sem chamar a Clerk
 
 ---
 
-## Phase 5: User Story 3 - Nome alinhado à identidade (Priority: P1)
+## Phase 5: User Story 3 - Nome gravado no Core e identidade no Web (Priority: P1)
 
-**Goal**: O nome gravado é o nome da consulta. A entrega não cria integração com a Clerk para escrever esse nome de volta
+**Goal**: O nome gravado é o nome da consulta e do `PUT` aceito. O Web atualiza a Clerk com `user.update` depois do sucesso. O Core não chama a Clerk
 
-**Independent Test**: Um `PUT` de nome novo, sem qualquer segredo da Clerk configurado no teste, responde 200. O `GET` seguinte devolve esse nome. O serviço não ganha cliente HTTP nem dependência nova
+**Independent Test**: Um `PUT` de nome novo, sem `CLERK_SECRET_KEY` e sem cliente da Clerk, responde 200. O `GET` seguinte devolve esse nome. O serviço não ganha cliente HTTP nem dependência nova
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T010 [US3] Acrescentar `nameIsStoredWithoutIdentityCall` em `src/test/java/br/com/lhamalog/core/profile/UserProfileHttpTests.java`, falhando até T011. O teste não define segredo da Clerk. `PUT` com `displayName` novo responde 200 e o `GET` devolve esse nome, com idioma e fuso iguais aos enviados. Um segundo `GET`, sem outro `PUT`, devolve o mesmo nome. Nenhuma propriedade de teste introduz cliente da Clerk
+- [ ] T010 [US3] Acrescentar `nameIsStoredWithoutIdentityCall` em `src/test/java/br/com/lhamalog/core/profile/UserProfileHttpTests.java`, falhando até T011. O teste não define `CLERK_SECRET_KEY`. `PUT` com `displayName` novo responde 200 e o `GET` devolve esse nome, com idioma e fuso iguais aos enviados. Um segundo `GET`, sem outro `PUT`, devolve o mesmo nome. O teste afirma que o Core não chama a Clerk. Nenhuma propriedade de teste introduz cliente da Clerk
 
 ### Implementation for User Story 3
 
-- [ ] T011 [US3] Manter `src/main/java/br/com/lhamalog/core/profile/UserProfileService.java` sem cliente HTTP, sem SDK e sem leitura de nome no JWT além do `sub` que já identifica a pessoa. Não adicionar classe de integração Clerk, não mapear segredo em `src/main/resources/application.properties` e não alterar `pom.xml`. O gap de `PATCH https://api.clerk.com/v1/users/{user_id}` permanece só descrito em `specs/003-manter-perfil-usuario/research.md`. Não implementar essa chamada e não definir como partir `displayName` em `first_name` e `last_name`
+- [ ] T011 [US3] Manter `src/main/java/br/com/lhamalog/core/profile/UserProfileService.java` sem cliente HTTP, sem SDK da Clerk e sem leitura de nome no JWT além do `sub` que já identifica a pessoa. Não adicionar classe de integração Clerk, não mapear `CLERK_SECRET_KEY` em `src/main/resources/application.properties` e não alterar `pom.xml`. Não implementar `PATCH /v1/users` nem partir `displayName` em `first_name` e `last_name`. O retorno do nome à Clerk fica no Web, com `user.update` na sessão do navegador depois do `PUT` aceito, como descrito em `specs/003-manter-perfil-usuario/research.md` e `specs/003-manter-perfil-usuario/contracts/user-profile.md`
 
-**Checkpoint**: O nome persiste no Core e a Clerk continua só validando o JWT já existente
+**Checkpoint**: O nome persiste no Core. A suíte prova que o Core não chama a Clerk. A identidade na sessão do navegador fica com o Web
 
 ---
 
@@ -145,7 +145,7 @@ description: "Task list for manter perfil do usuário"
 
 - **User Story 1 (P1)**: começa após a Phase 2. Não depende das outras histórias
 - **User Story 2 (P1)**: começa após a Phase 2. O teste usa o endpoint da US1; a prova independente é o isolamento e a sessão
-- **User Story 3 (P1)**: começa após a Phase 2. O teste usa a gravação da US1; a prova independente é o nome persistido sem cliente Clerk
+- **User Story 3 (P1)**: começa após a Phase 2. O teste usa a gravação da US1; a prova independente é o nome persistido sem chamada à Clerk
 - **User Story 4 (P1)**: começa depois da US1, porque o teste grava perfil e empresa. Não depende da US2 nem da US3
 
 ### Within Each User Story
@@ -188,7 +188,7 @@ Task: "Criar UserProfileRules em src/main/java/br/com/lhamalog/core/profile/User
 1. Setup e fundação
 2. US1: a pessoa grava e relê o próprio perfil
 3. US2: duas pessoas, duas empresas e a sessão
-4. US3: o nome fica no Core e a Clerk não ganha cliente
+4. US3: o nome fica no Core e a suíte prova que não há chamada à Clerk
 5. US4: a empresa e os consumidores inexistentes permanecem como estão
 6. Phase 7: mensagens atuais e `./mvnw verify`
 
@@ -205,7 +205,7 @@ Task: "Criar UserProfileRules em src/main/java/br/com/lhamalog/core/profile/User
 ## Notes
 
 - [P] só em arquivos diferentes e sem dependência em aberto
-- Não criar módulo Maven, SDK da Clerk, propriedade de segredo nem chamada à API de backend da Clerk
+- Não criar módulo Maven, SDK da Clerk, `CLERK_SECRET_KEY`, cliente de Backend API nem `PATCH /v1/users`. O `user.update` é do Web
 - Não gravar segredo em teste, código ou documento
 - Não criar painel, agendamento de varredura, envio de e-mail nem tradução das mensagens
 - Identificadores novos em inglês; texto de mensagem e desta lista em português
