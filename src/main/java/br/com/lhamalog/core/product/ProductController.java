@@ -7,8 +7,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -26,19 +24,18 @@ public class ProductController {
 	public record UpdateContext(@NotNull @Valid Product.Context context, @NotNull Long version) {}
 
 	@GetMapping
-	public List<Product> list(@AuthenticationPrincipal Jwt jwt) { return service.list(sessions.resolve(jwt)); }
+	public List<Product> list() { return service.list(sessions.current()); }
 	@GetMapping("/{id}")
-	public Product get(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
-		return service.get(sessions.resolve(jwt), id);
+	public Product get(@PathVariable String id) {
+		return service.get(sessions.current(), id);
 	}
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
-	public Product create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CreateProduct request) {
-		return service.create(sessions.resolve(jwt), request);
+	public Product create(@Valid @RequestBody CreateProduct request) {
+		return service.create(sessions.current(), request);
 	}
 	@PutMapping("/{id}/context")
-	public Product updateContext(@AuthenticationPrincipal Jwt jwt, @PathVariable String id,
-			@Valid @RequestBody UpdateContext request) {
-		return service.updateContext(sessions.resolve(jwt), id, request);
+	public Product updateContext(@PathVariable String id, @Valid @RequestBody UpdateContext request) {
+		return service.updateContext(sessions.current(), id, request);
 	}
 }

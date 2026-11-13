@@ -15,10 +15,14 @@ services:
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:?configure REDIS_PASSWORD}
       OTLP_ENABLED: "false"
-      CLERK_ISSUER: ${CLERK_ISSUER:-}
+      CLERK_ISSUER: ${CLERK_ISSUER:?configure CLERK_ISSUER (Frontend API URL da Clerk) em infra/local/.env}
       CLERK_JWKS_URI: ${CLERK_JWKS_URI:-}
       CLERK_AUTHORIZED_PARTIES: http://localhost:5173
-      CLERK_ADMIN_ROLES: ${CLERK_ADMIN_ROLES:-admin}
+      # Opcionais no local: sem a secret key o 403 nao revoga sessoes; sem o signing secret os webhooks sao rejeitados.
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
+      CLERK_WEBHOOK_SIGNING_SECRET: ${CLERK_WEBHOOK_SIGNING_SECRET:-}
+      # Cria um Tenant ACTIVE para esta organizacao ao subir (sem Tenant, toda chamada responde 403 e desloga).
+      DEV_TENANT_CLERK_ORG_ID: ${DEV_TENANT_CLERK_ORG_ID:-}
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
