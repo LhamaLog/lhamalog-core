@@ -1,6 +1,6 @@
 # Feature Specification: Validação do session token da Clerk no Core
 
-**Feature Branch**: `feature/LLT-163-validacao-token-clerk` (a ser criada pelo desenvolvedor; diretório de spec `specs/002-validacao-token-clerk`)
+**Feature Branch**: `LLT-163-validar-o-token-do-clerk-no-core` (padrão do Jira; diretório de spec `specs/002-validacao-token-clerk`)
 
 **Created**: 2026-11-06
 

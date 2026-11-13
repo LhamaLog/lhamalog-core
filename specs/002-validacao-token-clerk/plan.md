@@ -1,6 +1,6 @@
 # Implementation Plan: Validação do session token da Clerk no Core
 
-**Branch**: `feature/LLT-163-validacao-token-clerk` (criada pelo desenvolvedor) | **Date**: 2026-11-06 | **Spec**: [spec.md](spec.md)
+**Branch**: `LLT-163-validar-o-token-do-clerk-no-core` (padrão do Jira) | **Date**: 2026-11-06 | **Spec**: [spec.md](spec.md)
 
 **Input**: Feature specification from `specs/002-validacao-token-clerk/spec.md`
 
