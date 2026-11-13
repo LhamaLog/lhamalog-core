@@ -34,7 +34,7 @@ O Core passa a aceitar só requisições com session token da Clerk válido no h
 |---|---|
 | I. Spec Kit | spec, clarify (seção Clarifications), plan e research nesta pasta; tasks em seguida; nenhum código antes. OK |
 | II. IA 100% com revisão | decisões registradas em research.md; explicação ao fim da feature; tasks sem autoria. OK |
-| III. Testes | um teste por cenário de aceitação, Testcontainers com tags fixas, `clean verify` local. **Pendente R13 (JDK)** |
+| III. Testes | um teste por cenário de aceitação, Testcontainers com tags fixas, `clean verify` local. OK (R13 resolvida na R15: JDK 25 instalado) |
 | IV. Idiomas | código e logs em inglês; docs em português. OK |
 | V. Segredos | `CLERK_SECRET_KEY` só por variável; testes com chaves geradas em memória e valores fictícios. OK |
 | Stack | sem mudança de Java, Boot ou build. OK |
@@ -96,6 +96,7 @@ src/main/java/br/com/lhamalog/core/
         │   ├── ClerkAuthenticationConverter.java
         │   ├── ClerkAuthentication.java
         │   ├── TenantAccessAuthorizationManager.java
+        │   ├── UnavailableKeysAsInvalidTokenJwtDecoder.java  # JWKS indisponível → 401 (R17)
         │   ├── BasicErrorAuthenticationEntryPoint.java   # 401
         │   ├── SessionRevokingAccessDeniedHandler.java   # 403 + revogação
         │   └── SecurityContextCurrentRequestContext.java # implementa a porta
@@ -154,8 +155,8 @@ Request ─▶ CorsFilter ─▶ BearerTokenAuthenticationFilter
 ## Riscos
 
 - Formato real de `o.rol` e `sts` só confirmado no teste manual (quickstart).
-- Conflito de merge com a `Development` (R14).
-- JDK 25 ausente na máquina (R13): bloqueia o `verify` até a decisão.
+- Conflito de merge com a `Development` (R14): resolvido na R16, a branch parte da `Development`.
+- JDK 25 ausente na máquina (R13): resolvido na R15.
 
 ## Complexity Tracking
 

@@ -18,7 +18,7 @@
 
 - Q: Como validar o token: Spring resource server com JWKS ou SDK `com.clerk:backend-api`? → A: Spring resource server (já no pom) com o JWKS da instância da Clerk e validadores próprios de `azp` e `sts`. Nenhuma dependência nova.
 - Q: A feature gera o JWT interno da ADR_028? → A: Não. Fica para feature própria.
-- Q: Como obter Tenants para teste, já que o fluxo de compra não existe? → A: Só fixtures nos testes. Nenhum seed no código de produção.
+- Q: Como obter Tenants para teste, já que o fluxo de compra não existe? → A: Só fixtures nos testes. Nenhum seed no código de produção. **Atualizado em 2026-11-09 (research R16):** o perfil `local` ganhou um Tenant de desenvolvimento opcional (`DEV_TENANT_CLERK_ORG_ID`), criado na subida e nunca alterado depois. Ele nunca fica ativo em prod; sem ele, o ambiente integrado deslogaria todo usuário enquanto o fluxo de compra não existe.
 - Q: Origens permitidas (`azp`) em desenvolvimento? → A: `http://localhost:5173` (lhamalog-web e projeto de teste usam essa porta com `strictPort`). Em prod, só por variável de ambiente.
 - Q: Formato de `o.rol`? → A: Pela documentação da Clerk (token v2), `rol` vem sem o prefixo `org:` (ex.: `admin`). O Core aceita as duas formas (`admin` e `org:admin`). Confirmação com token real da instância de dev: [PENDENTE], feita no teste manual (quickstart).
 - Q: Tenant vs. Empresa (branch `Development` tem `Company` com `clerkOrgId`)? → A: Pela ADR_158, Tenant (identidade e chave de isolamento) e Empresa (cadastro) são entidades distintas, 1:1. Esta feature cria só a coleção `tenant`.
@@ -138,4 +138,4 @@ Quando o token é válido mas o acesso é negado, o Core responde 403 e revoga t
 - O Tenant é criado pelo fluxo de compra (feature futura); até lá, só existe em fixtures de teste ou inserido manualmente no Mongo local para teste manual.
 - Status de Tenant conhecidos nesta feature: `ACTIVE` e `SUSPENDED`; só `ACTIVE` dá acesso. Outros status entram com a feature de Assinatura.
 - A janela de até 60 s após a revogação (token já emitido ainda válido) é aceita, conforme a ADR_032.
-- A branch `origin/Development` (Empresa e Produtos) tem um `SecurityConfig` e um `CompanySession` próprios; a reconciliação acontece no merge, fora desta feature.
+- A branch `origin/Development` (Empresa e Produtos) tem um `SecurityConfig` e um `CompanySession` próprios. **Atualizado em 2026-11-09 (research R16):** a branch passou a partir da `Development` e a junção foi feita nesta feature: uma camada de segurança só, `CompanySession` montado pelo `CurrentRequestContext` e a Empresa gravada no documento do Tenant.
