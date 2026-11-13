@@ -60,7 +60,7 @@ public class SecurityConfig {
 			@Value("${clerk.authorized-parties:}") String authorizedParties) {
 		CorsConfiguration configuration = new CorsConfiguration();
 		configuration.setAllowedOrigins(List.copyOf(origins(authorizedParties)));
-		configuration.setAllowedMethods(List.of("GET", "PUT", "POST", "OPTIONS"));
+		configuration.setAllowedMethods(List.of("GET", "PUT", "POST", "DELETE", "OPTIONS"));
 		configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 		source.registerCorsConfiguration("/api/**", configuration);

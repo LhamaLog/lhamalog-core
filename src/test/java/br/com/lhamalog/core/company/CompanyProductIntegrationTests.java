@@ -43,7 +43,7 @@ class CompanyProductIntegrationTests {
 	@Test
 	void companyPersistsAndIsIsolatedAndRejectsStaleVersion() throws Exception {
 		String tenant = organization();
-		var actor = session(tenant, "user_a", "member");
+		var actor = session(tenant, "user_a", "admin");
 		String body = """
 				{"data":{"legalName":"Empresa A","tradeName":"A","document":"","size":"","registrationDate":null},
 				 "context":{"sector":"Tecnologia","mission":"","targetAudience":"","differentiators":"","language":""},
@@ -61,10 +61,46 @@ class CompanyProductIntegrationTests {
 	}
 
 	@Test
+	void companySettingsReloadFromTheSameTenant() throws Exception {
+		String tenant = organization();
+		var actor = session(tenant, "user_a", "admin");
+		String body = """
+				{"data":{"legalName":"Empresa Persistida","document":"11.444.777/0001-61","email":"pessoa@example.com",
+				 "sector":"Tecnologia / SaaS","timezone":"America/Sao_Paulo","language":"pt-BR"},
+				 "context":{"segment":"Tecnologia / SaaS","environments":["Produção"],"monitoredSystems":["Backend"]},
+				 "address":{"postalCode":"87000000","street":"Avenida Brasil","number":"10","district":"Centro",
+				 "city":"Maringá","state":"PR","useAsFiscalAndCorrespondence":true},
+				 "preferences":{"dailySummary":true,"aiDetail":"Alto","currency":"BRL","dataInterval":"LAST_24_HOURS"},
+				 "version":null}
+				""";
+		String saved = mvc.perform(put("/api/company").with(actor).contentType(MediaType.APPLICATION_JSON).content(body))
+				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		long version = mapper.readTree(saved).get("version").asLong();
+		mvc.perform(get("/api/company").with(actor)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.preferences.dailySummary").value(true))
+				.andExpect(jsonPath("$.preferences.aiDetail").value("Alto"))
+				.andExpect(jsonPath("$.shared.sector").value("Tecnologia / SaaS"))
+				.andExpect(jsonPath("$.summary.verified").value(false))
+				.andExpect(jsonPath("$.data.organizationId").value(tenant));
+		String again = """
+				{"data":{"email":"pessoa@example.com"},"context":{},"address":{},"preferences":{"aiDetail":"Alto"},
+				 "version":%d}
+				""".formatted(version);
+		mvc.perform(put("/api/company").with(actor).contentType(MediaType.APPLICATION_JSON).content(again))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.legalName").value("Empresa Persistida"))
+				.andExpect(jsonPath("$.context.mission").value(""));
+		assertEquals("Alto", mongo.findById(tenant, Company.class).preferences().aiDetail());
+	}
+
+	@Test
 	void companyRequiresAuthenticationAndOrganizationAndValidBody() throws Exception {
 		mvc.perform(get("/api/company")).andExpect(status().isUnauthorized());
 		mvc.perform(get("/api/company").with(jwt())).andExpect(status().isForbidden());
 		mvc.perform(put("/api/company").with(session(organization(), "user", "member"))
+				.contentType(MediaType.APPLICATION_JSON).content("{}"))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.message").value("Somente o administrador da empresa pode alterar este cadastro."));
+		mvc.perform(put("/api/company").with(session(organization(), "user", "admin"))
 				.contentType(MediaType.APPLICATION_JSON).content("{}"))
 				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.fieldErrors.data").exists());
 	}
