@@ -153,6 +153,27 @@ class ClerkTokenAuthenticationTests {
 		expectUnauthorized(validToken().without("sid").bearer());
 	}
 
+	@Test
+	void symmetricAlgorithmIsUnauthorized() throws Exception {
+		expectUnauthorized(validToken().signedWithHmac().bearer());
+	}
+
+	@Test
+	void unavailableJwksIsUnauthorized() throws Exception {
+		int requestsBefore = TestJwks.jwksRequests();
+		TestJwks.setUnavailable(true);
+		try {
+			// A key id missing from the cached JWKS makes the decoder fetch it again, and the fetch fails.
+			expectUnauthorized(validToken().signedWithUnpublishedKey().bearer());
+		}
+		finally {
+			TestJwks.setUnavailable(false);
+		}
+		assertThat(TestJwks.jwksRequests()).isGreaterThan(requestsBefore);
+		// The service keeps working once the JWKS is back.
+		call(validToken().bearer()).andExpect(status().isOk());
+	}
+
 	// US3: 403, basic body, sessions revoked
 
 	@Test

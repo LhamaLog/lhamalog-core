@@ -132,3 +132,11 @@ A branch Development trouxe Empresa e Produtos (specs/001-empresa-produtos) com 
 - **Tenant de desenvolvimento** (`DEV_TENANT_CLERK_ORG_ID`, só no perfil local): cria um Tenant ACTIVE ao subir e nunca altera um existente. Sem isso, o ambiente integrado (`compose.app.yaml`) deslogaria todo usuário, porque o fluxo de compra ainda não existe.
 - **`compose.app.yaml`**: `CLERK_ISSUER` obrigatória; `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SIGNING_SECRET` e `DEV_TENANT_CLERK_ORG_ID` opcionais.
 - **Testes da Development migrados para Testcontainers** e tokens de `TestJwks`. Antes eles dependiam de `TEST_MONGODB_URI` e eram pulados no verify. Verify final: 113 testes, 0 falhas, 0 pulados.
+
+## R17. Convergência (2026-11-13)
+
+Resultado do `/speckit-converge` (tarefas T034 a T037).
+
+- **JWKS indisponível respondia 500.** Quando a Clerk não entrega o JWKS, o decoder do Nimbus lança `JwtException` (não `BadJwtException`), o Spring Security transforma isso em `AuthenticationServiceException` e a requisição termina em 500. A spec pede 401. Decisão: o decoder é envolvido por `UnavailableKeysAsInvalidTokenJwtDecoder`, que converte essa falha em `BadJwtException` (401 básico) e registra um `WARN` só com o tipo da causa, sem o token. As chaves já obtidas continuam em cache no decoder original. Teste: `ClerkTokenAuthenticationTests.unavailableJwksIsUnauthorized` (JWKS de teste respondendo 503 e token com `kid` fora do cache, o que força a busca).
+- **Algoritmo diferente de RS256** já era rejeitado (`jwsAlgorithm(RS256)`); faltava o teste. Adicionado `symmetricAlgorithmIsUnauthorized` (HS256).
+- **Formato real de `o.rol`**: continua [PENDENTE] (T037). Precisa de um token da instância de dev, que só o desenvolvedor gera. O código aceita as duas formas, então o risco é só de documentação.

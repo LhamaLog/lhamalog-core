@@ -28,6 +28,7 @@ import br.com.lhamalog.core.identity.adapter.in.security.BasicErrorAuthenticatio
 import br.com.lhamalog.core.identity.adapter.in.security.ClerkAuthenticationConverter;
 import br.com.lhamalog.core.identity.adapter.in.security.SessionRevokingAccessDeniedHandler;
 import br.com.lhamalog.core.identity.adapter.in.security.TenantAccessAuthorizationManager;
+import br.com.lhamalog.core.identity.adapter.in.security.UnavailableKeysAsInvalidTokenJwtDecoder;
 import br.com.lhamalog.core.identity.application.port.out.SessionRevocation;
 
 import jakarta.servlet.DispatcherType;
@@ -89,7 +90,7 @@ public class SecurityConfig {
 				new JwtClaimValidator<Object>(JwtClaimNames.NBF, Objects::nonNull),
 				new JwtTimestampValidator(clockSkew(clerk)), new JwtIssuerValidator(clerk.issuer()),
 				new AuthorizedPartyValidator(clerk.authorizedParties()), new ActiveSessionValidator()));
-		return decoder;
+		return new UnavailableKeysAsInvalidTokenJwtDecoder(decoder);
 	}
 
 	/** Same origins as the authorized parties; the token travels in a header, so no credentials. */

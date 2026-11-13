@@ -94,3 +94,10 @@ Formato: `- [ ] Txxx [P?] [História?] descrição com caminho`. `[P]` = pode se
 5. `LLT-163: resolve tenant e expoe contexto da requisicao`
 6. `LLT-163: responde 403 e revoga sessoes na clerk`
 7. `LLT-163: configura cors e documenta variaveis da clerk`
+
+## Phase 7: Convergence
+
+- [x] T034 Garantir que JWKS indisponível na Clerk responda 401 (e não 500), sem derrubar o serviço, com teste em `ClerkTokenAuthenticationTests.java` usando um `clerk.jwks-uri` que não responde, per Edge Cases: JWKS indisponível (partial)
+- [x] T035 Adicionar teste em `ClerkTokenAuthenticationTests.java` para token assinado com algoritmo diferente de RS256 (ex.: HS256) → 401 com corpo básico, per Edge Cases: algoritmo diferente de RS256 (missing)
+- [x] T036 Registrar em `spec.md` (Clarifications e Assumptions) as decisões da research R16 que mudaram o escopo: Tenant de desenvolvimento só no perfil local (`DEV_TENANT_CLERK_ORG_ID`), que substitui "nenhum seed no código de produção", e a junção com Empresa/Produtos feita nesta feature, e não no merge, per spec: Clarifications/Assumptions (unrequested)
+- [ ] T037 Confirmar o formato real de `o.rol` com token da instância de dev (quickstart) e atualizar `research.md` R15 e `spec.md`, per T033 (partial)
