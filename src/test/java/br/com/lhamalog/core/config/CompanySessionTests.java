@@ -1,25 +1,33 @@
 package br.com.lhamalog.core.config;
 
-import java.util.Map;
-import br.com.lhamalog.core.shared.CompanySessionResolver;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import org.junit.jupiter.api.Test;
-import org.springframework.security.oauth2.jwt.Jwt;
-import static org.junit.jupiter.api.Assertions.*;
+
+import br.com.lhamalog.core.identity.domain.OrganizationRole;
+import br.com.lhamalog.core.identity.domain.RequestContext;
+import br.com.lhamalog.core.shared.CompanySession;
+import br.com.lhamalog.core.shared.CompanySessionResolver;
 
 class CompanySessionTests {
-	@Test
-	void mapsOnlyConfiguredPrivilegedRoles() {
-		Jwt owner = Jwt.withTokenValue("test").header("alg", "RS256").subject("user")
-				.claim("o", Map.of("id", "org_a", "rol", "owner")).build();
-		assertFalse(new CompanySessionResolver("admin").resolve(owner).administrator());
-		assertTrue(new CompanySessionResolver("admin,org:owner").resolve(owner).administrator());
+
+	private static RequestContext context(OrganizationRole role) {
+		return new RequestContext("user_a", "sess_a", "org_a", role, "tenant-0001");
 	}
+
 	@Test
-	void supportsLegacyOrganizationClaimsWithoutChangingTenant() {
-		Jwt legacy = Jwt.withTokenValue("test").header("alg", "RS256").subject("user")
-				.claim("org_id", "org_a").claim("org_role", "org:admin").build();
-		var session = new CompanySessionResolver("admin").resolve(legacy);
-		assertEquals("org_a", session.tenantId());
-		assertTrue(session.administrator());
+	void onlyOrganizationAdminIsAdministrator() {
+		assertTrue(CompanySession.from(context(OrganizationRole.ADMIN)).administrator());
+		assertFalse(CompanySession.from(context(OrganizationRole.MEMBER)).administrator());
 	}
+
+	@Test
+	void usesInternalTenantIdAndClerkUser() {
+		CompanySession session = new CompanySessionResolver(() -> context(OrganizationRole.MEMBER)).current();
+		assertEquals("tenant-0001", session.tenantId());
+		assertEquals("user_a", session.userId());
+	}
+
 }

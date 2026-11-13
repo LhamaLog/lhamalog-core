@@ -3,8 +3,6 @@ package br.com.lhamalog.core.company;
 import br.com.lhamalog.core.shared.CompanySessionResolver;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -24,12 +22,12 @@ public class CompanyController {
 			@NotNull @Valid Company.Address address, Long version) {}
 
 	@GetMapping
-	public Company get(@AuthenticationPrincipal Jwt jwt) {
-		return service.get(sessions.resolve(jwt).tenantId());
+	public Company get() {
+		return service.get(sessions.current().tenantId());
 	}
 
 	@PutMapping
-	public Company save(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody SaveCompany request) {
-		return service.save(sessions.resolve(jwt).tenantId(), request);
+	public Company save(@Valid @RequestBody SaveCompany request) {
+		return service.save(sessions.current().tenantId(), request);
 	}
 }
