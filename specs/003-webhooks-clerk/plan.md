@@ -1,6 +1,6 @@
 # Implementation Plan: Webhooks da Clerk
 
-**Branch**: `feature/LLT-164-webhooks-clerk` (criada pelo desenvolvedor) | **Date**: 2026-11-06 | **Spec**: [spec.md](spec.md)
+**Branch**: `LLT-163-validar-o-token-do-clerk-no-core` (mesma da LLT-163, padrão do Jira) | **Date**: 2026-11-06 | **Spec**: [spec.md](spec.md)
 
 ## Summary
 

@@ -1,6 +1,6 @@
 # Feature Specification: Webhooks da Clerk
 
-**Feature Branch**: `feature/LLT-164-webhooks-clerk` (a ser criada pelo desenvolvedor; diretório de spec `specs/003-webhooks-clerk`)
+**Feature Branch**: `LLT-163-validar-o-token-do-clerk-no-core` (mesma da LLT-163, padrão do Jira; diretório de spec `specs/003-webhooks-clerk`)
 
 **Created**: 2026-11-06
 
