@@ -51,3 +51,7 @@ Phase 1 → 2 → US1 → US2/US3 → US4/US5 → Polish. Paralelos: T002; T003/
 3. `LLT-164: adiciona membro e repositorios mongo`
 4. `LLT-164: sincroniza membros pelos webhooks da clerk`
 5. `LLT-164: documenta webhooks e tunel em desenvolvimento`
+
+## Phase 7: Convergence
+
+- [x] T019 Gravar `tenantId` nulo de forma explícita em `clerk_webhook_event` (o Spring Data omite campos nulos) em `ProcessedWebhookDocument.java`, verificando a presença do campo no documento bruto em `MongoProcessedWebhookRepositoryTests.java`, per FR-011 (partial)

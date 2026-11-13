@@ -37,6 +37,16 @@ class MongoProcessedWebhookRepositoryTests {
 	}
 
 	@Test
+	void eventWithoutTenantStoresAnExplicitNullTenantId() {
+		repository.markProcessed("msg_3", "user.updated", null, Instant.now());
+
+		Document stored = mongoTemplate.getCollection(ProcessedWebhookDocument.COLLECTION)
+			.find(new Document("_id", "msg_3"))
+			.first();
+		assertThat(stored).isNotNull().containsEntry("tenantId", null);
+	}
+
+	@Test
 	void recordingTwiceIsNotAnError() {
 		repository.markProcessed("msg_2", "user.updated", null, Instant.now());
 		repository.markProcessed("msg_2", "user.updated", null, Instant.now());

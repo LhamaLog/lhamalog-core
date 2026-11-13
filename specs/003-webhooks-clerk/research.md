@@ -62,6 +62,7 @@ Record próprio (`ClerkWebhookProperties`), separado do `ClerkProperties` da LLT
 - Depois de aplicado um `user.*`, eventos de vínculo deixam de sobrescrever nome e e-mail (o dado do usuário é a fonte mais precisa; o do vínculo é `public_user_data`).
 - O `identifier` do vínculo só é usado como e-mail se contiver `@` (pode ser username ou telefone).
 - O `svix-id` vem do chamador; só entra em log se parecer um id (`[A-Za-z0-9_-]{1,64}`), para evitar injeção em log.
+- **Convergência (2026-11-13, T019):** o Spring Data omite campos nulos ao gravar, então `clerk_webhook_event` de eventos sem tenant ficava sem o campo `tenantId`, contra a FR-011 ("nulo de forma explícita"). O campo passou a usar `@Field(write = ALWAYS)`, e o teste lê o documento bruto para conferir que ele existe com valor nulo.
 
 ## R9. Túnel em desenvolvimento
 
