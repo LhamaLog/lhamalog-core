@@ -62,7 +62,7 @@ class ProductUniqueNameIntegrationTests {
 
 	private ResultActions attemptCreate(RequestPostProcessor actor, String name) throws Exception {
 		return mvc.perform(post("/api/products").with(actor).contentType(MediaType.APPLICATION_JSON)
-				.content("{\"name\":\"" + name + "\",\"context\":{\"problemSolved\":\"Contexto original\"}}"));
+				.content("{\"name\":\"" + name + "\",\"context\":{\"functionalDescription\":\"Contexto original\"}}"));
 	}
 
 	private JsonNode create(RequestPostProcessor actor, String name) throws Exception {
@@ -414,7 +414,7 @@ class ProductUniqueNameIntegrationTests {
 
 		JsonNode withContext = json(mvc.perform(put("/api/products/" + id + "/context").with(creator)
 				.contentType(MediaType.APPLICATION_JSON)
-				.content("{\"context\":{\"problemSolved\":\"Novo contexto\"},\"version\":"
+				.content("{\"context\":{\"functionalDescription\":\"Novo contexto\"},\"version\":"
 						+ created.get("version").asLong() + "}"))
 				.andExpect(status().isOk()));
 		assertEquals("checkout", products.findById(id).orElseThrow().normalizedName());

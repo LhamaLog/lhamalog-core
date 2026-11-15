@@ -19,9 +19,12 @@ public class ProductService {
 
 	private final ProductRepository products;
 	private final ProductAccessRepository accesses;
-	public ProductService(ProductRepository products, ProductAccessRepository accesses) {
+	private final ProductContextRevisionRepository revisions;
+	public ProductService(ProductRepository products, ProductAccessRepository accesses,
+			ProductContextRevisionRepository revisions) {
 		this.products = products;
 		this.accesses = accesses;
+		this.revisions = revisions;
 	}
 
 	public List<Product> list(CompanySession session) { return list(session, false); }
@@ -50,8 +53,9 @@ public class ProductService {
 		String id = UUID.randomUUID().toString();
 		ProductAccess access = new ProductAccess(id + ":" + session.userId(), session.tenantId(), id, session.userId());
 		accesses.insert(access);
+		Product created;
 		try {
-			return saveWithUniqueName(() -> products.insert(new Product(id, session.tenantId(), request.name().trim(),
+			created = saveWithUniqueName(() -> products.insert(new Product(id, session.tenantId(), request.name().trim(),
 					Product.normalizeName(request.name()), request.description(), request.category(),
 					request.productVersion(), "CONFIGURING", Instant.now(), null, request.context(), null)));
 		}
@@ -60,6 +64,9 @@ public class ProductService {
 			catch (RuntimeException cleanupFailure) { exception.addSuppressed(cleanupFailure); }
 			throw exception;
 		}
+		// Feature 004: a context with content at registration becomes version 1.
+		if (created.context() != null && created.context().hasContent()) recordContextRevision(created, session);
+		return created;
 	}
 
 	/** Updates name, description, category and business version. Context, status and archive state stay as they are. */
@@ -77,9 +84,38 @@ public class ProductService {
 		Product current = get(session, id);
 		requireActive(current);
 		requireCurrentVersion(current, request.version());
-		return products.save(new Product(current.id(), current.tenantId(), current.name(), current.normalizedName(),
+		Product saved = products.save(new Product(current.id(), current.tenantId(), current.name(), current.normalizedName(),
 				current.description(), current.category(), current.productVersion(), current.status(),
 				current.createdAt(), current.archivedAt(), request.context(), current.version()));
+		// Feature 004: a new version only when the (normalized) context changed. Written after the product, so a
+		// stale version is refused above before any revision exists.
+		if (!Objects.equals(current.context(), saved.context())) recordContextRevision(saved, session);
+		return saved;
+	}
+
+	/** Versions of the product context, newest first. Same access rules as {@link #get}; archived products too. */
+	public List<ProductContextRevision> contextRevisions(CompanySession session, String id) {
+		Product product = get(session, id);
+		return revisions.findByTenantIdAndProductIdOrderByRevisionDesc(product.tenantId(), product.id());
+	}
+
+	public ProductContextRevision contextRevision(CompanySession session, String id, long revision) {
+		Product product = get(session, id);
+		return revisions.findByTenantIdAndProductIdAndRevision(product.tenantId(), product.id(), revision)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+						"Revisão de contexto não encontrada."));
+	}
+
+	/** Text section for the AI built from the current context. No call to the LLM is made. */
+	public ProductContextPrompt contextPrompt(CompanySession session, String id) {
+		return ProductContextPrompt.from(get(session, id));
+	}
+
+	private void recordContextRevision(Product product, CompanySession session) {
+		long next = revisions.findFirstByProductIdOrderByRevisionDesc(product.id())
+				.map(ProductContextRevision::revision).orElse(0L) + 1L;
+		revisions.insert(ProductContextRevision.of(product, next, Instant.now().truncatedTo(ChronoUnit.MILLIS),
+				session.userId()));
 	}
 
 	/** Owners/admins only. Archiving an already archived product changes nothing. */

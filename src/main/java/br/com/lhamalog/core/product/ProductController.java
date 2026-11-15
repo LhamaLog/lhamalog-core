@@ -52,6 +52,19 @@ public class ProductController {
 			@Valid @RequestBody UpdateContext request) {
 		return service.updateContext(sessions.resolve(jwt), id, request);
 	}
+	@GetMapping("/{id}/context/revisions")
+	public ProductContextRevision.ViewList contextRevisions(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
+		return ProductContextRevision.ViewList.from(service.contextRevisions(sessions.resolve(jwt), id));
+	}
+	@GetMapping("/{id}/context/revisions/{revision}")
+	public ProductContextRevision.View contextRevision(@AuthenticationPrincipal Jwt jwt, @PathVariable String id,
+			@PathVariable long revision) {
+		return ProductContextRevision.View.from(service.contextRevision(sessions.resolve(jwt), id, revision));
+	}
+	@GetMapping("/{id}/context/prompt")
+	public ProductContextPrompt contextPrompt(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
+		return service.contextPrompt(sessions.resolve(jwt), id);
+	}
 	@PostMapping("/{id}/archive")
 	public Product archive(@AuthenticationPrincipal Jwt jwt, @PathVariable String id,
 			@Valid @RequestBody ChangeArchive request) {

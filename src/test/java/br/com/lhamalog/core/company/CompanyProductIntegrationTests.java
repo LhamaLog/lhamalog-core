@@ -88,7 +88,7 @@ class CompanyProductIntegrationTests {
 				.andExpect(status().isOk());
 		mvc.perform(get("/api/products/" + id).with(session(organization(), "admin", "admin")))
 				.andExpect(status().isNotFound());
-		String update = "{\"context\":{\"problemSolved\":\"Problema resolvido\"},\"version\":" + created.get("version").asLong() + "}";
+		String update = "{\"context\":{\"functionalDescription\":\"Problema resolvido\"},\"version\":" + created.get("version").asLong() + "}";
 		mvc.perform(put("/api/products/" + id + "/context").with(session(organization(), "creator", "admin"))
 				.contentType(MediaType.APPLICATION_JSON).content(update)).andExpect(status().isNotFound());
 		mvc.perform(put("/api/products/" + id + "/context").with(session(tenant, "other", "member"))
@@ -96,7 +96,7 @@ class CompanyProductIntegrationTests {
 		mvc.perform(put("/api/products/" + id + "/context").with(creator)
 				.contentType(MediaType.APPLICATION_JSON).content(update)).andExpect(status().isOk());
 		mvc.perform(get("/api/products/" + id).with(creator))
-				.andExpect(jsonPath("$.context.problemSolved").value("Problema resolvido"));
+				.andExpect(jsonPath("$.context.functionalDescription").value("Problema resolvido"));
 		mvc.perform(put("/api/products/" + id + "/context").with(creator)
 				.contentType(MediaType.APPLICATION_JSON).content(update)).andExpect(status().isConflict());
 		mongo.insert(new ProductAccess(id + ":other", tenant, id, "other"));
