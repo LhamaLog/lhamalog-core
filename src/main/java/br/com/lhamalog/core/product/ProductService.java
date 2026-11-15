@@ -5,7 +5,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Supplier;
 import br.com.lhamalog.core.shared.CompanySession;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -13,6 +15,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ProductService {
+	private static final String NAME_IN_USE = "Já existe um produto com este nome nesta empresa. Ele pode estar arquivado.";
+
 	private final ProductRepository products;
 	private final ProductAccessRepository accesses;
 	public ProductService(ProductRepository products, ProductAccessRepository accesses) {
@@ -47,9 +51,9 @@ public class ProductService {
 		ProductAccess access = new ProductAccess(id + ":" + session.userId(), session.tenantId(), id, session.userId());
 		accesses.insert(access);
 		try {
-			return products.insert(new Product(id, session.tenantId(), request.name().trim(),
-					request.description(), request.category(), request.productVersion(), "CONFIGURING",
-					Instant.now(), null, request.context(), null));
+			return saveWithUniqueName(() -> products.insert(new Product(id, session.tenantId(), request.name().trim(),
+					Product.normalizeName(request.name()), request.description(), request.category(),
+					request.productVersion(), "CONFIGURING", Instant.now(), null, request.context(), null)));
 		}
 		catch (RuntimeException exception) {
 			try { accesses.deleteById(access.id()); }
@@ -63,18 +67,19 @@ public class ProductService {
 		Product current = get(session, id);
 		requireActive(current);
 		requireCurrentVersion(current, request.version());
-		return products.save(new Product(current.id(), current.tenantId(), request.name().trim(),
-				request.description(), request.category(), request.productVersion(), current.status(),
-				current.createdAt(), current.archivedAt(), current.context(), current.version()));
+		return saveWithUniqueName(() -> products.save(new Product(current.id(), current.tenantId(), request.name().trim(),
+				Product.normalizeName(request.name()), request.description(), request.category(),
+				request.productVersion(), current.status(), current.createdAt(), current.archivedAt(),
+				current.context(), current.version())));
 	}
 
 	public Product updateContext(CompanySession session, String id, ProductController.UpdateContext request) {
 		Product current = get(session, id);
 		requireActive(current);
 		requireCurrentVersion(current, request.version());
-		return products.save(new Product(current.id(), current.tenantId(), current.name(), current.description(),
-				current.category(), current.productVersion(), current.status(), current.createdAt(),
-				current.archivedAt(), request.context(), current.version()));
+		return products.save(new Product(current.id(), current.tenantId(), current.name(), current.normalizedName(),
+				current.description(), current.category(), current.productVersion(), current.status(),
+				current.createdAt(), current.archivedAt(), request.context(), current.version()));
 	}
 
 	/** Owners/admins only. Archiving an already archived product changes nothing. */
@@ -97,9 +102,19 @@ public class ProductService {
 	}
 
 	private static Product withArchivedAt(Product current, Instant archivedAt) {
-		return new Product(current.id(), current.tenantId(), current.name(), current.description(),
-				current.category(), current.productVersion(), current.status(), current.createdAt(),
-				archivedAt, current.context(), current.version());
+		return new Product(current.id(), current.tenantId(), current.name(), current.normalizedName(),
+				current.description(), current.category(), current.productVersion(), current.status(),
+				current.createdAt(), archivedAt, current.context(), current.version());
+	}
+
+	/** Runs a write that sets the name; the unique normalized-name index is the only key such a write can violate. */
+	private static Product saveWithUniqueName(Supplier<Product> write) {
+		try {
+			return write.get();
+		}
+		catch (DuplicateKeyException exception) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, NAME_IN_USE, exception);
+		}
 	}
 
 	private static void requireActive(Product product) {
