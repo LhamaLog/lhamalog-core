@@ -41,7 +41,8 @@ O registro é novo e por empresa. O perfil da LLT-174 continua um documento por 
 - **Pessoa**: `sub` não vazio, já exigido por `ClerkTokenValidator`.
 - **Empresa**: `o.id` ou, na forma antiga, `org_id`. Ausente continua 403 com "Selecione uma empresa para continuar." O interceptor não aplica a marca quando não há empresa.
 - **Cargo do token**: define quem pode gerenciar usuários nesta requisição e, na observação, o valor de `administrator`. Não é lido de documento para autorizar o administrador que está chamando.
-- **Marca**: se o documento da empresa e do `sub` está `deactivated`, a requisição em `/api/**` responde 403 "Seu acesso a esta empresa foi desativado." e não observa.
+- **Marca**: se o documento da empresa e do `sub` está `deactivated`, a requisição em `/api/**` responde 403 "Seu acesso a esta empresa foi desativado." com `code` `user_deactivated` e não observa.
+- **Erro**: `code` é opcional no mesmo objeto de `message` e `fieldErrors`. Só entra no JSON quando existe. `not_admin` é o membro nos três caminhos de gestão. `last_admin` é a recusa de desativar o último administrador ativo conhecido. Os erros já existentes não recebem `code`.
 - **Sessão ausente**: 401, antes do controlador, como nos demais caminhos `/api/**`.
 
 ## Isolamento

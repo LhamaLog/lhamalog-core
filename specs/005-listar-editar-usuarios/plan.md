@@ -28,7 +28,7 @@ O último acesso grava no máximo a cada 5 minutos, salvo quando o cargo do toke
 
 **Performance Goals**: Uma leitura da marca por requisição autenticada com empresa. Escrita de último acesso no máximo uma vez a cada 5 minutos por pessoa e empresa, fora a escrita em que o cargo observado muda. A meta da spec é o administrador ler a linha em até 1 minuto.
 
-**Constraints**: Sem `CLERK_SECRET_KEY`, sem valor que comece com `sk_`, sem chamada à Clerk e sem item novo de dashboard. `CLERK_ADMIN_ROLES` permanece com o padrão `admin`. Cargos continuam só `admin` e `member`. A marca não espera o intervalo de 5 minutos. LLT-169 a LLT-174 ficam fora, com a troca `admin`/`member` desta história no Web.
+**Constraints**: Sem `CLERK_SECRET_KEY`, sem valor que comece com `sk_`, sem chamada à Clerk e sem item novo de dashboard. `CLERK_ADMIN_ROLES` permanece com o padrão `admin`. Cargos continuam só `admin` e `member`. A marca não espera o intervalo de 5 minutos. O erro ganha `code` opcional (`user_deactivated`, `last_admin`, `not_admin`); sem código, o JSON segue só `message` e `fieldErrors`, e os contratos já publicados não mudam. LLT-169 a LLT-174 ficam fora, com a troca `admin`/`member` desta história no Web.
 
 **Scale/Scope**: Três caminhos novos sob `/api/company/members` e um interceptor em `/api/**`. Uma empresa pequena: a lista do Core é o conjunto observado, não um catálogo externo.
 
@@ -79,7 +79,8 @@ src/main/java/br/com/lhamalog/core/member/
 └── MemberAccessConfig.java
 
 src/main/java/br/com/lhamalog/core/shared/
-└── CompanySession.java              # permanece a leitura atual de empresa e cargo
+├── CompanySession.java              # permanece a leitura atual de empresa e cargo
+└── ApiExceptionHandler.java         # code opcional; ausente nos erros já publicados
 
 src/test/java/br/com/lhamalog/core/member/
 └── CompanyMemberHttpTests.java

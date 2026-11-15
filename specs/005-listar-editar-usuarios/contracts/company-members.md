@@ -42,10 +42,10 @@ Autenticação: `Authorization: Bearer` com o JWT já aceito pelo Core. A origem
 
 Mensagens:
 
-- Membro em qualquer um dos três caminhos: 403, "Somente o administrador da empresa pode gerenciar os usuários." A sessão não é encerrada.
-- Marca desativada, em qualquer `/api/**` com empresa: 403, "Seu acesso a esta empresa foi desativado."
-- Sem empresa: 403, "Selecione uma empresa para continuar."
-- Último administrador ativo conhecido: 403, "Não é possível desativar o último administrador." O registro não muda.
+- Membro em qualquer um dos três caminhos: 403, `code` `not_admin`, "Somente o administrador da empresa pode gerenciar os usuários." A sessão não é encerrada.
+- Marca desativada, em qualquer `/api/**` com empresa: 403, `code` `user_deactivated`, "Seu acesso a esta empresa foi desativado."
+- Sem empresa: 403, "Selecione uma empresa para continuar." Sem `code`.
+- Último administrador ativo conhecido: 403, `code` `last_admin`, "Não é possível desativar o último administrador." O registro não muda.
 - Sem JWT: 401, o comportamento atual do filtro.
 
 `userId`, `organizationId` e `tenantId` enviados no corpo são ignorados. O `userId` que vale na desativação e na reativação é o do caminho.
@@ -112,7 +112,7 @@ Efeito:
 - grava `deactivated` para a empresa da sessão e esse `userId`;
 - não remove a pessoa da organização;
 - não altera `lastAccessAt` nem o cargo observado;
-- a próxima requisição dessa pessoa nesta empresa recebe "Seu acesso a esta empresa foi desativado.";
+- a próxima requisição dessa pessoa nesta empresa recebe `code` `user_deactivated` e "Seu acesso a esta empresa foi desativado.";
 - repetir devolve 200 com `deactivated` e não reativa;
 - a empresa da sessão da pessoa desativada em outro lugar não muda.
 
@@ -167,7 +167,41 @@ O intervalo de produção é 5 minutos, fixo, sem variável nova. No teste ele p
 
 ## Erros
 
-Formato já usado por `ApiExceptionHandler`:
+O `ApiError` de hoje tem `message` e `fieldErrors`. Esta história acrescenta `code` opcional, no mesmo objeto. A propriedade só vai no JSON quando existe código. Sem código, o corpo continua `{ "message", "fieldErrors" }`. Os erros já publicados de empresa, perfil e produto não ganham `code`, nem o 403 "Somente o administrador da empresa pode alterar este cadastro." nem o 403 "Selecione uma empresa para continuar." O 401 continua o do filtro atual, sem este corpo.
+
+`not_admin` vale só nos três caminhos desta lista. A frase de rebaixar no Web ("Não é possível rebaixar o último administrador.") não é resposta do Core e não tem `code`.
+
+Marca desativada, em qualquer `/api/**` com empresa:
+
+```json
+{
+  "message": "Seu acesso a esta empresa foi desativado.",
+  "fieldErrors": {},
+  "code": "user_deactivated"
+}
+```
+
+Último administrador ativo conhecido:
+
+```json
+{
+  "message": "Não é possível desativar o último administrador.",
+  "fieldErrors": {},
+  "code": "last_admin"
+}
+```
+
+Membro em `GET`, `POST` ou `DELETE` deste recurso:
+
+```json
+{
+  "message": "Somente o administrador da empresa pode gerenciar os usuários.",
+  "fieldErrors": {},
+  "code": "not_admin"
+}
+```
+
+Os demais continuam sem `code`:
 
 ```json
 {
@@ -176,18 +210,18 @@ Formato já usado por `ApiExceptionHandler`:
 }
 ```
 
-| Situação | Status | `message` |
-|---|---|---|
-| `userId` vazio ou acima de 200 caracteres | 400 | Informe o usuário. |
-| Sem JWT | 401 | o comportamento atual do filtro |
-| Sem empresa | 403 | Selecione uma empresa para continuar. |
-| Membro nos três caminhos | 403 | Somente o administrador da empresa pode gerenciar os usuários. |
-| Marca desativada em `/api/**` com empresa | 403 | Seu acesso a esta empresa foi desativado. |
-| Último administrador ativo conhecido | 403 | Não é possível desativar o último administrador. |
-| Caminho de troca de cargo | 404 | o comportamento atual de rota ausente |
-| Falha de acesso aos dados | 503 | Não foi possível acessar os dados. Tente novamente. |
+| Situação | Status | `code` | `message` |
+|---|---|---|---|
+| `userId` vazio ou acima de 200 caracteres | 400 | ausente | Informe o usuário. |
+| Sem JWT | 401 | ausente | o comportamento atual do filtro |
+| Sem empresa | 403 | ausente | Selecione uma empresa para continuar. |
+| Membro nos três caminhos | 403 | `not_admin` | Somente o administrador da empresa pode gerenciar os usuários. |
+| Marca desativada em `/api/**` com empresa | 403 | `user_deactivated` | Seu acesso a esta empresa foi desativado. |
+| Último administrador ativo conhecido | 403 | `last_admin` | Não é possível desativar o último administrador. |
+| Caminho de troca de cargo | 404 | ausente | o comportamento atual de rota ausente |
+| Falha de acesso aos dados | 503 | ausente | Não foi possível acessar os dados. Tente novamente. |
 
-`fieldErrors` vai vazio nestes casos. Em todo 403 de último administrador, o status gravado permanece.
+`fieldErrors` vai vazio nestes casos. Em todo 403 de último administrador, o status gravado permanece. O Web distingue os três 403 por `code`, não pela frase.
 
 ## Risco residual
 
