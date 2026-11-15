@@ -11,11 +11,22 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
 	public record ApiError(String message, Map<String, String> fieldErrors) {}
+
+	@ExceptionHandler(FieldValidationException.class)
+	ResponseEntity<ApiError> fields(FieldValidationException exception) {
+		return ResponseEntity.badRequest().body(new ApiError(exception.getMessage(), exception.fieldErrors()));
+	}
+
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	ResponseEntity<ApiError> uploadTooLarge() {
+		return error(HttpStatus.BAD_REQUEST, "O logotipo excede 2 MB.");
+	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)
 	ResponseEntity<ApiError> validation(MethodArgumentNotValidException exception) {

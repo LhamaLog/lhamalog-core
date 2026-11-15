@@ -1,0 +1,49 @@
+# Desenvolvimento local do lhamalog-core. Nao e producao.
+# Producao: compose.prod.yaml (rascunho nao validado, nao carregado por este comando).
+# Na raiz, depois de copiar .env.example para .env:
+#   docker compose up -d --build
+# O projeto permanece lhamalog-core-local para reutilizar os volumes ja criados.
+# Nao use down -v, volume prune nem system prune.
+# A API escuta na rede do container; a publicacao no host fica só em 127.0.0.1.
+# Nao defina server.address=127.0.0.1 dentro do container: o mapeamento deixaria de alcancar o processo.
+name: lhamalog-core-local
+
+include:
+  - path: infra/local/compose.yaml
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: infra/local/Dockerfile
+    image: lhamalog-core-api:local
+    container_name: lhamalog-core-api
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SERVER_PORT: "8080"
+      MONGODB_URI: "mongodb://${MONGO_APP_USERNAME:-lhamalog}:${MONGO_APP_PASSWORD:?defina MONGO_APP_PASSWORD no .env}@mongo:27017/${MONGO_APP_DATABASE:-lhamalog_core}?authSource=${MONGO_APP_DATABASE:-lhamalog_core}"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?defina REDIS_PASSWORD no .env}
+      OTLP_ENABLED: ${OTLP_ENABLED:-false}
+      OTLP_METRICS_URL: ${OTLP_METRICS_URL:-http://openobserve:5080/api/default/v1/metrics}
+      OTLP_TRACES_URL: ${OTLP_TRACES_URL:-http://openobserve:5080/api/default/v1/traces}
+      OPENOBSERVE_AUTH: ${OPENOBSERVE_AUTH:-}
+      CLERK_ISSUER: ${CLERK_ISSUER:-}
+      CLERK_JWKS_URI: ${CLERK_JWKS_URI:-}
+      CLERK_AUTHORIZED_PARTIES: ${CLERK_AUTHORIZED_PARTIES:-http://localhost:5173}
+      CLERK_ADMIN_ROLES: ${CLERK_ADMIN_ROLES:-admin}
+    ports:
+      - "127.0.0.1:${API_PORT:-8080}:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s

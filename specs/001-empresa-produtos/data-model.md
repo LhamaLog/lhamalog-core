@@ -1,6 +1,6 @@
 # Modelo de dados
 
-Tenant: id = clerkOrgId validado, clerkOrgId, dados Empresa (legalName, tradeName, document, registrationDate, size), context (sector, mission, targetAudience, differentiators, language), address (street, number, complement, district, city, state, country, postalCode), version para concorrência otimista. Uma empresa por organização, sem cotas no Core.
+Tenant: id = clerkOrgId validado, clerkOrgId, dados Empresa (legalName, tradeName, document, registrationDate, size, stateRegistration, email, sector, description, website), context (sector, mission, targetAudience, differentiators, language, environments, criticalWindows, monitoredSystems, description), address (street, number, complement, district, city, state, country, postalCode, reference, useAsFiscalAndCorrespondence), preferences, logo (metadados; bytes em TenantLogo), updatedAt, updatedByUserId, version para concorrência otimista. Uma empresa por organização, sem cotas no Core. Campos antigos permanecem: a ausência deles no JSON não apaga o valor guardado. Contrato novo: [company-settings.md](contracts/company-settings.md).
 
 Produto: UUID id, tenantId, name obrigatório, description, category e productVersion opcionais, status CONFIGURING inicial (sem transições nesta feature), createdAt, context (problemSolved, targetAudience, differentiators, keywords, restrictions), version. Categoria livre por enum incompleto no modelo, sem inventar catálogo fechado.
 

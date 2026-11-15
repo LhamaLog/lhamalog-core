@@ -1,0 +1,23 @@
+# Opcional. Nao e carregado por `docker compose up`.
+# Mantem o projeto e o volume do OpenObserve ja usados por infra/local:
+#   lhamalog-core-local_openobserve-data
+#   docker compose -f compose.yaml -f compose.observability.yaml up -d --build
+# Parar sem apagar o volume: docker compose -f compose.yaml -f compose.observability.yaml stop openobserve
+name: lhamalog-core-local
+
+services:
+  openobserve:
+    image: public.ecr.aws/zinclabs/openobserve:v1.1.2
+    container_name: lhamalog-core-openobserve
+    restart: unless-stopped
+    environment:
+      ZO_DATA_DIR: /data
+      ZO_ROOT_USER_EMAIL: ${OPENOBSERVE_USERNAME:?defina OPENOBSERVE_USERNAME no .env}
+      ZO_ROOT_USER_PASSWORD: ${OPENOBSERVE_PASSWORD:?defina OPENOBSERVE_PASSWORD no .env}
+    ports:
+      - "127.0.0.1:${OPENOBSERVE_PORT:-5080}:5080"
+    volumes:
+      - openobserve-data:/data
+
+volumes:
+  openobserve-data:

@@ -81,6 +81,8 @@ Sem exclusão, ativação/suspensão de produto, telemetria, faturamento, prefer
 
 ## P05 — Docker integrado (04/11/2026)
 
+O arquivo `infra/local/compose.app.yaml` não faz mais parte do arranque: ele construía o Web irmão. O comando vigente é o `compose.yaml` da raiz, descrito no README. O parágrafo abaixo é o registro histórico daquela validação.
+
 Compose infra/local/compose.app.yaml validado com config --quiet. Imagens Core Java 25 e Web Node 26.12.1 construídas. Core respondeu health UP e /api/company sem token respondeu 401. Frontend respondeu HTTP 200 e seus 5 testes passaram dentro do container. Infraestrutura reutilizada por include, mesmo projeto/volumes. URI interna Mongo adicionada somente ao .env ignorado, derivada das credenciais locais existentes.
 
 Clerk mantido sem chave por decisão explícita do usuário nesta continuação. HTTP 200 do Vite não significa que as páginas autenticadas estejam funcionando: o AuthProvider exige chave. Login e aceite com sessão real permanecem pendentes. Guia: ../../../lhamalog_docs/planejamento/ambiente-local.md.
