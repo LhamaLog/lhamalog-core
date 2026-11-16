@@ -56,33 +56,38 @@ class UsageReservationsControllerContractTest {
 	@Test
 	void mapsReserveTransitionAndBalanceContractStatuses() throws Exception {
 		when(reservations.reserve(any())).thenReturn(new QuotaReservationService.ReservationResponse(
-				QuotaReservationService.Outcome.AUTHORIZED, "reservation", Instant.parse("2026-11-11T12:20:00Z"), false));
+				QuotaReservationService.Outcome.AUTHORIZED, "reservation", Instant.parse("2026-11-11T12:20:00Z"), false,
+				0L, 30));
 		mockMvc.perform(post("/internal/usage-reservations").header("X-LhamaLog-Service-Token", TOKEN)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 						{"reservationId":"reservation","tenantId":"tenant","productId":"product",
 						"requestedBytes":100,"domain":"LOGS"}"""))
 				.andExpect(status().isCreated()).andExpect(jsonPath("$.outcome").value("AUTHORIZED"))
-				.andExpect(jsonPath("$.reservationId").value("reservation"));
+				.andExpect(jsonPath("$.reservationId").value("reservation"))
+				.andExpect(jsonPath("$.retentionDays").value(30));
 
 		when(reservations.reserve(any())).thenReturn(new QuotaReservationService.ReservationResponse(
 				QuotaReservationService.Outcome.AUTHORIZED_UNLIMITED, "reservation-u", Instant.parse("2026-11-11T12:20:00Z"),
-				false));
+				false, 0L, 7));
 		mockMvc.perform(post("/internal/usage-reservations").header("X-LhamaLog-Service-Token", TOKEN)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 						{"reservationId":"reservation-u","tenantId":"tenant","productId":"product",
 						"requestedBytes":100,"domain":"LOGS"}"""))
-				.andExpect(status().isCreated()).andExpect(jsonPath("$.outcome").value("AUTHORIZED_UNLIMITED"));
+				.andExpect(status().isCreated()).andExpect(jsonPath("$.outcome").value("AUTHORIZED_UNLIMITED"))
+				.andExpect(jsonPath("$.retentionDays").value(7));
 
 		when(reservations.reserve(any())).thenReturn(new QuotaReservationService.ReservationResponse(
-				QuotaReservationService.Outcome.AUTHORIZED, "reservation", Instant.parse("2026-11-11T12:20:00Z"), true));
+				QuotaReservationService.Outcome.AUTHORIZED, "reservation", Instant.parse("2026-11-11T12:20:00Z"), true,
+				0L, 30));
 		mockMvc.perform(post("/internal/usage-reservations").header("X-LhamaLog-Service-Token", TOKEN)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 						{"reservationId":"reservation","tenantId":"tenant","productId":"product",
 						"requestedBytes":100,"domain":"LOGS"}"""))
-				.andExpect(status().isOk());
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.retentionDays").value(30));
 
 		when(reservations.reserve(any())).thenReturn(new QuotaReservationService.ReservationResponse(
 				QuotaReservationService.Outcome.INSUFFICIENT_BALANCE, null, null, false));
@@ -91,7 +96,8 @@ class UsageReservationsControllerContractTest {
 				.content("""
 						{"reservationId":"reservation-2","tenantId":"tenant","productId":"product",
 						"requestedBytes":100,"domain":"LOGS"}"""))
-				.andExpect(status().isConflict());
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.retentionDays").doesNotExist());
 
 		when(reservations.reserve(any())).thenReturn(new QuotaReservationService.ReservationResponse(
 				QuotaReservationService.Outcome.NO_PLAN, null, null, false));
@@ -100,7 +106,8 @@ class UsageReservationsControllerContractTest {
 				.content("""
 						{"reservationId":"reservation-3","tenantId":"tenant","productId":"product",
 						"requestedBytes":100,"domain":"LOGS"}"""))
-				.andExpect(status().isUnprocessableEntity());
+				.andExpect(status().isUnprocessableEntity())
+				.andExpect(jsonPath("$.retentionDays").doesNotExist());
 
 		when(reservations.reserve(any())).thenReturn(new QuotaReservationService.ReservationResponse(
 				QuotaReservationService.Outcome.SUSPENDED, null, null, false));
@@ -110,12 +117,13 @@ class UsageReservationsControllerContractTest {
 						{"reservationId":"reservation-suspended","tenantId":"tenant","productId":"product",
 						"requestedBytes":100,"domain":"LOGS"}"""))
 				.andExpect(status().isForbidden()).andExpect(jsonPath("$.outcome").value("SUSPENDED"))
-				.andExpect(jsonPath("$.reservationId").isEmpty())
-				.andExpect(jsonPath("$.expiresAt").isEmpty());
+				.andExpect(jsonPath("$.reservationId").doesNotExist())
+				.andExpect(jsonPath("$.expiresAt").doesNotExist())
+				.andExpect(jsonPath("$.retentionDays").doesNotExist());
 
 		when(reservations.reserve(any())).thenReturn(new QuotaReservationService.ReservationResponse(
 				QuotaReservationService.Outcome.AUTHORIZED, "reservation-overage",
-				Instant.parse("2026-11-11T12:20:00Z"), false, 40L));
+				Instant.parse("2026-11-11T12:20:00Z"), false, 40L, 90));
 		mockMvc.perform(post("/internal/usage-reservations").header("X-LhamaLog-Service-Token", TOKEN)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
@@ -123,7 +131,8 @@ class UsageReservationsControllerContractTest {
 						"requestedBytes":100,"domain":"LOGS"}"""))
 				.andExpect(status().isCreated()).andExpect(jsonPath("$.outcome").value("AUTHORIZED"))
 				.andExpect(jsonPath("$.reservationId").value("reservation-overage"))
-				.andExpect(jsonPath("$.overageBytes").value(40));
+				.andExpect(jsonPath("$.overageBytes").value(40))
+				.andExpect(jsonPath("$.retentionDays").value(90));
 
 		mockMvc.perform(post("/internal/usage-reservations").header("X-LhamaLog-Service-Token", TOKEN)
 				.contentType(MediaType.APPLICATION_JSON)
