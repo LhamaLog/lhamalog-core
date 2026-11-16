@@ -208,8 +208,7 @@ public class QuotaReservationService {
 					request.tenantId(), request.productId());
 			return false;
 		}
-		Instant graceEndsAt = delinquentSince.plus(delinquencyGrace);
-		if (!now.isBefore(graceEndsAt)) {
+		if (DelinquencyGrace.isExpired(delinquentSince, delinquencyGrace, now)) {
 			log.warn(
 					"event=subscription.delinquent.grace_expired | Delinquency grace period expired; treating as suspended | tenantId={} productId={} delinquentSince={}",
 					request.tenantId(), request.productId(), delinquentSince);

@@ -1,16 +1,21 @@
 package br.com.lhamalog.core.usage.application;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
  * Resolves tenant-level raw-log retention as the maximum {@code retentionDays} among the tenant's countable
  * subscriptions (decided by Michel on 16/11/2026 16:36).
  *
- * <p>Countable: {@link SubscriptionStatus#ATIVA} and {@link SubscriptionStatus#INADIMPLENTE} (including the
- * delinquency grace); {@link SubscriptionStatus#SUSPENSA} is excluded. A legacy subscription without a
+ * <p>Countable: {@link SubscriptionStatus#ATIVA} and {@link SubscriptionStatus#INADIMPLENTE} while still within
+ * the delinquency grace ({@code lhamalog.subscription.delinquency-grace}, same rule as the reservation:
+ * {@link DelinquencyGrace}). {@link SubscriptionStatus#SUSPENSA} and INADIMPLENTE past the grace are excluded,
+ * because the reservation already treats them as suspended. A legacy subscription without a
  * {@link PlanTier} counts as {@link PlanTier#FREE} (7 days). The stored tier stays {@code null}; only the
  * resolution assumes FREE.
  *
@@ -24,11 +29,27 @@ public class TenantRetentionResolver {
 
 	private final PlanSubscriptionRepository subscriptions;
 	private final PlanRetentionProperties retentionProperties;
+	private final Duration delinquencyGrace;
+	private final Clock clock;
 
+	@Autowired
+	public TenantRetentionResolver(PlanSubscriptionRepository subscriptions,
+			PlanRetentionProperties retentionProperties, SubscriptionProperties subscriptionProperties, Clock clock) {
+		this(subscriptions, retentionProperties, subscriptionProperties.delinquencyGrace(), clock);
+	}
+
+	/** Defaults to the 15-day grace and the UTC system clock. */
 	public TenantRetentionResolver(PlanSubscriptionRepository subscriptions,
 			PlanRetentionProperties retentionProperties) {
+		this(subscriptions, retentionProperties, Duration.ofDays(15), Clock.systemUTC());
+	}
+
+	TenantRetentionResolver(PlanSubscriptionRepository subscriptions, PlanRetentionProperties retentionProperties,
+			Duration delinquencyGrace, Clock clock) {
 		this.subscriptions = subscriptions;
 		this.retentionProperties = retentionProperties;
+		this.delinquencyGrace = delinquencyGrace;
+		this.clock = clock;
 	}
 
 	/**
@@ -41,8 +62,16 @@ public class TenantRetentionResolver {
 		}
 		List<PlanSubscription> tenantSubscriptions = subscriptions.findByTenantId(tenantId);
 		int max = -1;
+		java.time.Instant now = clock.instant();
 		for (PlanSubscription subscription : tenantSubscriptions) {
 			if (subscription.status() == SubscriptionStatus.SUSPENSA) {
+				continue;
+			}
+			if (subscription.status() == SubscriptionStatus.INADIMPLENTE
+					&& DelinquencyGrace.isExpired(subscription.delinquentSince(), delinquencyGrace, now)) {
+				log.debug(
+						"event=quota.retention.delinquent_excluded | Delinquent subscription past grace excluded from retention | tenantId={} productId={} delinquentSince={}",
+						tenantId, subscription.productId(), subscription.delinquentSince());
 				continue;
 			}
 			PlanTier tier = subscription.planTier();

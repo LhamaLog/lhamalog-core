@@ -3,7 +3,11 @@ package br.com.lhamalog.core.usage.application;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -101,6 +105,70 @@ class TenantRetentionResolverTest {
 		TenantRetentionResolver resolver = new TenantRetentionResolver(repo, defaults());
 
 		assertThat(resolver.resolveRetentionDays("tenant")).isEqualTo(15);
+	}
+
+	private static final Instant NOW = Instant.parse("2026-11-16T12:00:00Z");
+	private static final Duration GRACE = Duration.ofDays(15);
+
+	@Test
+	void businessDelinquentPastGracePlusFreeActiveResolvesToSevenDays() {
+		InMemoryPlanSubscriptionRepository repo = new InMemoryPlanSubscriptionRepository();
+		repo.save(delinquent("product-a", PlanTier.BUSINESS, NOW.minus(Duration.ofDays(30))));
+		repo.save(subscription("product-b", PlanTier.FREE, SubscriptionStatus.ATIVA));
+
+		assertThat(atNow(repo).resolveRetentionDays("tenant")).isEqualTo(7);
+	}
+
+	@Test
+	void delinquentWithinGraceStillCounts() {
+		InMemoryPlanSubscriptionRepository repo = new InMemoryPlanSubscriptionRepository();
+		repo.save(delinquent("product-a", PlanTier.BUSINESS, NOW.minus(Duration.ofDays(5))));
+		repo.save(subscription("product-b", PlanTier.FREE, SubscriptionStatus.ATIVA));
+
+		assertThat(atNow(repo).resolveRetentionDays("tenant")).isEqualTo(90);
+	}
+
+	@Test
+	void delinquentExactlyAtGraceEndIsExcluded() {
+		InMemoryPlanSubscriptionRepository repo = new InMemoryPlanSubscriptionRepository();
+		repo.save(delinquent("product-a", PlanTier.BUSINESS, NOW.minus(GRACE)));
+		repo.save(subscription("product-b", PlanTier.FREE, SubscriptionStatus.ATIVA));
+
+		assertThat(atNow(repo).resolveRetentionDays("tenant")).isEqualTo(7);
+	}
+
+	@Test
+	void delinquentOneSecondBeforeGraceEndStillCounts() {
+		InMemoryPlanSubscriptionRepository repo = new InMemoryPlanSubscriptionRepository();
+		repo.save(delinquent("product-a", PlanTier.BUSINESS, NOW.minus(GRACE).plusSeconds(1)));
+
+		assertThat(atNow(repo).resolveRetentionDays("tenant")).isEqualTo(90);
+	}
+
+	@Test
+	void onlyDelinquentPastGraceResolvesToNull() {
+		InMemoryPlanSubscriptionRepository repo = new InMemoryPlanSubscriptionRepository();
+		repo.save(delinquent("product-a", PlanTier.PRO, NOW.minus(Duration.ofDays(30))));
+
+		assertThat(atNow(repo).resolveRetentionDays("tenant")).isNull();
+	}
+
+	@Test
+	void delinquentWithoutDelinquentSinceCountsConservatively() {
+		InMemoryPlanSubscriptionRepository repo = new InMemoryPlanSubscriptionRepository();
+		repo.save(delinquent("product-a", PlanTier.PRO, null));
+
+		assertThat(atNow(repo).resolveRetentionDays("tenant")).isEqualTo(30);
+	}
+
+	private static TenantRetentionResolver atNow(InMemoryPlanSubscriptionRepository repo) {
+		return new TenantRetentionResolver(repo, defaults(), GRACE, Clock.fixed(NOW, ZoneOffset.UTC));
+	}
+
+	private static PlanSubscription delinquent(String productId, PlanTier tier, Instant delinquentSince) {
+		return new PlanSubscription("id-" + productId, "tenant", productId, PlanType.MONTHLY,
+				LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.01), false, SubscriptionStatus.INADIMPLENTE, false,
+				delinquentSince, tier);
 	}
 
 	private static PlanSubscription subscription(String productId, PlanTier tier, SubscriptionStatus status) {
