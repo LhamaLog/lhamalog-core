@@ -9,7 +9,10 @@ import java.util.List;
 import java.util.Optional;
 import org.bson.Document;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
+import org.springframework.data.mongodb.core.aggregation.AggregationUpdate;
 import org.springframework.data.mongodb.core.query.BasicQuery;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -42,7 +45,7 @@ public class MongoQuotaReservationRepository implements QuotaReservationReposito
 		UpdateResult retained = mongo.updateFirst(new BasicQuery(criteria),
 				new Update().inc("reservedBytes", reservation.requestedBytes()), QuotaBalanceDocument.class);
 		if (retained.getModifiedCount() != 1) return false;
-		if (persistReservation(reservation)) {
+		if (persistReservation(reservation.withOverageBytes(0L))) {
 			return true;
 		}
 		mongo.updateFirst(Query.query(Criteria.where("_id").is(balanceId)),
@@ -54,20 +57,36 @@ public class MongoQuotaReservationRepository implements QuotaReservationReposito
 	public long reserveAllowingOverage(CycleBalance balance, QuotaReservation reservation) {
 		String balanceId = balanceId(balance.tenantId(), balance.productId(), balance.cycleStart());
 		ensureBalance(balance, balanceId);
-		QuotaBalanceDocument current = mongo.findById(balanceId, QuotaBalanceDocument.class);
-		long remaining = current == null ? balance.allowanceBytes()
-				: Math.max(0L, current.allowanceBytes() - current.reservedBytes() - current.consumedBytes());
-		long overage = Math.max(0L, reservation.requestedBytes() - remaining);
-		mongo.updateFirst(Query.query(Criteria.where("_id").is(balanceId)),
-				new Update().inc("reservedBytes", reservation.requestedBytes()).inc("overageBytes", overage),
-				QuotaBalanceDocument.class);
-		if (persistReservation(reservation)) {
+		long requested = reservation.requestedBytes();
+		AggregationOperation setOverageSplit = context -> new Document("$set", new Document()
+				.append("reservedBytes", new Document("$add", List.of("$reservedBytes", requested)))
+				.append("overageBytes", new Document("$add", List.of(
+						new Document("$ifNull", List.of("$overageBytes", 0L)),
+						overageIncrementExpression(requested)))));
+		QuotaBalanceDocument before = mongo.findAndModify(Query.query(Criteria.where("_id").is(balanceId)),
+				AggregationUpdate.from(List.of(setOverageSplit)),
+				FindAndModifyOptions.options().returnNew(false), QuotaBalanceDocument.class);
+		if (before == null) {
+			return -1L;
+		}
+		long remaining = Math.max(0L, before.allowanceBytes() - before.reservedBytes() - before.consumedBytes());
+		long overage = Math.max(0L, requested - remaining);
+		if (persistReservation(reservation.withOverageBytes(overage))) {
 			return overage;
 		}
 		mongo.updateFirst(Query.query(Criteria.where("_id").is(balanceId)),
-				new Update().inc("reservedBytes", -reservation.requestedBytes()).inc("overageBytes", -overage),
-				QuotaBalanceDocument.class);
+				new Update().inc("reservedBytes", -requested).inc("overageBytes", -overage), QuotaBalanceDocument.class);
 		return -1L;
+	}
+
+	/**
+	 * {@code max(0, requested - max(0, allowanceBytes - reservedBytes - consumedBytes))} evaluated against
+	 * the document state at update time so concurrent overage reservations cannot under-count shortfall.
+	 */
+	private static Document overageIncrementExpression(long requestedBytes) {
+		Document remaining = new Document("$max", List.of(0L, new Document("$subtract", List.of("$allowanceBytes",
+				new Document("$add", List.of("$reservedBytes", "$consumedBytes"))))));
+		return new Document("$max", List.of(0L, new Document("$subtract", List.of(requestedBytes, remaining))));
 	}
 
 	private void ensureBalance(CycleBalance balance, String balanceId) {
@@ -80,7 +99,7 @@ public class MongoQuotaReservationRepository implements QuotaReservationReposito
 
 	@Override
 	public boolean saveUnlimited(QuotaReservation reservation) {
-		return persistReservation(reservation);
+		return persistReservation(reservation.withOverageBytes(0L));
 	}
 
 	/**
@@ -121,7 +140,9 @@ public class MongoQuotaReservationRepository implements QuotaReservationReposito
 		if (!transition(reservation.reservationId(), ReservationState.RESERVED, next, now)) return false;
 		if (!reservation.unlimited()) {
 			mongo.updateFirst(Query.query(Criteria.where("_id").is(balanceId(reservation.tenantId(), reservation.productId(),
-					reservation.cycleStart()))), new Update().inc("reservedBytes", -reservation.requestedBytes()),
+					reservation.cycleStart()))),
+					new Update().inc("reservedBytes", -reservation.requestedBytes())
+							.inc("overageBytes", -reservation.overageBytes()),
 					QuotaBalanceDocument.class);
 		}
 		return true;
@@ -132,7 +153,9 @@ public class MongoQuotaReservationRepository implements QuotaReservationReposito
 		if (!transition(reservation.reservationId(), ReservationState.CONFIRMED, ReservationState.REFUNDED, now)) return false;
 		if (!reservation.unlimited()) {
 			mongo.updateFirst(Query.query(Criteria.where("_id").is(balanceId(reservation.tenantId(), reservation.productId(),
-					reservation.cycleStart()))), new Update().inc("consumedBytes", -reservation.requestedBytes()),
+					reservation.cycleStart()))),
+					new Update().inc("consumedBytes", -reservation.requestedBytes())
+							.inc("overageBytes", -reservation.overageBytes()),
 					QuotaBalanceDocument.class);
 		}
 		return true;
@@ -158,12 +181,12 @@ public class MongoQuotaReservationRepository implements QuotaReservationReposito
 	private static QuotaReservationDocument toDocument(QuotaReservation value) {
 		return new QuotaReservationDocument(value.reservationId(), value.tenantId(), value.productId(), value.cycleStart(),
 				value.requestedBytes(), value.domain(), value.batchId(), value.unlimited(), value.state(), value.createdAt(),
-				value.expiresAt(), value.updatedAt());
+				value.expiresAt(), value.updatedAt(), value.overageBytes());
 	}
 
 	private QuotaReservation fromDocument(QuotaReservationDocument value) {
 		return new QuotaReservation(value.reservationId(), value.tenantId(), value.productId(), value.cycleStart(),
 				value.requestedBytes(), value.domain(), value.batchId(), value.unlimited(), value.state(), value.createdAt(),
-				value.expiresAt(), value.updatedAt());
+				value.expiresAt(), value.updatedAt(), value.overageBytes());
 	}
 }

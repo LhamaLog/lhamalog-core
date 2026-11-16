@@ -18,14 +18,14 @@ public record PlanSubscription(@Id String id, @NotBlank String tenantId, @NotBla
 
 	public PlanSubscription(String id, String tenantId, String productId, PlanType planType,
 			LocalDate firstPaymentDate) {
-		this(id, tenantId, productId, planType, firstPaymentDate, BigDecimal.ZERO, false, SubscriptionStatus.ATIVA,
+		this(id, tenantId, productId, planType, firstPaymentDate, BigDecimal.ZERO, false, SubscriptionStatus.ACTIVE,
 				false, null, null);
 	}
 
 	public PlanSubscription(String id, String tenantId, String productId, PlanType planType,
 			LocalDate firstPaymentDate, BigDecimal allowanceGigabytes, boolean unlimitedUsage) {
 		this(id, tenantId, productId, planType, firstPaymentDate, allowanceGigabytes, unlimitedUsage,
-				SubscriptionStatus.ATIVA, false, null, null);
+				SubscriptionStatus.ACTIVE, false, null, null);
 	}
 
 	/** Convenience when delinquentSince and planTier are omitted. */
@@ -46,9 +46,10 @@ public record PlanSubscription(@Id String id, @NotBlank String tenantId, @NotBla
 
 	/**
 	 * Reads legacy subscription documents created before allowance, unlimited-usage, status, overage,
-	 * delinquentSince, and planTier fields were introduced. Missing values map to ATIVA /
-	 * overageEnabled=false / delinquentSince=null / planTier=null. Tier names are converted
-	 * case-insensitively via {@link br.com.lhamalog.core.usage.infrastructure.UsageMongoConverters}.
+	 * delinquentSince, and planTier fields were introduced. Missing values map to ACTIVE /
+	 * overageEnabled=false / delinquentSince=null / planTier=null. Portuguese status spellings are accepted by
+	 * {@link SubscriptionStatus#fromPersisted(String)} and tier names are converted case-insensitively, both via
+	 * {@link br.com.lhamalog.core.usage.infrastructure.UsageMongoConverters}.
 	 */
 	@PersistenceCreator
 	public PlanSubscription(String id, String tenantId, String productId, PlanType planType,
@@ -56,7 +57,7 @@ public record PlanSubscription(@Id String id, @NotBlank String tenantId, @NotBla
 			SubscriptionStatus status, Boolean overageEnabled, Instant delinquentSince, PlanTier planTier) {
 		this(id, tenantId, productId, planType, firstPaymentDate,
 				allowanceGigabytes == null ? BigDecimal.ZERO : allowanceGigabytes,
-				Boolean.TRUE.equals(unlimitedUsage), status == null ? SubscriptionStatus.ATIVA : status,
+				Boolean.TRUE.equals(unlimitedUsage), status == null ? SubscriptionStatus.ACTIVE : status,
 				Boolean.TRUE.equals(overageEnabled), delinquentSince, planTier);
 	}
 }

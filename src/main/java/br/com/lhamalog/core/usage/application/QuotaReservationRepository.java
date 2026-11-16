@@ -11,7 +11,9 @@ public interface QuotaReservationRepository {
 	boolean reserve(CycleBalance balance, QuotaReservation reservation);
 
 	/**
-	 * Reserves without enforcing remaining balance. Increments {@code overageBytes} by the shortfall.
+	 * Reserves without enforcing remaining balance. Atomically increments {@code overageBytes} by the
+	 * shortfall against the live balance and persists that shortfall on the reservation so release,
+	 * refund, and expiration can revert it exactly once.
 	 *
 	 * @return overage bytes recorded for this call, or {@code -1} if the reservation could not be persisted
 	 */

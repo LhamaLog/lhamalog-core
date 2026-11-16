@@ -16,7 +16,7 @@ class TenantRetentionResolverTest {
 	@Test
 	void freeOnlyResolvesToSevenDays() {
 		InMemoryPlanSubscriptionRepository repo = new InMemoryPlanSubscriptionRepository();
-		repo.save(subscription("product-a", PlanTier.FREE, SubscriptionStatus.ATIVA));
+		repo.save(subscription("product-a", PlanTier.FREE, SubscriptionStatus.ACTIVE));
 		TenantRetentionResolver resolver = new TenantRetentionResolver(repo, defaults());
 
 		assertThat(resolver.resolveRetentionDays("tenant")).isEqualTo(7);
@@ -25,8 +25,8 @@ class TenantRetentionResolverTest {
 	@Test
 	void freeAndProResolvesToMaxThirtyDays() {
 		InMemoryPlanSubscriptionRepository repo = new InMemoryPlanSubscriptionRepository();
-		repo.save(subscription("product-a", PlanTier.FREE, SubscriptionStatus.ATIVA));
-		repo.save(subscription("product-b", PlanTier.PRO, SubscriptionStatus.ATIVA));
+		repo.save(subscription("product-a", PlanTier.FREE, SubscriptionStatus.ACTIVE));
+		repo.save(subscription("product-b", PlanTier.PRO, SubscriptionStatus.ACTIVE));
 		TenantRetentionResolver resolver = new TenantRetentionResolver(repo, defaults());
 
 		assertThat(resolver.resolveRetentionDays("tenant")).isEqualTo(30);
@@ -35,7 +35,7 @@ class TenantRetentionResolverTest {
 	@Test
 	void legacySubscriptionWithoutTierCountsAsFree() {
 		InMemoryPlanSubscriptionRepository repo = new InMemoryPlanSubscriptionRepository();
-		repo.save(subscription("product-a", null, SubscriptionStatus.ATIVA));
+		repo.save(subscription("product-a", null, SubscriptionStatus.ACTIVE));
 		TenantRetentionResolver resolver = new TenantRetentionResolver(repo, defaults());
 
 		assertThat(resolver.resolveRetentionDays("tenant")).isEqualTo(7);
@@ -44,7 +44,7 @@ class TenantRetentionResolverTest {
 	@Test
 	void delinquentLegacySubscriptionWithoutTierCountsAsFree() {
 		InMemoryPlanSubscriptionRepository repo = new InMemoryPlanSubscriptionRepository();
-		repo.save(subscription("product-a", null, SubscriptionStatus.INADIMPLENTE));
+		repo.save(subscription("product-a", null, SubscriptionStatus.DELINQUENT));
 		TenantRetentionResolver resolver = new TenantRetentionResolver(repo, defaults());
 
 		assertThat(resolver.resolveRetentionDays("tenant")).isEqualTo(7);
@@ -53,8 +53,8 @@ class TenantRetentionResolverTest {
 	@Test
 	void legacyWithoutTierAndProResolvesToThirtyDays() {
 		InMemoryPlanSubscriptionRepository repo = new InMemoryPlanSubscriptionRepository();
-		repo.save(subscription("product-a", null, SubscriptionStatus.ATIVA));
-		repo.save(subscription("product-b", PlanTier.PRO, SubscriptionStatus.ATIVA));
+		repo.save(subscription("product-a", null, SubscriptionStatus.ACTIVE));
+		repo.save(subscription("product-b", PlanTier.PRO, SubscriptionStatus.ACTIVE));
 		TenantRetentionResolver resolver = new TenantRetentionResolver(repo, defaults());
 
 		assertThat(resolver.resolveRetentionDays("tenant")).isEqualTo(30);
@@ -63,7 +63,7 @@ class TenantRetentionResolverTest {
 	@Test
 	void suspendedLegacySubscriptionWithoutTierIsIgnored() {
 		InMemoryPlanSubscriptionRepository repo = new InMemoryPlanSubscriptionRepository();
-		repo.save(subscription("product-a", null, SubscriptionStatus.SUSPENSA));
+		repo.save(subscription("product-a", null, SubscriptionStatus.SUSPENDED));
 		TenantRetentionResolver resolver = new TenantRetentionResolver(repo, defaults());
 
 		assertThat(resolver.resolveRetentionDays("tenant")).isNull();
@@ -80,7 +80,7 @@ class TenantRetentionResolverTest {
 	@Test
 	void freeOverrideAppliesToLegacySubscriptionWithoutTier() {
 		InMemoryPlanSubscriptionRepository repo = new InMemoryPlanSubscriptionRepository();
-		repo.save(subscription("product-a", null, SubscriptionStatus.ATIVA));
+		repo.save(subscription("product-a", null, SubscriptionStatus.ACTIVE));
 		TenantRetentionResolver resolver = new TenantRetentionResolver(repo,
 				new PlanRetentionProperties(Map.of("free", 10)));
 
@@ -90,7 +90,7 @@ class TenantRetentionResolverTest {
 	@Test
 	void suspendedOnlyTierIsIgnored() {
 		InMemoryPlanSubscriptionRepository repo = new InMemoryPlanSubscriptionRepository();
-		repo.save(subscription("product-a", PlanTier.ENTERPRISE, SubscriptionStatus.SUSPENSA));
+		repo.save(subscription("product-a", PlanTier.ENTERPRISE, SubscriptionStatus.SUSPENDED));
 		TenantRetentionResolver resolver = new TenantRetentionResolver(repo, defaults());
 
 		assertThat(resolver.resolveRetentionDays("tenant")).isNull();
@@ -99,9 +99,9 @@ class TenantRetentionResolverTest {
 	@Test
 	void includesDelinquentAndIgnoresSuspendedWhenComputingMax() {
 		InMemoryPlanSubscriptionRepository repo = new InMemoryPlanSubscriptionRepository();
-		repo.save(subscription("product-a", PlanTier.FREE, SubscriptionStatus.INADIMPLENTE));
-		repo.save(subscription("product-b", PlanTier.BUSINESS, SubscriptionStatus.SUSPENSA));
-		repo.save(subscription("product-c", PlanTier.STARTER, SubscriptionStatus.ATIVA));
+		repo.save(subscription("product-a", PlanTier.FREE, SubscriptionStatus.DELINQUENT));
+		repo.save(subscription("product-b", PlanTier.BUSINESS, SubscriptionStatus.SUSPENDED));
+		repo.save(subscription("product-c", PlanTier.STARTER, SubscriptionStatus.ACTIVE));
 		TenantRetentionResolver resolver = new TenantRetentionResolver(repo, defaults());
 
 		assertThat(resolver.resolveRetentionDays("tenant")).isEqualTo(15);
@@ -114,7 +114,7 @@ class TenantRetentionResolverTest {
 	void businessDelinquentPastGracePlusFreeActiveResolvesToSevenDays() {
 		InMemoryPlanSubscriptionRepository repo = new InMemoryPlanSubscriptionRepository();
 		repo.save(delinquent("product-a", PlanTier.BUSINESS, NOW.minus(Duration.ofDays(30))));
-		repo.save(subscription("product-b", PlanTier.FREE, SubscriptionStatus.ATIVA));
+		repo.save(subscription("product-b", PlanTier.FREE, SubscriptionStatus.ACTIVE));
 
 		assertThat(atNow(repo).resolveRetentionDays("tenant")).isEqualTo(7);
 	}
@@ -123,7 +123,7 @@ class TenantRetentionResolverTest {
 	void delinquentWithinGraceStillCounts() {
 		InMemoryPlanSubscriptionRepository repo = new InMemoryPlanSubscriptionRepository();
 		repo.save(delinquent("product-a", PlanTier.BUSINESS, NOW.minus(Duration.ofDays(5))));
-		repo.save(subscription("product-b", PlanTier.FREE, SubscriptionStatus.ATIVA));
+		repo.save(subscription("product-b", PlanTier.FREE, SubscriptionStatus.ACTIVE));
 
 		assertThat(atNow(repo).resolveRetentionDays("tenant")).isEqualTo(90);
 	}
@@ -132,7 +132,7 @@ class TenantRetentionResolverTest {
 	void delinquentExactlyAtGraceEndIsExcluded() {
 		InMemoryPlanSubscriptionRepository repo = new InMemoryPlanSubscriptionRepository();
 		repo.save(delinquent("product-a", PlanTier.BUSINESS, NOW.minus(GRACE)));
-		repo.save(subscription("product-b", PlanTier.FREE, SubscriptionStatus.ATIVA));
+		repo.save(subscription("product-b", PlanTier.FREE, SubscriptionStatus.ACTIVE));
 
 		assertThat(atNow(repo).resolveRetentionDays("tenant")).isEqualTo(7);
 	}
@@ -167,7 +167,7 @@ class TenantRetentionResolverTest {
 
 	private static PlanSubscription delinquent(String productId, PlanTier tier, Instant delinquentSince) {
 		return new PlanSubscription("id-" + productId, "tenant", productId, PlanType.MONTHLY,
-				LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.01), false, SubscriptionStatus.INADIMPLENTE, false,
+				LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.01), false, SubscriptionStatus.DELINQUENT, false,
 				delinquentSince, tier);
 	}
 

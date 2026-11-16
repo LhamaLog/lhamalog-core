@@ -12,9 +12,9 @@ import org.springframework.stereotype.Service;
  * Resolves tenant-level raw-log retention as the maximum {@code retentionDays} among the tenant's countable
  * subscriptions (decided by Michel on 16/11/2026 16:36).
  *
- * <p>Countable: {@link SubscriptionStatus#ATIVA} and {@link SubscriptionStatus#INADIMPLENTE} while still within
+ * <p>Countable: {@link SubscriptionStatus#ACTIVE} and {@link SubscriptionStatus#DELINQUENT} while still within
  * the delinquency grace ({@code lhamalog.subscription.delinquency-grace}, same rule as the reservation:
- * {@link DelinquencyGrace}). {@link SubscriptionStatus#SUSPENSA} and INADIMPLENTE past the grace are excluded,
+ * {@link DelinquencyGrace}). {@link SubscriptionStatus#SUSPENDED} and DELINQUENT past the grace are excluded,
  * because the reservation already treats them as suspended. A legacy subscription without a
  * {@link PlanTier} counts as {@link PlanTier#FREE} (7 days). The stored tier stays {@code null}; only the
  * resolution assumes FREE.
@@ -64,10 +64,10 @@ public class TenantRetentionResolver {
 		int max = -1;
 		java.time.Instant now = clock.instant();
 		for (PlanSubscription subscription : tenantSubscriptions) {
-			if (subscription.status() == SubscriptionStatus.SUSPENSA) {
+			if (subscription.status() == SubscriptionStatus.SUSPENDED) {
 				continue;
 			}
-			if (subscription.status() == SubscriptionStatus.INADIMPLENTE
+			if (subscription.status() == SubscriptionStatus.DELINQUENT
 					&& DelinquencyGrace.isExpired(subscription.delinquentSince(), delinquencyGrace, now)) {
 				log.debug(
 						"event=quota.retention.delinquent_excluded | Delinquent subscription past grace excluded from retention | tenantId={} productId={} delinquentSince={}",

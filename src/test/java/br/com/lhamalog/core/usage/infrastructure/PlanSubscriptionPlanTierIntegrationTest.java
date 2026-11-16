@@ -72,7 +72,7 @@ class PlanSubscriptionPlanTierIntegrationTest {
 		PlanSubscription subscription = mongo.findById("sub-legacy", PlanSubscription.class);
 		assertThat(subscription).isNotNull();
 		assertThat(subscription.planTier()).isNull();
-		assertThat(subscription.status()).isEqualTo(SubscriptionStatus.ATIVA);
+		assertThat(subscription.status()).isEqualTo(SubscriptionStatus.ACTIVE);
 	}
 
 	@Test
@@ -85,7 +85,7 @@ class PlanSubscriptionPlanTierIntegrationTest {
 				.append("firstPaymentDate", Date.from(Instant.parse("2026-11-01T00:00:00Z")))
 				.append("allowanceGigabytes", new BigDecimal("0.01"))
 				.append("unlimitedUsage", false)
-				.append("status", SubscriptionStatus.ATIVA.name())
+				.append("status", SubscriptionStatus.ACTIVE.name())
 				.append("overageEnabled", false)
 				.append("planTier", "Starter")
 				.append("_class", PlanSubscription.class.getName()));
@@ -98,13 +98,13 @@ class PlanSubscriptionPlanTierIntegrationTest {
 	@Test
 	void findByTenantIdReturnsAllProductsForTenant() {
 		repository.save(new PlanSubscription("a", "tenant-1", "product-a", PlanType.MONTHLY,
-				LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.01), false, SubscriptionStatus.ATIVA, false, null,
+				LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.01), false, SubscriptionStatus.ACTIVE, false, null,
 				PlanTier.FREE));
 		repository.save(new PlanSubscription("b", "tenant-1", "product-b", PlanType.MONTHLY,
-				LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.01), false, SubscriptionStatus.ATIVA, false, null,
+				LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.01), false, SubscriptionStatus.ACTIVE, false, null,
 				PlanTier.PRO));
 		repository.save(new PlanSubscription("c", "tenant-2", "product-a", PlanType.MONTHLY,
-				LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.01), false, SubscriptionStatus.ATIVA, false, null,
+				LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.01), false, SubscriptionStatus.ACTIVE, false, null,
 				PlanTier.BUSINESS));
 
 		List<PlanSubscription> found = repository.findByTenantId("tenant-1");

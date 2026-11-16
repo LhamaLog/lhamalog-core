@@ -84,7 +84,8 @@ public class QuotaReservationService {
 				|| previous.get().state() == ReservationState.CONFIRMED)) {
 			QuotaReservation value = previous.get();
 			return new ReservationResponse(value.unlimited() ? Outcome.AUTHORIZED_UNLIMITED : Outcome.AUTHORIZED,
-					value.reservationId(), value.expiresAt(), true, 0L, retentionDaysFor(value.tenantId()));
+					value.reservationId(), value.expiresAt(), true, value.overageBytes(),
+					retentionDaysFor(value.tenantId()));
 		}
 		Instant now = clock.instant();
 		PlanSubscription subscription = subscriptions.findByTenantIdAndProductId(request.tenantId(), request.productId())
@@ -92,10 +93,10 @@ public class QuotaReservationService {
 		if (subscription == null) {
 			return ReservationResponse.noPlan();
 		}
-		if (subscription.status() == SubscriptionStatus.SUSPENSA) {
+		if (subscription.status() == SubscriptionStatus.SUSPENDED) {
 			return ReservationResponse.suspended();
 		}
-		if (subscription.status() == SubscriptionStatus.INADIMPLENTE
+		if (subscription.status() == SubscriptionStatus.DELINQUENT
 				&& isDelinquencyGraceExpired(subscription, request, now)) {
 			return ReservationResponse.suspended();
 		}
