@@ -12,6 +12,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -68,6 +70,76 @@ class MongoQuotaReservationRepositoryIntegrationTest {
 			assertThat(value.consumedBytes()).isZero();
 			assertThat(value.remainingBytes()).isZero();
 			assertThat(value.overageBytes()).isZero();
+		});
+	}
+
+	@Test
+	void concurrentOverageReservationsSplitExactlyAcrossThreads() throws Exception {
+		long allowance = 1_000;
+		long requested = 100;
+		int threads = 50;
+		var balance = new QuotaReservationRepository.CycleBalance("tenant", "product", cycleStart, allowance);
+		AtomicLong overageAuthorized = new AtomicLong();
+		try (var executor = Executors.newFixedThreadPool(threads)) {
+			List<Callable<Long>> requests = java.util.stream.IntStream.range(0, threads)
+					.<Callable<Long>>mapToObj(index -> () -> {
+						long overage = repository.reserveAllowingOverage(balance,
+								reservation("overage-" + index, requested, ReservationState.RESERVED,
+										Instant.parse("2026-11-11T12:20:00Z")));
+						if (overage >= 0) {
+							overageAuthorized.addAndGet(overage);
+						}
+						return overage;
+					})
+					.toList();
+			List<Future<Long>> futures = executor.invokeAll(requests);
+			long authorized = 0;
+			for (Future<Long> future : futures) {
+				assertThat(future.get()).isGreaterThanOrEqualTo(0);
+				authorized++;
+			}
+			assertThat(authorized).isEqualTo(threads);
+		}
+		long totalAuthorizedBytes = threads * requested;
+		long expectedOverage = totalAuthorizedBytes - allowance;
+		assertThat(overageAuthorized.get()).isEqualTo(expectedOverage);
+		Instant confirmedAt = Instant.parse("2026-11-11T12:30:00Z");
+		for (int index = 0; index < threads; index++) {
+			assertThat(repository.moveReservedToConsumed(repository.find("overage-" + index).orElseThrow(), confirmedAt))
+					.isTrue();
+		}
+		assertThat(repository.findBalance("tenant", "product", cycleStart)).hasValueSatisfying(value -> {
+			assertThat(value.reservedBytes()).isZero();
+			assertThat(value.consumedBytes()).isEqualTo(totalAuthorizedBytes);
+			assertThat(value.overageBytes()).isEqualTo(expectedOverage);
+			assertThat(value.consumedBytes()).isEqualTo(value.allowanceBytes() + value.overageBytes());
+		});
+	}
+
+	@Test
+	void concurrentReservationsWithoutOverageNeverExceedAllowance() throws Exception {
+		long allowance = 1_000;
+		long requested = 100;
+		int threads = 50;
+		var balance = new QuotaReservationRepository.CycleBalance("tenant", "product", cycleStart, allowance);
+		try (var executor = Executors.newFixedThreadPool(threads)) {
+			List<Callable<Boolean>> requests = java.util.stream.IntStream.range(0, threads)
+					.<Callable<Boolean>>mapToObj(index -> () -> repository.reserve(balance,
+							reservation("strict-" + index, requested, ReservationState.RESERVED,
+									Instant.parse("2026-11-11T12:20:00Z"))))
+					.toList();
+			long authorized = 0;
+			for (Future<Boolean> future : executor.invokeAll(requests)) {
+				if (Boolean.TRUE.equals(future.get())) {
+					authorized++;
+				}
+			}
+			assertThat(authorized).isEqualTo(allowance / requested);
+		}
+		assertThat(repository.findBalance("tenant", "product", cycleStart)).hasValueSatisfying(value -> {
+			assertThat(value.reservedBytes()).isEqualTo(allowance);
+			assertThat(value.overageBytes()).isZero();
+			assertThat(value.remainingBytes()).isZero();
 		});
 	}
 
