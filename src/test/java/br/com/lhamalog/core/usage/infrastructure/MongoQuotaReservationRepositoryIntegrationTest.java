@@ -67,6 +67,40 @@ class MongoQuotaReservationRepositoryIntegrationTest {
 			assertThat(value.reservedBytes()).isEqualTo(1_000);
 			assertThat(value.consumedBytes()).isZero();
 			assertThat(value.remainingBytes()).isZero();
+			assertThat(value.overageBytes()).isZero();
+		});
+	}
+
+	@Test
+	void overageReleaseAndRefundRevertOverageExactlyOnce() {
+		var balance = new QuotaReservationRepository.CycleBalance("tenant", "product", cycleStart, 100);
+		assertThat(repository.reserveAllowingOverage(balance,
+				reservation("overage-release", 150, ReservationState.RESERVED, Instant.parse("2026-11-11T12:20:00Z"))))
+				.isEqualTo(50L);
+		QuotaReservation pending = repository.find("overage-release").orElseThrow();
+		assertThat(pending.overageBytes()).isEqualTo(50L);
+		assertThat(repository.releaseReserved(pending, ReservationState.RELEASED, Instant.parse("2026-11-11T12:00:00Z")))
+				.isTrue();
+		assertThat(repository.releaseReserved(pending, ReservationState.RELEASED, Instant.parse("2026-11-11T12:00:01Z")))
+				.isFalse();
+		assertThat(repository.findBalance("tenant", "product", cycleStart)).hasValueSatisfying(value -> {
+			assertThat(value.reservedBytes()).isZero();
+			assertThat(value.overageBytes()).isZero();
+		});
+
+		assertThat(repository.reserveAllowingOverage(balance,
+				reservation("overage-refund", 150, ReservationState.RESERVED, Instant.parse("2026-11-11T12:40:00Z"))))
+				.isEqualTo(50L);
+		QuotaReservation confirmed = repository.find("overage-refund").orElseThrow();
+		assertThat(repository.moveReservedToConsumed(confirmed, Instant.parse("2026-11-11T12:00:02Z"))).isTrue();
+		assertThat(repository.findBalance("tenant", "product", cycleStart))
+				.hasValueSatisfying(value -> assertThat(value.overageBytes()).isEqualTo(50L));
+		QuotaReservation toRefund = repository.find("overage-refund").orElseThrow();
+		assertThat(repository.refundConsumed(toRefund, Instant.parse("2026-11-11T12:00:03Z"))).isTrue();
+		assertThat(repository.refundConsumed(toRefund, Instant.parse("2026-11-11T12:00:04Z"))).isFalse();
+		assertThat(repository.findBalance("tenant", "product", cycleStart)).hasValueSatisfying(value -> {
+			assertThat(value.consumedBytes()).isZero();
+			assertThat(value.overageBytes()).isZero();
 		});
 	}
 
@@ -106,6 +140,7 @@ class MongoQuotaReservationRepositoryIntegrationTest {
 			assertThat(value.state()).isEqualTo(ReservationState.RESERVED);
 			assertThat(value.requestedBytes()).isEqualTo(150);
 			assertThat(value.expiresAt()).isEqualTo(Instant.parse("2026-11-11T12:40:00Z"));
+			assertThat(value.overageBytes()).isZero();
 		});
 		assertThat(repository.findBalance("tenant", "product", cycleStart)).hasValueSatisfying(value -> {
 			assertThat(value.reservedBytes()).isEqualTo(150);

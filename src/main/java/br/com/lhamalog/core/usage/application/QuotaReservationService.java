@@ -75,7 +75,7 @@ public class QuotaReservationService {
 				|| previous.get().state() == ReservationState.CONFIRMED)) {
 			QuotaReservation value = previous.get();
 			return new ReservationResponse(value.unlimited() ? Outcome.AUTHORIZED_UNLIMITED : Outcome.AUTHORIZED,
-					value.reservationId(), value.expiresAt(), true);
+					value.reservationId(), value.expiresAt(), true, value.overageBytes());
 		}
 		Instant now = clock.instant();
 		PlanSubscription subscription = subscriptions.findByTenantIdAndProductId(request.tenantId(), request.productId())

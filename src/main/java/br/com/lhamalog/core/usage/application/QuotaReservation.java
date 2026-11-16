@@ -7,7 +7,7 @@ import java.util.Objects;
 /** Persisted reservation and the immutable values needed for an exactly-once balance transition. */
 public record QuotaReservation(String reservationId, String tenantId, String productId, Instant cycleStart,
 		long requestedBytes, UsageDomain domain, String batchId, boolean unlimited, ReservationState state,
-		Instant createdAt, Instant expiresAt, Instant updatedAt) {
+		Instant createdAt, Instant expiresAt, Instant updatedAt, long overageBytes) {
 
 	public QuotaReservation {
 		Objects.requireNonNull(reservationId, "reservationId");
@@ -22,10 +22,29 @@ public record QuotaReservation(String reservationId, String tenantId, String pro
 		if (requestedBytes <= 0) {
 			throw new IllegalArgumentException("requestedBytes must be positive");
 		}
+		if (overageBytes < 0) {
+			throw new IllegalArgumentException("overageBytes must be non-negative");
+		}
+		if (overageBytes > requestedBytes) {
+			throw new IllegalArgumentException("overageBytes cannot exceed requestedBytes");
+		}
+	}
+
+	/** Legacy / non-overage reservations default {@code overageBytes} to 0. */
+	public QuotaReservation(String reservationId, String tenantId, String productId, Instant cycleStart,
+			long requestedBytes, UsageDomain domain, String batchId, boolean unlimited, ReservationState state,
+			Instant createdAt, Instant expiresAt, Instant updatedAt) {
+		this(reservationId, tenantId, productId, cycleStart, requestedBytes, domain, batchId, unlimited, state,
+				createdAt, expiresAt, updatedAt, 0L);
 	}
 
 	public QuotaReservation withState(ReservationState next, Instant now) {
 		return new QuotaReservation(reservationId, tenantId, productId, cycleStart, requestedBytes, domain, batchId,
-				unlimited, next, createdAt, expiresAt, now);
+				unlimited, next, createdAt, expiresAt, now, overageBytes);
+	}
+
+	public QuotaReservation withOverageBytes(long overageBytes) {
+		return new QuotaReservation(reservationId, tenantId, productId, cycleStart, requestedBytes, domain, batchId,
+				unlimited, state, createdAt, expiresAt, updatedAt, overageBytes);
 	}
 }

@@ -42,7 +42,7 @@ public class MongoQuotaReservationRepository implements QuotaReservationReposito
 		UpdateResult retained = mongo.updateFirst(new BasicQuery(criteria),
 				new Update().inc("reservedBytes", reservation.requestedBytes()), QuotaBalanceDocument.class);
 		if (retained.getModifiedCount() != 1) return false;
-		if (persistReservation(reservation)) {
+		if (persistReservation(reservation.withOverageBytes(0L))) {
 			return true;
 		}
 		mongo.updateFirst(Query.query(Criteria.where("_id").is(balanceId)),
@@ -61,7 +61,7 @@ public class MongoQuotaReservationRepository implements QuotaReservationReposito
 		mongo.updateFirst(Query.query(Criteria.where("_id").is(balanceId)),
 				new Update().inc("reservedBytes", reservation.requestedBytes()).inc("overageBytes", overage),
 				QuotaBalanceDocument.class);
-		if (persistReservation(reservation)) {
+		if (persistReservation(reservation.withOverageBytes(overage))) {
 			return overage;
 		}
 		mongo.updateFirst(Query.query(Criteria.where("_id").is(balanceId)),
@@ -80,7 +80,7 @@ public class MongoQuotaReservationRepository implements QuotaReservationReposito
 
 	@Override
 	public boolean saveUnlimited(QuotaReservation reservation) {
-		return persistReservation(reservation);
+		return persistReservation(reservation.withOverageBytes(0L));
 	}
 
 	/**
@@ -121,7 +121,9 @@ public class MongoQuotaReservationRepository implements QuotaReservationReposito
 		if (!transition(reservation.reservationId(), ReservationState.RESERVED, next, now)) return false;
 		if (!reservation.unlimited()) {
 			mongo.updateFirst(Query.query(Criteria.where("_id").is(balanceId(reservation.tenantId(), reservation.productId(),
-					reservation.cycleStart()))), new Update().inc("reservedBytes", -reservation.requestedBytes()),
+					reservation.cycleStart()))),
+					new Update().inc("reservedBytes", -reservation.requestedBytes())
+							.inc("overageBytes", -reservation.overageBytes()),
 					QuotaBalanceDocument.class);
 		}
 		return true;
@@ -132,7 +134,9 @@ public class MongoQuotaReservationRepository implements QuotaReservationReposito
 		if (!transition(reservation.reservationId(), ReservationState.CONFIRMED, ReservationState.REFUNDED, now)) return false;
 		if (!reservation.unlimited()) {
 			mongo.updateFirst(Query.query(Criteria.where("_id").is(balanceId(reservation.tenantId(), reservation.productId(),
-					reservation.cycleStart()))), new Update().inc("consumedBytes", -reservation.requestedBytes()),
+					reservation.cycleStart()))),
+					new Update().inc("consumedBytes", -reservation.requestedBytes())
+							.inc("overageBytes", -reservation.overageBytes()),
 					QuotaBalanceDocument.class);
 		}
 		return true;
@@ -158,12 +162,12 @@ public class MongoQuotaReservationRepository implements QuotaReservationReposito
 	private static QuotaReservationDocument toDocument(QuotaReservation value) {
 		return new QuotaReservationDocument(value.reservationId(), value.tenantId(), value.productId(), value.cycleStart(),
 				value.requestedBytes(), value.domain(), value.batchId(), value.unlimited(), value.state(), value.createdAt(),
-				value.expiresAt(), value.updatedAt());
+				value.expiresAt(), value.updatedAt(), value.overageBytes());
 	}
 
 	private QuotaReservation fromDocument(QuotaReservationDocument value) {
 		return new QuotaReservation(value.reservationId(), value.tenantId(), value.productId(), value.cycleStart(),
 				value.requestedBytes(), value.domain(), value.batchId(), value.unlimited(), value.state(), value.createdAt(),
-				value.expiresAt(), value.updatedAt());
+				value.expiresAt(), value.updatedAt(), value.overageBytes());
 	}
 }
