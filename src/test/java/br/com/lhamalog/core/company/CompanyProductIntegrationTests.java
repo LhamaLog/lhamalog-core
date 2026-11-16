@@ -81,7 +81,7 @@ class CompanyProductIntegrationTests {
 				 "context":{"sector":"Tecnologia","mission":"","targetAudience":"","differentiators":"","language":""},
 				 "address":{"street":"Rua A","number":"1"},"version":null}
 				""";
-		mvc.perform(as(put("/api/company"), org, "user_a", "member").contentType(MediaType.APPLICATION_JSON)
+		mvc.perform(as(put("/api/company"), org, "user_a", "admin").contentType(MediaType.APPLICATION_JSON)
 			.content(body))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.id").value(tenantId))
@@ -98,8 +98,50 @@ class CompanyProductIntegrationTests {
 		mvc.perform(as(get("/api/company"), organization(), "user_a", "admin"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.legalName").value(""));
-		mvc.perform(as(put("/api/company"), org, "user_a", "member").contentType(MediaType.APPLICATION_JSON)
+		mvc.perform(as(put("/api/company"), org, "user_a", "admin").contentType(MediaType.APPLICATION_JSON)
 			.content(body)).andExpect(status().isConflict());
+	}
+
+	@Test
+	void companySettingsReloadFromTheSameTenant() throws Exception {
+		String org = organization();
+		String tenantId = tenants.get(org);
+		String body = """
+				{"data":{"legalName":"Empresa Persistida","document":"11.444.777/0001-61","email":"pessoa@example.com",
+				 "sector":"Tecnologia / SaaS","timezone":"America/Sao_Paulo","language":"pt-BR"},
+				 "context":{"segment":"Tecnologia / SaaS","environments":["Produção"],"monitoredSystems":["Backend"]},
+				 "address":{"postalCode":"87000000","street":"Avenida Brasil","number":"10","district":"Centro",
+				 "city":"Maringá","state":"PR","useAsFiscalAndCorrespondence":true},
+				 "preferences":{"dailySummary":true,"aiDetail":"Alto","currency":"BRL","dataInterval":"LAST_24_HOURS"},
+				 "version":null}
+				""";
+		String saved = mvc
+			.perform(as(put("/api/company"), org, "user_a", "admin").contentType(MediaType.APPLICATION_JSON)
+				.content(body))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		long version = mapper.readTree(saved).get("version").asLong();
+		mvc.perform(as(get("/api/company"), org, "user_a", "admin"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.preferences.dailySummary").value(true))
+			.andExpect(jsonPath("$.preferences.aiDetail").value("Alto"))
+			.andExpect(jsonPath("$.shared.sector").value("Tecnologia / SaaS"))
+			.andExpect(jsonPath("$.summary.verified").value(false))
+			.andExpect(jsonPath("$.data.organizationId").value(org));
+		String again = """
+				{"data":{"email":"pessoa@example.com"},"context":{},"address":{},"preferences":{"aiDetail":"Alto"},
+				 "version":%d}
+				""".formatted(version);
+		mvc.perform(as(put("/api/company"), org, "user_a", "admin").contentType(MediaType.APPLICATION_JSON)
+			.content(again))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.legalName").value("Empresa Persistida"))
+			.andExpect(jsonPath("$.context.mission").value(""));
+		assertEquals("Alto", mongo.findById(tenantId, Company.class).preferences().aiDetail());
+		// Saving the company never touches the tenant fields.
+		assertThat(mongo.findById(tenantId, TenantDocument.class).status()).isEqualTo("ACTIVE");
 	}
 
 	@Test
@@ -109,7 +151,12 @@ class CompanyProductIntegrationTests {
 				TestJwks.token().without("o").subject("user_no_org").bearer()))
 			.andExpect(status().isForbidden());
 		assertThat(revocation.revokedUsers()).containsExactly("user_no_org");
+		// A member keeps access to the tenant but cannot change the registration (LLT-175).
 		mvc.perform(as(put("/api/company"), organization(), "user", "member").contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.message").value("Somente o administrador da empresa pode alterar este cadastro."));
+		mvc.perform(as(put("/api/company"), organization(), "user", "admin").contentType(MediaType.APPLICATION_JSON)
 			.content("{}")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fieldErrors.data").exists());
 	}
 

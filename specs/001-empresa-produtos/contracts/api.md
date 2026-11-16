@@ -2,8 +2,8 @@
 
 Authorization: Bearer JWT Clerk (session token v2), validado pela camada de segurança da LLT-163 (specs/002-validacao-token-clerk). A empresa vem do Tenant da organização ativa (o.id); o tenantId é o id interno do Tenant. Sem organização, sem Tenant ou com Tenant inativo a resposta é 403 {"error":"forbidden"} e o Core revoga as sessões do usuário na Clerk (ADR_032). Membro válido da organização pode consultar e manter Empresa; Produto requer AcessoProduto ou papel admin da organização. IDs de outra empresa respondem 404, sem exposição de existência.
 
-- GET /api/company → 200 {id, clerkOrgId, data, context, address, version}. id é o tenantId. Cadastro ausente retorna estrutura vazia, version null, para primeiro preenchimento; não grava em GET.
-- PUT /api/company ← {data, context, address, version} → 200 documento persistido. Contextos/campos vazios permitidos. Version null apenas para criação inicial.
+- GET /api/company → 200 {id, clerkOrgId, data, context, address, version} e, na extensão atual, preferences, shared, logo, summary, capabilities, limitations e audit. id é o tenantId interno (LLT-163), não o org_id. Cadastro ausente retorna estrutura vazia, version null, para primeiro preenchimento; não grava em GET.
+- PUT /api/company ← {data, context, address, version} continua aceito, só para o papel admin (membro recebe 403 com mensagem). preferences é opcional. Chave ausente preserva o valor já gravado; string vazia limpa. O contrato dos campos novos está em [company-settings.md](company-settings.md). Version null apenas para criação inicial; depois de DELETE /api/company a numeração continua, e uma versão anterior à exclusão recebe 409.
 - GET /api/products → 200 lista somente dos produtos acessíveis da empresa, ordenada por nome/id.
 - POST /api/products ← {name, description, category, productVersion, context} → 201 Produto. Empresa vem da sessão; criador recebe acesso. Sem limite por plano.
 - GET /api/products/{id} → 200 Produto acessível.

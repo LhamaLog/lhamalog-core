@@ -1,8 +1,9 @@
-# Ambiente local do lhamalog-core (somente desenvolvimento) - ADR_151.
-# Uso (na raiz do repositorio): make infra-up | make infra-down
-#   ou: docker compose -f infra/local/compose.yaml up -d
-# Obrigatorio: copie .env.example para .env nesta mesma pasta e preencha as senhas (o .env nao e versionado).
-# Tags fixas: as mesmas de src/test/java/.../TestcontainersConfiguration.java.
+# MongoDB e Redis do lhamalog-core (somente desenvolvimento) - ADR_151.
+# Incluido pelo compose.yaml da raiz. Tambem pode subir sozinho, com o mesmo
+# nome de projeto e os mesmos volumes (lhamalog-core-local_mongo-data e _redis-data).
+# OpenObserve saiu deste arquivo e foi para compose.observability.yaml; o volume antigo nao e apagado.
+# Obrigatorio: .env na raiz (docker compose up) ou infra/local/.env se este arquivo for o principal.
+# Nao use down -v. Tags fixas: as mesmas de src/test/java/.../TestcontainersConfiguration.java.
 name: lhamalog-core-local
 
 services:
@@ -13,13 +14,13 @@ services:
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-root}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?defina MONGO_ROOT_PASSWORD em infra/local/.env}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?defina MONGO_ROOT_PASSWORD no .env}
       MONGO_INITDB_DATABASE: ${MONGO_APP_DATABASE:-lhamalog_core}
       MONGO_APP_DATABASE: ${MONGO_APP_DATABASE:-lhamalog_core}
       MONGO_APP_USERNAME: ${MONGO_APP_USERNAME:-lhamalog}
-      MONGO_APP_PASSWORD: ${MONGO_APP_PASSWORD:?defina MONGO_APP_PASSWORD em infra/local/.env}
+      MONGO_APP_PASSWORD: ${MONGO_APP_PASSWORD:?defina MONGO_APP_PASSWORD no .env}
     ports:
-      - "${MONGO_PORT:-27017}:27017"
+      - "127.0.0.1:${MONGO_PORT:-27017}:27017"
     volumes:
       - mongo-data:/data/db
       - ./mongo-init:/docker-entrypoint-initdb.d:ro
@@ -34,36 +35,21 @@ services:
     image: redis:8.2.10
     container_name: lhamalog-core-redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?defina REDIS_PASSWORD em infra/local/.env}"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?defina REDIS_PASSWORD no .env}"]
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis-data:/data
     environment:
       # redis-cli le a senha desta variavel no healthcheck, sem expor em argumento.
-      REDISCLI_AUTH: ${REDIS_PASSWORD:?defina REDIS_PASSWORD em infra/local/.env}
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?defina REDIS_PASSWORD no .env}
     healthcheck:
       test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 10
-
-  # Log store da plataforma (ADR_168, substitui o Elasticsearch). Recebe OTLP/HTTP em /api/<org>/v1/*.
-  # Usuario e senha root so por variavel de ambiente (infra/local/.env, nao versionado).
-  openobserve:
-    image: public.ecr.aws/zinclabs/openobserve:v1.1.2
-    container_name: lhamalog-core-openobserve
-    restart: unless-stopped
-    environment:
-      ZO_DATA_DIR: /data
-      ZO_ROOT_USER_EMAIL: ${OPENOBSERVE_USERNAME:?defina OPENOBSERVE_USERNAME em infra/local/.env}
-      ZO_ROOT_USER_PASSWORD: ${OPENOBSERVE_PASSWORD:?defina OPENOBSERVE_PASSWORD em infra/local/.env}
-    ports:
-      - "${OPENOBSERVE_PORT:-5080}:5080"
-    volumes:
-      - openobserve-data:/data
+      start_period: 5s
 
 volumes:
   mongo-data:
   redis-data:
-  openobserve-data:

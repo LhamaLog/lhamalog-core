@@ -1,48 +1,153 @@
 package br.com.lhamalog.core.company;
 
+import java.time.Instant;
+import java.util.Base64;
+import java.util.List;
+import java.util.Objects;
+
 import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import br.com.lhamalog.core.company.CompanyResponses.CompanyResponse;
+import br.com.lhamalog.core.shared.FieldValidationException;
+import tools.jackson.databind.JsonNode;
+
 /**
- * Reads and updates the company data stored in the tenant document. Updates touch only data, context, address and
- * version, with optimistic concurrency on version (absent before the first save), so tenant name and status are
- * never overwritten.
+ * Empresa of the current tenant: registration, context (with revisions), preferences and logo. The company lives in the
+ * tenant document ({@link CompanyRepository}), so the tenant always exists here: the security layer only grants
+ * requests of an ACTIVE tenant (LLT-163).
  */
 @Service
 public class CompanyService {
 	static final String TENANT_COLLECTION = "tenant";
 
-	private final MongoTemplate mongo;
+	private final CompanyRepository companies;
+	private final CompanyLogoRepository logos;
+	private final CompanyContextRevisionRepository revisions;
 
-	public CompanyService(MongoTemplate mongo) { this.mongo = mongo; }
-
-	public Company get(String tenantId) {
-		Company stored = mongo.findById(tenantId, Company.class);
-		if (stored == null) {
-			// The security layer only grants access to existing tenants; this guards against a concurrent removal.
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Empresa não encontrada.");
-		}
-		return stored.withDefaults();
+	public CompanyService(CompanyRepository companies, CompanyLogoRepository logos,
+			CompanyContextRevisionRepository revisions) {
+		this.companies = companies;
+		this.logos = logos;
+		this.revisions = revisions;
 	}
 
-	public Company save(String tenantId, CompanyController.SaveCompany request) {
-		Criteria criteria = Criteria.where("_id").is(tenantId);
-		criteria = (request.version() == null) ? criteria.and("version").exists(false)
-				: criteria.and("version").is(request.version());
-		long nextVersion = (request.version() == null) ? 0 : request.version() + 1;
-		Update update = new Update().set("data", request.data())
-			.set("context", request.context())
-			.set("address", request.address())
-			.set("version", nextVersion);
-		if (mongo.updateFirst(Query.query(criteria), update, Company.class).getMatchedCount() == 0) {
+	public CompanyResponse get(String tenantId) {
+		return present(load(tenantId));
+	}
+
+	public CompanyResponse save(String tenantId, String userId, JsonNode body) {
+		Company current = load(tenantId);
+		CompanyProfiles.Draft draft = CompanyProfiles.merge(current, body);
+		if (!draft.errors().isEmpty()) {
+			throw new FieldValidationException(draft.errors());
+		}
+		ensureVersion(current.version(), draft.requestedVersion());
+		if (draft.logo().delete()) {
+			logos.deleteById(tenantId);
+		}
+		if (draft.logo().store() != null) {
+			logos.save(draft.logo().store());
+		}
+		Company saved = companies.save(audited(draft.company(), current.version(), userId));
+		recordContextChange(current, saved, userId);
+		return CompanyResponses.from(saved, draft.logo().delete() ? null : logos.findById(tenantId).orElse(null));
+	}
+
+	public List<CompanyContextRevision> contextRevisions(String tenantId) {
+		return revisions.findByTenantIdOrderByRevisionDesc(tenantId);
+	}
+
+	public CompanyContextRevision contextRevision(String tenantId, long revision) {
+		return revisions.findByTenantIdAndRevision(tenantId, revision)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Revisão de contexto não encontrada."));
+	}
+
+	public CompanyContextPrompt contextPrompt(String tenantId) {
+		return CompanyContextPrompt.from(CompanyContextSnapshot.of(load(tenantId)));
+	}
+
+	public CompanyResponse saveLogo(String tenantId, String userId, Long version, String originalName, byte[] content) {
+		Company current = load(tenantId);
+		ensureVersion(current.version(), version);
+		LogoFiles.Stored stored = LogoFiles.inspect(content, originalName);
+		Instant now = Instant.now();
+		String encoded = Base64.getEncoder().encodeToString(stored.content());
+		logos.save(new CompanyLogo(tenantId, stored.contentType(), stored.fileName(), stored.content(), encoded, now));
+		Company.Logo metadata = new Company.Logo(stored.fileName(), stored.contentType(), stored.content().length, now);
+		CompanySettingsState settings = current.settings() == null ? null
+				: current.settings().withLogo(new CompanySettingsState.Logo(stored.fileName(), stored.contentType()));
+		Company updated = new Company(current.id(), current.clerkOrgId(), current.data(), current.context(), current.address(),
+				current.preferences(), settings, metadata, now, userId, current.version());
+		return CompanyResponses.from(companies.save(updated), logos.findById(tenantId).orElse(null));
+	}
+
+	public CompanyResponse deleteLogo(String tenantId, String userId, Long version) {
+		Company current = load(tenantId);
+		ensureVersion(current.version(), version);
+		if (current.logo() == null && (current.settings() == null || current.settings().data().logo() == null)) {
+			return present(current);
+		}
+		logos.deleteById(tenantId);
+		CompanySettingsState settings = current.settings() == null ? null : current.settings().withLogo(null);
+		Company updated = new Company(current.id(), current.clerkOrgId(), current.data(), current.context(), current.address(),
+				current.preferences(), settings, null, Instant.now(), userId, current.version());
+		return CompanyResponses.from(companies.save(updated), null);
+	}
+
+	/**
+	 * Removes this tenant's company data, logo and context revisions; the tenant itself stays.
+	 * Products, product access, and the identity provider organization stay.
+	 * No audit collection, metric, or event is written.
+	 */
+	public CompanyResponse deleteRegistration(String tenantId) {
+		Company current = load(tenantId);
+		companies.clear(tenantId);
+		logos.deleteById(tenantId);
+		revisions.deleteByTenantId(tenantId);
+		return CompanyResponses.from(Company.empty(tenantId, current.clerkOrgId()), null);
+	}
+
+	public CompanyLogo logo(String tenantId) {
+		Company current = load(tenantId);
+		if (current.logo() == null) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "A empresa não tem logotipo.");
+		}
+		return logos.findById(tenantId)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "A empresa não tem logotipo."));
+	}
+
+	private CompanyResponse present(Company company) {
+		return CompanyResponses.from(company, logos.findById(company.id()).orElse(null));
+	}
+
+	private Company load(String tenantId) {
+		// The security layer only grants access to existing tenants; this guards against a concurrent removal.
+		return companies.findById(tenantId).map(Company::withDefaults)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Empresa não encontrada."));
+	}
+
+	private static Company audited(Company company, Long version, String userId) {
+		return new Company(company.id(), company.clerkOrgId(), company.data(), company.context(), company.address(),
+				company.preferences(), company.settings(), company.logo(), Instant.now(), userId, version);
+	}
+
+	private static void ensureVersion(Long current, Long requested) {
+		if (!Objects.equals(current, requested)) {
 			throw new OptimisticLockingFailureException("Company version conflict");
 		}
-		return get(tenantId);
+	}
+
+	private void recordContextChange(Company before, Company after, String userId) {
+		CompanyContextSnapshot previous = CompanyContextSnapshot.of(before);
+		CompanyContextSnapshot next = CompanyContextSnapshot.of(after);
+		if (previous.equals(next)) {
+			return;
+		}
+		long revision = revisions.findByTenantIdOrderByRevisionDesc(after.id()).stream()
+				.mapToLong(CompanyContextRevision::revision).max().orElse(0L) + 1L;
+		revisions.save(CompanyContextRevision.of(after.id(), revision, Instant.now(), userId, next));
 	}
 }
