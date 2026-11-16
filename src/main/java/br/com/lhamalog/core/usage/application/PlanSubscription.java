@@ -14,40 +14,49 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public record PlanSubscription(@Id String id, @NotBlank String tenantId, @NotBlank String productId,
 		@NotNull PlanType planType, @NotNull LocalDate firstPaymentDate,
 		@NotNull @DecimalMin(value = "0.0") BigDecimal allowanceGigabytes, boolean unlimitedUsage,
-		@NotNull SubscriptionStatus status, boolean overageEnabled, Instant delinquentSince) {
+		@NotNull SubscriptionStatus status, boolean overageEnabled, Instant delinquentSince, PlanTier planTier) {
 
 	public PlanSubscription(String id, String tenantId, String productId, PlanType planType,
 			LocalDate firstPaymentDate) {
 		this(id, tenantId, productId, planType, firstPaymentDate, BigDecimal.ZERO, false, SubscriptionStatus.ATIVA,
-				false, null);
+				false, null, null);
 	}
 
 	public PlanSubscription(String id, String tenantId, String productId, PlanType planType,
 			LocalDate firstPaymentDate, BigDecimal allowanceGigabytes, boolean unlimitedUsage) {
 		this(id, tenantId, productId, planType, firstPaymentDate, allowanceGigabytes, unlimitedUsage,
-				SubscriptionStatus.ATIVA, false, null);
+				SubscriptionStatus.ATIVA, false, null, null);
 	}
 
-	/** Convenience when delinquentSince is omitted (defaults to null). */
+	/** Convenience when delinquentSince and planTier are omitted. */
 	public PlanSubscription(String id, String tenantId, String productId, PlanType planType,
 			LocalDate firstPaymentDate, BigDecimal allowanceGigabytes, boolean unlimitedUsage,
 			SubscriptionStatus status, boolean overageEnabled) {
 		this(id, tenantId, productId, planType, firstPaymentDate, allowanceGigabytes, unlimitedUsage, status,
-				overageEnabled, null);
+				overageEnabled, null, null);
+	}
+
+	/** Convenience when planTier is omitted (defaults to null). */
+	public PlanSubscription(String id, String tenantId, String productId, PlanType planType,
+			LocalDate firstPaymentDate, BigDecimal allowanceGigabytes, boolean unlimitedUsage,
+			SubscriptionStatus status, boolean overageEnabled, Instant delinquentSince) {
+		this(id, tenantId, productId, planType, firstPaymentDate, allowanceGigabytes, unlimitedUsage, status,
+				overageEnabled, delinquentSince, null);
 	}
 
 	/**
-	 * Reads legacy subscription documents created before allowance, unlimited-usage, status, overage, and
-	 * delinquentSince fields were introduced. Missing values map to ATIVA / overageEnabled=false /
-	 * delinquentSince=null.
+	 * Reads legacy subscription documents created before allowance, unlimited-usage, status, overage,
+	 * delinquentSince, and planTier fields were introduced. Missing values map to ATIVA /
+	 * overageEnabled=false / delinquentSince=null / planTier=null. Tier names are converted
+	 * case-insensitively via {@link br.com.lhamalog.core.usage.infrastructure.UsageMongoConverters}.
 	 */
 	@PersistenceCreator
 	public PlanSubscription(String id, String tenantId, String productId, PlanType planType,
 			LocalDate firstPaymentDate, BigDecimal allowanceGigabytes, Boolean unlimitedUsage,
-			SubscriptionStatus status, Boolean overageEnabled, Instant delinquentSince) {
+			SubscriptionStatus status, Boolean overageEnabled, Instant delinquentSince, PlanTier planTier) {
 		this(id, tenantId, productId, planType, firstPaymentDate,
 				allowanceGigabytes == null ? BigDecimal.ZERO : allowanceGigabytes,
 				Boolean.TRUE.equals(unlimitedUsage), status == null ? SubscriptionStatus.ATIVA : status,
-				Boolean.TRUE.equals(overageEnabled), delinquentSince);
+				Boolean.TRUE.equals(overageEnabled), delinquentSince, planTier);
 	}
 }
