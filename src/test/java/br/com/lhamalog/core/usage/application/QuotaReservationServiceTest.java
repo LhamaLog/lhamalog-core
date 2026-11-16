@@ -330,6 +330,65 @@ class QuotaReservationServiceTest {
 		assertThat(afterStore.find("custom-expired")).isEmpty();
 	}
 
+	@Test
+	void authorizedResponsesCarryTenantRetentionDaysIncludingUnlimitedOverageAndReplay() {
+		InMemoryPlanSubscriptionRepository subscriptions = new InMemoryPlanSubscriptionRepository();
+		subscriptions.save(new PlanSubscription("id", "tenant", "product", PlanType.MONTHLY,
+				LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.ACTIVE, true, null,
+				PlanTier.PRO));
+		subscriptions.save(new PlanSubscription("id-free", "tenant", "other", PlanType.MONTHLY,
+				LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.ACTIVE, false, null,
+				PlanTier.FREE));
+		TenantRetentionResolver resolver = new TenantRetentionResolver(subscriptions,
+				new PlanRetentionProperties(Map.of()));
+
+		MemoryReservations limited = new MemoryReservations();
+		limited.seedBalance(10_000);
+		QuotaReservationService limitedService = new QuotaReservationService(subscriptions, limited,
+				InstantSource.fixed(NOW), Duration.ofMinutes(20), Duration.ofDays(15), null, null, resolver);
+		QuotaReservationService.ReservationResponse authorized = limitedService.reserve(request("with-retention"));
+		assertThat(authorized.outcome()).isEqualTo(QuotaReservationService.Outcome.AUTHORIZED);
+		assertThat(authorized.retentionDays()).isEqualTo(30);
+		QuotaReservationService.ReservationResponse replay = limitedService.reserve(request("with-retention"));
+		assertThat(replay.replay()).isTrue();
+		assertThat(replay.retentionDays()).isEqualTo(30);
+
+		QuotaReservationService unlimited = new QuotaReservationService(
+				subscriptions, new MemoryReservations(), InstantSource.fixed(NOW), Duration.ofMinutes(20),
+				Duration.ofDays(15), null, null, resolver);
+		subscriptions.save(new PlanSubscription("id-unlimited", "tenant", "product", PlanType.MONTHLY,
+				LocalDate.of(2026, 11, 1), BigDecimal.ZERO, true, SubscriptionStatus.ACTIVE, false, null, PlanTier.PRO));
+		assertThat(unlimited.reserve(request("unlimited-retention")).retentionDays()).isEqualTo(30);
+
+		MemoryReservations overageStore = new MemoryReservations();
+		overageStore.seedBalance(50);
+		subscriptions.save(new PlanSubscription("id-overage", "tenant", "product", PlanType.MONTHLY,
+				LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.ACTIVE, true, null,
+				PlanTier.BUSINESS));
+		QuotaReservationService overage = new QuotaReservationService(subscriptions, overageStore,
+				InstantSource.fixed(NOW), Duration.ofMinutes(20), Duration.ofDays(15), null, null, resolver);
+		QuotaReservationService.ReservationResponse overageResponse = overage.reserve(request("overage-retention"));
+		assertThat(overageResponse.outcome()).isEqualTo(QuotaReservationService.Outcome.AUTHORIZED);
+		assertThat(overageResponse.overageBytes()).isEqualTo(50L);
+		assertThat(overageResponse.retentionDays()).isEqualTo(90);
+	}
+
+	@Test
+	void nonAuthorizedOutcomesOmitRetentionDays() {
+		MemoryReservations store = new MemoryReservations();
+		store.seedBalance(50);
+		InMemoryPlanSubscriptionRepository subscriptions = new InMemoryPlanSubscriptionRepository();
+		subscriptions.save(new PlanSubscription("id", "tenant", "product", PlanType.MONTHLY,
+				LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.ACTIVE, false, null,
+				PlanTier.PRO));
+		TenantRetentionResolver resolver = new TenantRetentionResolver(subscriptions,
+				new PlanRetentionProperties(Map.of()));
+		QuotaReservationService service = new QuotaReservationService(subscriptions, store, InstantSource.fixed(NOW),
+				Duration.ofMinutes(20), Duration.ofDays(15), null, null, resolver);
+
+		assertThat(service.reserve(request("too-big")).retentionDays()).isNull();
+	}
+
 	private static QuotaReservationService delinquentService(MemoryReservations store, Instant delinquentSince,
 			Duration grace) {
 		return new QuotaReservationService(

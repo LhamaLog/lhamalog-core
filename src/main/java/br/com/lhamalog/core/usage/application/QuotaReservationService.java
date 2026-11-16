@@ -32,34 +32,42 @@ public class QuotaReservationService {
 	private final Duration delinquencyGrace;
 	private final LowBalanceNotificationService lowBalanceNotifications;
 	private final MeterRegistry meterRegistry;
+	private final TenantRetentionResolver retentionResolver;
 
 	@Autowired
 	public QuotaReservationService(PlanSubscriptionRepository subscriptions, QuotaReservationRepository reservations,
 			QuotaReservationProperties properties, SubscriptionProperties subscriptionProperties,
-			LowBalanceNotificationService lowBalanceNotifications, Clock clock,
-			ObjectProvider<MeterRegistry> meterRegistry) {
+			LowBalanceNotificationService lowBalanceNotifications, TenantRetentionResolver retentionResolver,
+			Clock clock, ObjectProvider<MeterRegistry> meterRegistry) {
 		this(subscriptions, reservations, clock, properties.ttl(), subscriptionProperties.delinquencyGrace(),
-				lowBalanceNotifications, meterRegistry.getIfAvailable());
+				lowBalanceNotifications, meterRegistry.getIfAvailable(), retentionResolver);
 	}
 
 	QuotaReservationService(PlanSubscriptionRepository subscriptions, QuotaReservationRepository reservations,
 			InstantSource clock, Duration ttl) {
-		this(subscriptions, reservations, clock, ttl, Duration.ofDays(15), null, null);
+		this(subscriptions, reservations, clock, ttl, Duration.ofDays(15), null, null, null);
 	}
 
 	QuotaReservationService(PlanSubscriptionRepository subscriptions, QuotaReservationRepository reservations,
 			InstantSource clock, Duration ttl, LowBalanceNotificationService lowBalanceNotifications) {
-		this(subscriptions, reservations, clock, ttl, Duration.ofDays(15), lowBalanceNotifications, null);
+		this(subscriptions, reservations, clock, ttl, Duration.ofDays(15), lowBalanceNotifications, null, null);
 	}
 
 	QuotaReservationService(PlanSubscriptionRepository subscriptions, QuotaReservationRepository reservations,
 			InstantSource clock, Duration ttl, Duration delinquencyGrace) {
-		this(subscriptions, reservations, clock, ttl, delinquencyGrace, null, null);
+		this(subscriptions, reservations, clock, ttl, delinquencyGrace, null, null, null);
 	}
 
 	QuotaReservationService(PlanSubscriptionRepository subscriptions, QuotaReservationRepository reservations,
 			InstantSource clock, Duration ttl, Duration delinquencyGrace,
 			LowBalanceNotificationService lowBalanceNotifications, MeterRegistry meterRegistry) {
+		this(subscriptions, reservations, clock, ttl, delinquencyGrace, lowBalanceNotifications, meterRegistry, null);
+	}
+
+	QuotaReservationService(PlanSubscriptionRepository subscriptions, QuotaReservationRepository reservations,
+			InstantSource clock, Duration ttl, Duration delinquencyGrace,
+			LowBalanceNotificationService lowBalanceNotifications, MeterRegistry meterRegistry,
+			TenantRetentionResolver retentionResolver) {
 		this.subscriptions = subscriptions;
 		this.reservations = reservations;
 		this.clock = clock;
@@ -67,6 +75,7 @@ public class QuotaReservationService {
 		this.delinquencyGrace = delinquencyGrace;
 		this.lowBalanceNotifications = lowBalanceNotifications;
 		this.meterRegistry = meterRegistry;
+		this.retentionResolver = retentionResolver;
 	}
 
 	public ReservationResponse reserve(ReservationRequest request) {
@@ -75,7 +84,8 @@ public class QuotaReservationService {
 				|| previous.get().state() == ReservationState.CONFIRMED)) {
 			QuotaReservation value = previous.get();
 			return new ReservationResponse(value.unlimited() ? Outcome.AUTHORIZED_UNLIMITED : Outcome.AUTHORIZED,
-					value.reservationId(), value.expiresAt(), true, value.overageBytes());
+					value.reservationId(), value.expiresAt(), true, value.overageBytes(),
+					retentionDaysFor(value.tenantId()));
 		}
 		Instant now = clock.instant();
 		PlanSubscription subscription = subscriptions.findByTenantIdAndProductId(request.tenantId(), request.productId())
@@ -96,6 +106,7 @@ public class QuotaReservationService {
 		}
 		UsageCycle cycle = UsageCycle.calculate(subscription.planType(), subscription.firstPaymentDate(), now).orElseThrow();
 		boolean unlimited = subscription.unlimitedUsage();
+		Integer retentionDays = retentionDaysFor(request.tenantId());
 		QuotaReservation reservation = new QuotaReservation(request.reservationId(), request.tenantId(), request.productId(),
 				cycle.from(), request.requestedBytes(), request.domain(), request.batchId(), unlimited, ReservationState.RESERVED,
 				now, now.plus(ttl), now);
@@ -104,12 +115,13 @@ public class QuotaReservationService {
 				return ReservationResponse.unavailable();
 			}
 			return new ReservationResponse(Outcome.AUTHORIZED_UNLIMITED, reservation.reservationId(), reservation.expiresAt(),
-					false);
+					false, 0L, retentionDays);
 		}
 		QuotaReservationRepository.CycleBalance cycleBalance = new QuotaReservationRepository.CycleBalance(
 				request.tenantId(), request.productId(), cycle.from(), allowanceBytes(subscription));
 		if (reservations.reserve(cycleBalance, reservation)) {
-			return new ReservationResponse(Outcome.AUTHORIZED, reservation.reservationId(), reservation.expiresAt(), false);
+			return new ReservationResponse(Outcome.AUTHORIZED, reservation.reservationId(), reservation.expiresAt(), false,
+					0L, retentionDays);
 		}
 		if (subscription.overageEnabled()) {
 			// Collector HttpQuotaReservationClient only valueOf-knows AUTHORIZED* today; emit AUTHORIZED + overageBytes.
@@ -121,7 +133,7 @@ public class QuotaReservationService {
 				recordOverageAuthorized(request, reservation.reservationId(), overageBytes);
 			}
 			return new ReservationResponse(Outcome.AUTHORIZED, reservation.reservationId(), reservation.expiresAt(), false,
-					overageBytes);
+					overageBytes, retentionDays);
 		}
 		return ReservationResponse.insufficient();
 	}
@@ -182,6 +194,13 @@ public class QuotaReservationService {
 				}));
 	}
 
+	private Integer retentionDaysFor(String tenantId) {
+		if (retentionResolver == null) {
+			return null;
+		}
+		return retentionResolver.resolveRetentionDays(tenantId);
+	}
+
 	private boolean isDelinquencyGraceExpired(PlanSubscription subscription, ReservationRequest request, Instant now) {
 		Instant delinquentSince = subscription.delinquentSince();
 		if (delinquentSince == null) {
@@ -190,8 +209,7 @@ public class QuotaReservationService {
 					request.tenantId(), request.productId());
 			return false;
 		}
-		Instant graceEndsAt = delinquentSince.plus(delinquencyGrace);
-		if (!now.isBefore(graceEndsAt)) {
+		if (DelinquencyGrace.isExpired(delinquentSince, delinquencyGrace, now)) {
 			log.warn(
 					"event=subscription.delinquent.grace_expired | Delinquency grace period expired; treating as suspended | tenantId={} productId={} delinquentSince={}",
 					request.tenantId(), request.productId(), delinquentSince);
@@ -234,9 +252,14 @@ public class QuotaReservationService {
 	}
 
 	public record ReservationResponse(Outcome outcome, String reservationId, Instant expiresAt, boolean replay,
-			long overageBytes) {
+			long overageBytes, Integer retentionDays) {
 		public ReservationResponse(Outcome outcome, String reservationId, Instant expiresAt, boolean replay) {
-			this(outcome, reservationId, expiresAt, replay, 0L);
+			this(outcome, reservationId, expiresAt, replay, 0L, null);
+		}
+
+		public ReservationResponse(Outcome outcome, String reservationId, Instant expiresAt, boolean replay,
+				long overageBytes) {
+			this(outcome, reservationId, expiresAt, replay, overageBytes, null);
 		}
 
 		static ReservationResponse insufficient() {
