@@ -2,10 +2,14 @@ package br.com.lhamalog.core.usage.application;
 
 import java.time.Instant;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
 public class LowBalanceNotificationService {
+	private static final Logger log = LoggerFactory.getLogger(LowBalanceNotificationService.class);
+
 	private final NotificationOutboxRepository outbox;
 	private final Optional<LowBalanceNotificationPublisher> publisher;
 
@@ -31,8 +35,15 @@ public class LowBalanceNotificationService {
 			return;
 		}
 		for (LowBalanceNotification notification : outbox.findPending()) {
-			publisher.get().publish(notification);
-			outbox.markPublished(notification.idempotencyKey(), Instant.now());
+			try {
+				publisher.get().publish(notification);
+				outbox.markPublished(notification.idempotencyKey(), Instant.now());
+			}
+			catch (RuntimeException failure) {
+				// Durable outbox keeps PENDING; scheduled retry republishes. Never fail confirm after debit.
+				log.warn("SALDO_BAIXO publish deferred for key={} threshold={}", notification.idempotencyKey(),
+						notification.threshold(), failure);
+			}
 		}
 	}
 

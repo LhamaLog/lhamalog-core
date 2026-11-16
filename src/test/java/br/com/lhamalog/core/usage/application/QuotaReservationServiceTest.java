@@ -90,6 +90,38 @@ class QuotaReservationServiceTest {
 	}
 
 	@Test
+	void confirmSucceedsWhenSaldoBaixoPublishFailsAfterDebit() {
+		MemoryReservations store = new MemoryReservations();
+		store.seedBalance(100);
+		List<LowBalanceNotification> pending = new ArrayList<>();
+		LowBalanceNotificationService notifications = new LowBalanceNotificationService(
+				new NotificationOutboxRepository() {
+					@Override public boolean saveIfAbsent(LowBalanceNotification notification) {
+						pending.add(notification);
+						return true;
+					}
+					@Override public List<LowBalanceNotification> findPending() {
+						return List.copyOf(pending);
+					}
+					@Override public boolean markPublished(String idempotencyKey, Instant publishedAt) {
+						return false;
+					}
+				},
+				Optional.of(notification -> {
+					throw new IllegalStateException("notification stream unavailable");
+				}));
+		QuotaReservationService service = new QuotaReservationService(
+				(tenant, product) -> Optional.of(new PlanSubscription("id", "tenant", "product", PlanType.MONTHLY,
+						LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.0000001), false)),
+				store, InstantSource.fixed(NOW), Duration.ofMinutes(20), notifications);
+
+		assertThat(service.reserve(request("near-limit")).outcome()).isEqualTo(QuotaReservationService.Outcome.AUTHORIZED);
+		assertThat(service.confirm("near-limit")).isEqualTo(QuotaReservationService.TransitionResult.OK);
+		assertThat(store.find("near-limit").orElseThrow().state()).isEqualTo(ReservationState.CONFIRMED);
+		assertThat(pending).isNotEmpty();
+	}
+
+	@Test
 	void balanceIsEmptyForUnlimitedAndMissingPlan() {
 		QuotaReservationService unlimited = service(new PlanSubscription("id", "tenant", "product", PlanType.MONTHLY,
 				LocalDate.of(2026, 11, 1), BigDecimal.ZERO, true));

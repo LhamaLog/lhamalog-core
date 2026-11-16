@@ -31,6 +31,20 @@ class LowBalanceNotificationServiceTest {
 		});
 	}
 
+	@Test
+	void publishFailureLeavesPendingAndDoesNotPropagate() {
+		MemoryOutbox outbox = new MemoryOutbox();
+		LowBalanceNotificationService service = new LowBalanceNotificationService(outbox, Optional.of(notification -> {
+			throw new IllegalStateException("redis down");
+		}));
+		var balance = new QuotaReservationRepository.CycleBalanceSnapshot(10_000, 0, 9_600,
+				Instant.parse("2026-11-01T00:00:00Z"));
+
+		service.recordCrossedThresholds("tenant", "product", balance, Instant.parse("2026-11-10T12:00:00Z"));
+
+		assertThat(outbox.findPending()).hasSize(2);
+	}
+
 	private static final class MemoryOutbox implements NotificationOutboxRepository {
 		private final List<LowBalanceNotification> values = new ArrayList<>();
 
