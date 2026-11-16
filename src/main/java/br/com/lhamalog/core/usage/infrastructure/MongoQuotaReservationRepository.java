@@ -33,11 +33,7 @@ public class MongoQuotaReservationRepository implements QuotaReservationReposito
 	@Override
 	public boolean reserve(CycleBalance balance, QuotaReservation reservation) {
 		String balanceId = balanceId(balance.tenantId(), balance.productId(), balance.cycleStart());
-		mongo.upsert(Query.query(Criteria.where("_id").is(balanceId)),
-				new Update().setOnInsert("tenantId", balance.tenantId()).setOnInsert("productId", balance.productId())
-						.setOnInsert("cycleStart", balance.cycleStart()).setOnInsert("allowanceBytes", balance.allowanceBytes())
-						.setOnInsert("reservedBytes", 0L).setOnInsert("consumedBytes", 0L),
-				QuotaBalanceDocument.class);
+		ensureBalance(balance, balanceId);
 		Document expression = new Document("$expr", new Document("$gte", List.of(
 				new Document("$subtract", List.of("$allowanceBytes", new Document("$add", List.of("$reservedBytes", "$consumedBytes")))),
 				reservation.requestedBytes())));
@@ -52,6 +48,34 @@ public class MongoQuotaReservationRepository implements QuotaReservationReposito
 		mongo.updateFirst(Query.query(Criteria.where("_id").is(balanceId)),
 				new Update().inc("reservedBytes", -reservation.requestedBytes()), QuotaBalanceDocument.class);
 		return false;
+	}
+
+	@Override
+	public long reserveAllowingOverage(CycleBalance balance, QuotaReservation reservation) {
+		String balanceId = balanceId(balance.tenantId(), balance.productId(), balance.cycleStart());
+		ensureBalance(balance, balanceId);
+		QuotaBalanceDocument current = mongo.findById(balanceId, QuotaBalanceDocument.class);
+		long remaining = current == null ? balance.allowanceBytes()
+				: Math.max(0L, current.allowanceBytes() - current.reservedBytes() - current.consumedBytes());
+		long overage = Math.max(0L, reservation.requestedBytes() - remaining);
+		mongo.updateFirst(Query.query(Criteria.where("_id").is(balanceId)),
+				new Update().inc("reservedBytes", reservation.requestedBytes()).inc("overageBytes", overage),
+				QuotaBalanceDocument.class);
+		if (persistReservation(reservation)) {
+			return overage;
+		}
+		mongo.updateFirst(Query.query(Criteria.where("_id").is(balanceId)),
+				new Update().inc("reservedBytes", -reservation.requestedBytes()).inc("overageBytes", -overage),
+				QuotaBalanceDocument.class);
+		return -1L;
+	}
+
+	private void ensureBalance(CycleBalance balance, String balanceId) {
+		mongo.upsert(Query.query(Criteria.where("_id").is(balanceId)),
+				new Update().setOnInsert("tenantId", balance.tenantId()).setOnInsert("productId", balance.productId())
+						.setOnInsert("cycleStart", balance.cycleStart()).setOnInsert("allowanceBytes", balance.allowanceBytes())
+						.setOnInsert("reservedBytes", 0L).setOnInsert("consumedBytes", 0L).setOnInsert("overageBytes", 0L),
+				QuotaBalanceDocument.class);
 	}
 
 	@Override
@@ -124,7 +148,7 @@ public class MongoQuotaReservationRepository implements QuotaReservationReposito
 	public Optional<CycleBalanceSnapshot> findBalance(String tenantId, String productId, Instant cycleStart) {
 		return Optional.ofNullable(mongo.findById(balanceId(tenantId, productId, cycleStart), QuotaBalanceDocument.class))
 				.map(value -> new CycleBalanceSnapshot(value.allowanceBytes(), value.reservedBytes(), value.consumedBytes(),
-						value.cycleStart()));
+						value.cycleStart(), value.overageBytes()));
 	}
 
 	private static String balanceId(String tenantId, String productId, Instant cycleStart) {

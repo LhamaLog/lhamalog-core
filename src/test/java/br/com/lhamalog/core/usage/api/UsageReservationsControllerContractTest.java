@@ -102,6 +102,29 @@ class UsageReservationsControllerContractTest {
 						"requestedBytes":100,"domain":"LOGS"}"""))
 				.andExpect(status().isUnprocessableEntity());
 
+		when(reservations.reserve(any())).thenReturn(new QuotaReservationService.ReservationResponse(
+				QuotaReservationService.Outcome.SUSPENDED, null, null, false));
+		mockMvc.perform(post("/internal/usage-reservations").header("X-LhamaLog-Service-Token", TOKEN)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{"reservationId":"reservation-suspended","tenantId":"tenant","productId":"product",
+						"requestedBytes":100,"domain":"LOGS"}"""))
+				.andExpect(status().isForbidden()).andExpect(jsonPath("$.outcome").value("SUSPENDED"))
+				.andExpect(jsonPath("$.reservationId").isEmpty())
+				.andExpect(jsonPath("$.expiresAt").isEmpty());
+
+		when(reservations.reserve(any())).thenReturn(new QuotaReservationService.ReservationResponse(
+				QuotaReservationService.Outcome.AUTHORIZED, "reservation-overage",
+				Instant.parse("2026-11-11T12:20:00Z"), false, 40L));
+		mockMvc.perform(post("/internal/usage-reservations").header("X-LhamaLog-Service-Token", TOKEN)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{"reservationId":"reservation-overage","tenantId":"tenant","productId":"product",
+						"requestedBytes":100,"domain":"LOGS"}"""))
+				.andExpect(status().isCreated()).andExpect(jsonPath("$.outcome").value("AUTHORIZED"))
+				.andExpect(jsonPath("$.reservationId").value("reservation-overage"))
+				.andExpect(jsonPath("$.overageBytes").value(40));
+
 		mockMvc.perform(post("/internal/usage-reservations").header("X-LhamaLog-Service-Token", TOKEN)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""

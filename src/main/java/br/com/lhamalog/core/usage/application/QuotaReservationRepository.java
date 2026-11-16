@@ -10,6 +10,13 @@ public interface QuotaReservationRepository {
 
 	boolean reserve(CycleBalance balance, QuotaReservation reservation);
 
+	/**
+	 * Reserves without enforcing remaining balance. Increments {@code overageBytes} by the shortfall.
+	 *
+	 * @return overage bytes recorded for this call, or {@code -1} if the reservation could not be persisted
+	 */
+	long reserveAllowingOverage(CycleBalance balance, QuotaReservation reservation);
+
 	boolean saveUnlimited(QuotaReservation reservation);
 
 	boolean transition(String reservationId, ReservationState expected, ReservationState next, Instant now);
@@ -32,7 +39,12 @@ public interface QuotaReservationRepository {
 		}
 	}
 
-	record CycleBalanceSnapshot(long allowanceBytes, long reservedBytes, long consumedBytes, Instant cycleStart) {
+	record CycleBalanceSnapshot(long allowanceBytes, long reservedBytes, long consumedBytes, Instant cycleStart,
+			long overageBytes) {
+		public CycleBalanceSnapshot(long allowanceBytes, long reservedBytes, long consumedBytes, Instant cycleStart) {
+			this(allowanceBytes, reservedBytes, consumedBytes, cycleStart, 0L);
+		}
+
 		public long remainingBytes() {
 			return allowanceBytes - reservedBytes - consumedBytes;
 		}

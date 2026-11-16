@@ -5,8 +5,9 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
-import java.util.List;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -16,9 +17,10 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class QuotaReservationService {
-	public enum Outcome { AUTHORIZED, AUTHORIZED_UNLIMITED, INSUFFICIENT_BALANCE, NO_PLAN }
+	public enum Outcome { AUTHORIZED, AUTHORIZED_UNLIMITED, INSUFFICIENT_BALANCE, NO_PLAN, SUSPENDED }
 	public enum TransitionResult { OK, NOT_FOUND, NOT_ACTIVE, NOT_REFUNDABLE }
 
+	private static final Logger log = LoggerFactory.getLogger(QuotaReservationService.class);
 	private static final BigDecimal BYTES_PER_DECIMAL_GIGABYTE = BigDecimal.valueOf(1_000_000_000L);
 	private final PlanSubscriptionRepository subscriptions;
 	private final QuotaReservationRepository reservations;
@@ -57,7 +59,18 @@ public class QuotaReservationService {
 		Instant now = clock.instant();
 		PlanSubscription subscription = subscriptions.findByTenantIdAndProductId(request.tenantId(), request.productId())
 				.orElse(null);
-		if (subscription == null || UsageCycle.calculate(subscription.planType(), subscription.firstPaymentDate(), now).isEmpty()
+		if (subscription == null) {
+			return ReservationResponse.noPlan();
+		}
+		if (subscription.status() == SubscriptionStatus.SUSPENSA) {
+			return ReservationResponse.suspended();
+		}
+		if (subscription.status() == SubscriptionStatus.INADIMPLENTE) {
+			// Provisional until Q14 / T044: treat as ATIVA (do not invent a 403 block).
+			log.warn("subscription status INADIMPLENTE treated as ATIVA until Q14 tenantId={} productId={}",
+					request.tenantId(), request.productId());
+		}
+		if (UsageCycle.calculate(subscription.planType(), subscription.firstPaymentDate(), now).isEmpty()
 				|| (!subscription.unlimitedUsage() && subscription.allowanceGigabytes().signum() <= 0)) {
 			return ReservationResponse.noPlan();
 		}
@@ -66,14 +79,28 @@ public class QuotaReservationService {
 		QuotaReservation reservation = new QuotaReservation(request.reservationId(), request.tenantId(), request.productId(),
 				cycle.from(), request.requestedBytes(), request.domain(), request.batchId(), unlimited, ReservationState.RESERVED,
 				now, now.plus(ttl), now);
-		boolean reserved = unlimited ? reservations.saveUnlimited(reservation)
-				: reservations.reserve(new QuotaReservationRepository.CycleBalance(request.tenantId(), request.productId(),
-						cycle.from(), allowanceBytes(subscription)), reservation);
-		if (!reserved) {
-			return unlimited ? ReservationResponse.unavailable() : ReservationResponse.insufficient();
+		if (unlimited) {
+			if (!reservations.saveUnlimited(reservation)) {
+				return ReservationResponse.unavailable();
+			}
+			return new ReservationResponse(Outcome.AUTHORIZED_UNLIMITED, reservation.reservationId(), reservation.expiresAt(),
+					false);
 		}
-		return new ReservationResponse(unlimited ? Outcome.AUTHORIZED_UNLIMITED : Outcome.AUTHORIZED,
-				reservation.reservationId(), reservation.expiresAt(), false);
+		QuotaReservationRepository.CycleBalance cycleBalance = new QuotaReservationRepository.CycleBalance(
+				request.tenantId(), request.productId(), cycle.from(), allowanceBytes(subscription));
+		if (reservations.reserve(cycleBalance, reservation)) {
+			return new ReservationResponse(Outcome.AUTHORIZED, reservation.reservationId(), reservation.expiresAt(), false);
+		}
+		if (subscription.overageEnabled()) {
+			// Collector HttpQuotaReservationClient only valueOf-knows AUTHORIZED* today; emit AUTHORIZED + overageBytes.
+			long overageBytes = reservations.reserveAllowingOverage(cycleBalance, reservation);
+			if (overageBytes < 0) {
+				return ReservationResponse.unavailable();
+			}
+			return new ReservationResponse(Outcome.AUTHORIZED, reservation.reservationId(), reservation.expiresAt(), false,
+					overageBytes);
+		}
+		return ReservationResponse.insufficient();
 	}
 
 	public TransitionResult confirm(String reservationId) {
@@ -151,10 +178,27 @@ public class QuotaReservationService {
 		}
 	}
 
-	public record ReservationResponse(Outcome outcome, String reservationId, Instant expiresAt, boolean replay) {
-		static ReservationResponse insufficient() { return new ReservationResponse(Outcome.INSUFFICIENT_BALANCE, null, null, false); }
-		static ReservationResponse noPlan() { return new ReservationResponse(Outcome.NO_PLAN, null, null, false); }
-		static ReservationResponse unavailable() { return new ReservationResponse(Outcome.NO_PLAN, null, null, false); }
+	public record ReservationResponse(Outcome outcome, String reservationId, Instant expiresAt, boolean replay,
+			long overageBytes) {
+		public ReservationResponse(Outcome outcome, String reservationId, Instant expiresAt, boolean replay) {
+			this(outcome, reservationId, expiresAt, replay, 0L);
+		}
+
+		static ReservationResponse insufficient() {
+			return new ReservationResponse(Outcome.INSUFFICIENT_BALANCE, null, null, false);
+		}
+
+		static ReservationResponse noPlan() {
+			return new ReservationResponse(Outcome.NO_PLAN, null, null, false);
+		}
+
+		static ReservationResponse unavailable() {
+			return new ReservationResponse(Outcome.NO_PLAN, null, null, false);
+		}
+
+		static ReservationResponse suspended() {
+			return new ReservationResponse(Outcome.SUSPENDED, null, null, false);
+		}
 	}
 
 	public record BalanceResponse(long allowanceBytes, long reservedBytes, long consumedBytes, long remainingBytes,

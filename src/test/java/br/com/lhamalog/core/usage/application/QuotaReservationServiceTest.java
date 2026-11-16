@@ -132,6 +132,80 @@ class QuotaReservationServiceTest {
 		assertThat(missing.balance("tenant", "product")).isEmpty();
 	}
 
+	@Test
+	void suspendedSubscriptionReturnsSuspendedWithoutCreatingReservation() {
+		MemoryReservations store = new MemoryReservations();
+		store.seedBalance(10_000);
+		QuotaReservationService service = new QuotaReservationService(
+				(tenant, product) -> Optional.of(new PlanSubscription("id", "tenant", "product", PlanType.MONTHLY,
+						LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.SUSPENSA,
+						false)),
+				store, InstantSource.fixed(NOW), Duration.ofMinutes(20));
+
+		QuotaReservationService.ReservationResponse response = service.reserve(request("suspended"));
+		assertThat(response.outcome()).isEqualTo(QuotaReservationService.Outcome.SUSPENDED);
+		assertThat(response.reservationId()).isNull();
+		assertThat(response.expiresAt()).isNull();
+		assertThat(store.find("suspended")).isEmpty();
+	}
+
+	@Test
+	void suspendedTakesPrecedenceOverMissingAllowance() {
+		QuotaReservationService service = service(new PlanSubscription("id", "tenant", "product", PlanType.MONTHLY,
+				LocalDate.of(2026, 11, 1), BigDecimal.ZERO, false, SubscriptionStatus.SUSPENSA, false));
+		assertThat(service.reserve(request("suspended-no-allowance")).outcome())
+				.isEqualTo(QuotaReservationService.Outcome.SUSPENDED);
+	}
+
+	@Test
+	void overageEnabledAuthorizesBeyondBalanceAndRecordsOverageBytes() {
+		MemoryReservations store = new MemoryReservations();
+		store.seedBalance(50);
+		QuotaReservationService service = new QuotaReservationService(
+				(tenant, product) -> Optional.of(new PlanSubscription("id", "tenant", "product", PlanType.MONTHLY,
+						LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.ATIVA, true)),
+				store, InstantSource.fixed(NOW), Duration.ofMinutes(20));
+
+		QuotaReservationService.ReservationResponse response = service.reserve(request("overage"));
+		// AUTHORIZED + overageBytes keeps current Collector HttpQuotaReservationClient compatible (valueOf).
+		assertThat(response.outcome()).isEqualTo(QuotaReservationService.Outcome.AUTHORIZED);
+		assertThat(response.reservationId()).isEqualTo("overage");
+		assertThat(response.overageBytes()).isEqualTo(50L);
+		assertThat(store.find("overage")).isPresent();
+		assertThat(store.findBalance("tenant", "product", Instant.parse("2026-11-01T00:00:00Z")))
+				.hasValueSatisfying(balance -> assertThat(balance.overageBytes()).isEqualTo(50L));
+	}
+
+	@Test
+	void overageDisabledStillRejectsInsufficientBalance() {
+		MemoryReservations store = new MemoryReservations();
+		store.seedBalance(50);
+		QuotaReservationService service = new QuotaReservationService(
+				(tenant, product) -> Optional.of(new PlanSubscription("id", "tenant", "product", PlanType.MONTHLY,
+						LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.ATIVA,
+						false)),
+				store, InstantSource.fixed(NOW), Duration.ofMinutes(20));
+
+		assertThat(service.reserve(request("too-big")).outcome())
+				.isEqualTo(QuotaReservationService.Outcome.INSUFFICIENT_BALANCE);
+		assertThat(store.find("too-big")).isEmpty();
+	}
+
+	@Test
+	void inadimplenteIsTreatedAsAtivaProvisionally() {
+		MemoryReservations store = new MemoryReservations();
+		store.seedBalance(10_000);
+		QuotaReservationService service = new QuotaReservationService(
+				(tenant, product) -> Optional.of(new PlanSubscription("id", "tenant", "product", PlanType.MONTHLY,
+						LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.INADIMPLENTE,
+						false)),
+				store, InstantSource.fixed(NOW), Duration.ofMinutes(20));
+
+		assertThat(service.reserve(request("inadimplente")).outcome())
+				.isEqualTo(QuotaReservationService.Outcome.AUTHORIZED);
+		assertThat(store.find("inadimplente")).isPresent();
+	}
+
 	private static QuotaReservationService service(PlanSubscription subscription) {
 		return new QuotaReservationService((tenant, product) -> Optional.of(subscription), new MemoryReservations(),
 				InstantSource.fixed(NOW), Duration.ofMinutes(20));
@@ -150,12 +224,14 @@ class QuotaReservationServiceTest {
 		private long allowance = Long.MAX_VALUE;
 		private long reserved;
 		private long consumed;
+		private long overage;
 
 		void seedBalance(long allowanceBytes) {
 			this.allowance = allowanceBytes;
 			this.remaining.set(allowanceBytes);
 			this.reserved = 0;
 			this.consumed = 0;
+			this.overage = 0;
 		}
 
 		@Override
@@ -181,6 +257,20 @@ class QuotaReservationServiceTest {
 		@Override
 		public boolean saveUnlimited(QuotaReservation reservation) {
 			return persist(reservation);
+		}
+
+		@Override
+		public long reserveAllowingOverage(CycleBalance balance, QuotaReservation reservation) {
+			synchronized (this) {
+				long shortfall = Math.max(0, reservation.requestedBytes() - Math.max(0, remaining.get()));
+				if (!persist(reservation)) {
+					return -1L;
+				}
+				remaining.addAndGet(-reservation.requestedBytes());
+				reserved += reservation.requestedBytes();
+				overage += shortfall;
+				return shortfall;
+			}
 		}
 
 		private boolean persist(QuotaReservation reservation) {
@@ -254,7 +344,7 @@ class QuotaReservationServiceTest {
 			if (allowance == Long.MAX_VALUE) {
 				return Optional.empty();
 			}
-			return Optional.of(new CycleBalanceSnapshot(allowance, reserved, consumed, this.cycleStart));
+			return Optional.of(new CycleBalanceSnapshot(allowance, reserved, consumed, this.cycleStart, overage));
 		}
 	}
 }
