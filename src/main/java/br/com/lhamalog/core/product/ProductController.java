@@ -24,9 +24,15 @@ public class ProductController {
 			@Size(max = 200) String category, @Size(max = 200) String productVersion,
 			@NotNull @Valid Product.Context context) {}
 	public record UpdateContext(@NotNull @Valid Product.Context context, @NotNull Long version) {}
+	public record UpdateProduct(@NotBlank @Size(max = 200) String name, @Size(max = 10000) String description,
+			@Size(max = 200) String category, @Size(max = 200) String productVersion, @NotNull Long version) {}
+	public record ChangeArchive(@NotNull Long version) {}
 
 	@GetMapping
-	public List<Product> list(@AuthenticationPrincipal Jwt jwt) { return service.list(sessions.resolve(jwt)); }
+	public List<Product> list(@AuthenticationPrincipal Jwt jwt,
+			@RequestParam(defaultValue = "false") boolean archived) {
+		return service.list(sessions.resolve(jwt), archived);
+	}
 	@GetMapping("/{id}")
 	public Product get(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
 		return service.get(sessions.resolve(jwt), id);
@@ -36,9 +42,24 @@ public class ProductController {
 	public Product create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CreateProduct request) {
 		return service.create(sessions.resolve(jwt), request);
 	}
+	@PutMapping("/{id}")
+	public Product update(@AuthenticationPrincipal Jwt jwt, @PathVariable String id,
+			@Valid @RequestBody UpdateProduct request) {
+		return service.update(sessions.resolve(jwt), id, request);
+	}
 	@PutMapping("/{id}/context")
 	public Product updateContext(@AuthenticationPrincipal Jwt jwt, @PathVariable String id,
 			@Valid @RequestBody UpdateContext request) {
 		return service.updateContext(sessions.resolve(jwt), id, request);
+	}
+	@PostMapping("/{id}/archive")
+	public Product archive(@AuthenticationPrincipal Jwt jwt, @PathVariable String id,
+			@Valid @RequestBody ChangeArchive request) {
+		return service.archive(sessions.resolve(jwt), id, request.version());
+	}
+	@PostMapping("/{id}/unarchive")
+	public Product unarchive(@AuthenticationPrincipal Jwt jwt, @PathVariable String id,
+			@Valid @RequestBody ChangeArchive request) {
+		return service.unarchive(sessions.resolve(jwt), id, request.version());
 	}
 }

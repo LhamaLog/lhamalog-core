@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-15
 
-**Status**: Draft
+**Status**: Ready
 
 **Input**: User description: "LLT-168 Listar, editar e desativar usuários (épico LLT-99, feature LLT-119 Gestão de usuários). Como administrador, quero manter a lista de usuários da empresa. A lista mostra nome, e-mail, cargo, status e último acesso. Usuário desativado perde o acesso na próxima requisição. Não é possível desativar ou rebaixar o último administrador. Sem chave secreta da Clerk no Core nem no Web."
 
