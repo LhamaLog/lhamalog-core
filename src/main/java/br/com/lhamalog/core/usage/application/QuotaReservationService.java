@@ -1,13 +1,16 @@
 package br.com.lhamalog.core.usage.application;
 
 import br.com.lhamalog.core.usage.api.UsageDomain;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -26,26 +29,44 @@ public class QuotaReservationService {
 	private final QuotaReservationRepository reservations;
 	private final InstantSource clock;
 	private final Duration ttl;
+	private final Duration delinquencyGrace;
 	private final LowBalanceNotificationService lowBalanceNotifications;
+	private final MeterRegistry meterRegistry;
 
 	@Autowired
 	public QuotaReservationService(PlanSubscriptionRepository subscriptions, QuotaReservationRepository reservations,
-			QuotaReservationProperties properties, LowBalanceNotificationService lowBalanceNotifications) {
-		this(subscriptions, reservations, InstantSource.system(), properties.ttl(), lowBalanceNotifications);
+			QuotaReservationProperties properties, SubscriptionProperties subscriptionProperties,
+			LowBalanceNotificationService lowBalanceNotifications, Clock clock,
+			ObjectProvider<MeterRegistry> meterRegistry) {
+		this(subscriptions, reservations, clock, properties.ttl(), subscriptionProperties.delinquencyGrace(),
+				lowBalanceNotifications, meterRegistry.getIfAvailable());
 	}
 
 	QuotaReservationService(PlanSubscriptionRepository subscriptions, QuotaReservationRepository reservations,
 			InstantSource clock, Duration ttl) {
-		this(subscriptions, reservations, clock, ttl, null);
+		this(subscriptions, reservations, clock, ttl, Duration.ofDays(15), null, null);
 	}
 
 	QuotaReservationService(PlanSubscriptionRepository subscriptions, QuotaReservationRepository reservations,
 			InstantSource clock, Duration ttl, LowBalanceNotificationService lowBalanceNotifications) {
+		this(subscriptions, reservations, clock, ttl, Duration.ofDays(15), lowBalanceNotifications, null);
+	}
+
+	QuotaReservationService(PlanSubscriptionRepository subscriptions, QuotaReservationRepository reservations,
+			InstantSource clock, Duration ttl, Duration delinquencyGrace) {
+		this(subscriptions, reservations, clock, ttl, delinquencyGrace, null, null);
+	}
+
+	QuotaReservationService(PlanSubscriptionRepository subscriptions, QuotaReservationRepository reservations,
+			InstantSource clock, Duration ttl, Duration delinquencyGrace,
+			LowBalanceNotificationService lowBalanceNotifications, MeterRegistry meterRegistry) {
 		this.subscriptions = subscriptions;
 		this.reservations = reservations;
 		this.clock = clock;
 		this.ttl = ttl;
+		this.delinquencyGrace = delinquencyGrace;
 		this.lowBalanceNotifications = lowBalanceNotifications;
+		this.meterRegistry = meterRegistry;
 	}
 
 	public ReservationResponse reserve(ReservationRequest request) {
@@ -65,10 +86,9 @@ public class QuotaReservationService {
 		if (subscription.status() == SubscriptionStatus.SUSPENSA) {
 			return ReservationResponse.suspended();
 		}
-		if (subscription.status() == SubscriptionStatus.INADIMPLENTE) {
-			// Provisional until Q14 / T044: treat as ATIVA (do not invent a 403 block).
-			log.warn("subscription status INADIMPLENTE treated as ATIVA until Q14 tenantId={} productId={}",
-					request.tenantId(), request.productId());
+		if (subscription.status() == SubscriptionStatus.INADIMPLENTE
+				&& isDelinquencyGraceExpired(subscription, request, now)) {
+			return ReservationResponse.suspended();
 		}
 		if (UsageCycle.calculate(subscription.planType(), subscription.firstPaymentDate(), now).isEmpty()
 				|| (!subscription.unlimitedUsage() && subscription.allowanceGigabytes().signum() <= 0)) {
@@ -96,6 +116,9 @@ public class QuotaReservationService {
 			long overageBytes = reservations.reserveAllowingOverage(cycleBalance, reservation);
 			if (overageBytes < 0) {
 				return ReservationResponse.unavailable();
+			}
+			if (overageBytes > 0) {
+				recordOverageAuthorized(request, reservation.reservationId(), overageBytes);
 			}
 			return new ReservationResponse(Outcome.AUTHORIZED, reservation.reservationId(), reservation.expiresAt(), false,
 					overageBytes);
@@ -157,6 +180,38 @@ public class QuotaReservationService {
 					long allowance = allowanceBytes(subscription);
 					return new BalanceResponse(allowance, 0, 0, allowance, cycle.from());
 				}));
+	}
+
+	private boolean isDelinquencyGraceExpired(PlanSubscription subscription, ReservationRequest request, Instant now) {
+		Instant delinquentSince = subscription.delinquentSince();
+		if (delinquentSince == null) {
+			log.warn(
+					"event=subscription.delinquent.missing_since | Delinquent subscription missing delinquentSince; allowing within grace | tenantId={} productId={}",
+					request.tenantId(), request.productId());
+			return false;
+		}
+		Instant graceEndsAt = delinquentSince.plus(delinquencyGrace);
+		if (!now.isBefore(graceEndsAt)) {
+			log.warn(
+					"event=subscription.delinquent.grace_expired | Delinquency grace period expired; treating as suspended | tenantId={} productId={} delinquentSince={}",
+					request.tenantId(), request.productId(), delinquentSince);
+			return true;
+		}
+		log.info(
+				"event=subscription.delinquent.in_grace | Delinquent subscription still within grace period | tenantId={} productId={} delinquentSince={}",
+				request.tenantId(), request.productId(), delinquentSince);
+		return false;
+	}
+
+	private void recordOverageAuthorized(ReservationRequest request, String reservationId, long overageBytes) {
+		log.info(
+				"event=quota.overage.authorized | Reservation authorized above the plan allowance | tenantId={} productId={} reservationId={} overageBytes={}",
+				request.tenantId(), request.productId(), reservationId, overageBytes);
+		if (meterRegistry == null) {
+			return;
+		}
+		meterRegistry.counter("lhamalog.quota.overage", "productId", request.productId()).increment();
+		meterRegistry.summary("lhamalog.quota.overage.bytes", "productId", request.productId()).record(overageBytes);
 	}
 
 	private static long allowanceBytes(PlanSubscription subscription) {

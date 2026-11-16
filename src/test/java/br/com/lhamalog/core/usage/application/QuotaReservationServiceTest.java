@@ -3,6 +3,7 @@ package br.com.lhamalog.core.usage.application;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.lhamalog.core.usage.api.UsageDomain;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
@@ -161,10 +162,11 @@ class QuotaReservationServiceTest {
 	void overageEnabledAuthorizesBeyondBalanceAndRecordsOverageBytes() {
 		MemoryReservations store = new MemoryReservations();
 		store.seedBalance(50);
+		SimpleMeterRegistry meters = new SimpleMeterRegistry();
 		QuotaReservationService service = new QuotaReservationService(
 				(tenant, product) -> Optional.of(new PlanSubscription("id", "tenant", "product", PlanType.MONTHLY,
 						LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.ATIVA, true)),
-				store, InstantSource.fixed(NOW), Duration.ofMinutes(20));
+				store, InstantSource.fixed(NOW), Duration.ofMinutes(20), Duration.ofDays(15), null, meters);
 
 		QuotaReservationService.ReservationResponse response = service.reserve(request("overage"));
 		// AUTHORIZED + overageBytes keeps current Collector HttpQuotaReservationClient compatible (valueOf).
@@ -174,6 +176,9 @@ class QuotaReservationServiceTest {
 		assertThat(store.find("overage")).isPresent();
 		assertThat(store.findBalance("tenant", "product", Instant.parse("2026-11-01T00:00:00Z")))
 				.hasValueSatisfying(balance -> assertThat(balance.overageBytes()).isEqualTo(50L));
+		assertThat(meters.counter("lhamalog.quota.overage", "productId", "product").count()).isEqualTo(1.0);
+		assertThat(meters.summary("lhamalog.quota.overage.bytes", "productId", "product").totalAmount())
+				.isEqualTo(50.0);
 	}
 
 	@Test
@@ -192,18 +197,77 @@ class QuotaReservationServiceTest {
 	}
 
 	@Test
-	void inadimplenteIsTreatedAsAtivaProvisionally() {
+	void inadimplenteWithinGraceIsAuthorized() {
 		MemoryReservations store = new MemoryReservations();
 		store.seedBalance(10_000);
-		QuotaReservationService service = new QuotaReservationService(
+		Instant delinquentSince = NOW.minus(Duration.ofDays(5));
+		QuotaReservationService service = delinquentService(store, delinquentSince, Duration.ofDays(15));
+
+		assertThat(service.reserve(request("in-grace")).outcome())
+				.isEqualTo(QuotaReservationService.Outcome.AUTHORIZED);
+		assertThat(store.find("in-grace")).isPresent();
+	}
+
+	@Test
+	void inadimplenteExactlyAtGraceBoundaryIsSuspended() {
+		MemoryReservations store = new MemoryReservations();
+		store.seedBalance(10_000);
+		Instant delinquentSince = NOW.minus(Duration.ofDays(15));
+		QuotaReservationService service = delinquentService(store, delinquentSince, Duration.ofDays(15));
+
+		QuotaReservationService.ReservationResponse response = service.reserve(request("at-boundary"));
+		assertThat(response.outcome()).isEqualTo(QuotaReservationService.Outcome.SUSPENDED);
+		assertThat(response.reservationId()).isNull();
+		assertThat(store.find("at-boundary")).isEmpty();
+	}
+
+	@Test
+	void inadimplenteAfterGraceIsSuspendedWithoutReservation() {
+		MemoryReservations store = new MemoryReservations();
+		store.seedBalance(10_000);
+		Instant delinquentSince = NOW.minus(Duration.ofDays(16));
+		QuotaReservationService service = delinquentService(store, delinquentSince, Duration.ofDays(15));
+
+		QuotaReservationService.ReservationResponse response = service.reserve(request("after-grace"));
+		assertThat(response.outcome()).isEqualTo(QuotaReservationService.Outcome.SUSPENDED);
+		assertThat(store.find("after-grace")).isEmpty();
+	}
+
+	@Test
+	void inadimplenteWithNullDelinquentSinceIsAllowedConservatively() {
+		MemoryReservations store = new MemoryReservations();
+		store.seedBalance(10_000);
+		QuotaReservationService service = delinquentService(store, null, Duration.ofDays(15));
+
+		assertThat(service.reserve(request("missing-since")).outcome())
+				.isEqualTo(QuotaReservationService.Outcome.AUTHORIZED);
+		assertThat(store.find("missing-since")).isPresent();
+	}
+
+	@Test
+	void customDelinquencyGraceIsHonored() {
+		MemoryReservations store = new MemoryReservations();
+		store.seedBalance(10_000);
+		Instant delinquentSince = NOW.minus(Duration.ofDays(3));
+		QuotaReservationService within = delinquentService(store, delinquentSince, Duration.ofDays(7));
+		assertThat(within.reserve(request("custom-within")).outcome())
+				.isEqualTo(QuotaReservationService.Outcome.AUTHORIZED);
+
+		MemoryReservations afterStore = new MemoryReservations();
+		afterStore.seedBalance(10_000);
+		QuotaReservationService expired = delinquentService(afterStore, delinquentSince, Duration.ofDays(2));
+		assertThat(expired.reserve(request("custom-expired")).outcome())
+				.isEqualTo(QuotaReservationService.Outcome.SUSPENDED);
+		assertThat(afterStore.find("custom-expired")).isEmpty();
+	}
+
+	private static QuotaReservationService delinquentService(MemoryReservations store, Instant delinquentSince,
+			Duration grace) {
+		return new QuotaReservationService(
 				(tenant, product) -> Optional.of(new PlanSubscription("id", "tenant", "product", PlanType.MONTHLY,
 						LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.INADIMPLENTE,
-						false)),
-				store, InstantSource.fixed(NOW), Duration.ofMinutes(20));
-
-		assertThat(service.reserve(request("inadimplente")).outcome())
-				.isEqualTo(QuotaReservationService.Outcome.AUTHORIZED);
-		assertThat(store.find("inadimplente")).isPresent();
+						false, delinquentSince)),
+				store, InstantSource.fixed(NOW), Duration.ofMinutes(20), grace);
 	}
 
 	private static QuotaReservationService service(PlanSubscription subscription) {
