@@ -83,10 +83,10 @@ public class QuotaReservationService {
 		if (subscription == null) {
 			return ReservationResponse.noPlan();
 		}
-		if (subscription.status() == SubscriptionStatus.SUSPENSA) {
+		if (subscription.status() == SubscriptionStatus.SUSPENDED) {
 			return ReservationResponse.suspended();
 		}
-		if (subscription.status() == SubscriptionStatus.INADIMPLENTE
+		if (subscription.status() == SubscriptionStatus.DELINQUENT
 				&& isDelinquencyGraceExpired(subscription, request, now)) {
 			return ReservationResponse.suspended();
 		}

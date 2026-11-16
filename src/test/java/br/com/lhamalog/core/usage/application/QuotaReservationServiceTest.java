@@ -139,7 +139,7 @@ class QuotaReservationServiceTest {
 		store.seedBalance(10_000);
 		QuotaReservationService service = new QuotaReservationService(
 				(tenant, product) -> Optional.of(new PlanSubscription("id", "tenant", "product", PlanType.MONTHLY,
-						LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.SUSPENSA,
+						LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.SUSPENDED,
 						false)),
 				store, InstantSource.fixed(NOW), Duration.ofMinutes(20));
 
@@ -153,7 +153,7 @@ class QuotaReservationServiceTest {
 	@Test
 	void suspendedTakesPrecedenceOverMissingAllowance() {
 		QuotaReservationService service = service(new PlanSubscription("id", "tenant", "product", PlanType.MONTHLY,
-				LocalDate.of(2026, 11, 1), BigDecimal.ZERO, false, SubscriptionStatus.SUSPENSA, false));
+				LocalDate.of(2026, 11, 1), BigDecimal.ZERO, false, SubscriptionStatus.SUSPENDED, false));
 		assertThat(service.reserve(request("suspended-no-allowance")).outcome())
 				.isEqualTo(QuotaReservationService.Outcome.SUSPENDED);
 	}
@@ -165,7 +165,7 @@ class QuotaReservationServiceTest {
 		SimpleMeterRegistry meters = new SimpleMeterRegistry();
 		QuotaReservationService service = new QuotaReservationService(
 				(tenant, product) -> Optional.of(new PlanSubscription("id", "tenant", "product", PlanType.MONTHLY,
-						LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.ATIVA, true)),
+						LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.ACTIVE, true)),
 				store, InstantSource.fixed(NOW), Duration.ofMinutes(20), Duration.ofDays(15), null, meters);
 
 		QuotaReservationService.ReservationResponse response = service.reserve(request("overage"));
@@ -187,7 +187,7 @@ class QuotaReservationServiceTest {
 		store.seedBalance(50);
 		QuotaReservationService service = new QuotaReservationService(
 				(tenant, product) -> Optional.of(new PlanSubscription("id", "tenant", "product", PlanType.MONTHLY,
-						LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.ATIVA,
+						LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.ACTIVE,
 						false)),
 				store, InstantSource.fixed(NOW), Duration.ofMinutes(20));
 
@@ -266,7 +266,7 @@ class QuotaReservationServiceTest {
 	}
 
 	@Test
-	void inadimplenteWithinGraceIsAuthorized() {
+	void delinquentWithinGraceIsAuthorized() {
 		MemoryReservations store = new MemoryReservations();
 		store.seedBalance(10_000);
 		Instant delinquentSince = NOW.minus(Duration.ofDays(5));
@@ -278,7 +278,7 @@ class QuotaReservationServiceTest {
 	}
 
 	@Test
-	void inadimplenteExactlyAtGraceBoundaryIsSuspended() {
+	void delinquentExactlyAtGraceBoundaryIsSuspended() {
 		MemoryReservations store = new MemoryReservations();
 		store.seedBalance(10_000);
 		Instant delinquentSince = NOW.minus(Duration.ofDays(15));
@@ -291,7 +291,7 @@ class QuotaReservationServiceTest {
 	}
 
 	@Test
-	void inadimplenteAfterGraceIsSuspendedWithoutReservation() {
+	void delinquentAfterGraceIsSuspendedWithoutReservation() {
 		MemoryReservations store = new MemoryReservations();
 		store.seedBalance(10_000);
 		Instant delinquentSince = NOW.minus(Duration.ofDays(16));
@@ -303,7 +303,7 @@ class QuotaReservationServiceTest {
 	}
 
 	@Test
-	void inadimplenteWithNullDelinquentSinceIsAllowedConservatively() {
+	void delinquentWithNullDelinquentSinceIsAllowedConservatively() {
 		MemoryReservations store = new MemoryReservations();
 		store.seedBalance(10_000);
 		QuotaReservationService service = delinquentService(store, null, Duration.ofDays(15));
@@ -334,7 +334,7 @@ class QuotaReservationServiceTest {
 			Duration grace) {
 		return new QuotaReservationService(
 				(tenant, product) -> Optional.of(new PlanSubscription("id", "tenant", "product", PlanType.MONTHLY,
-						LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.INADIMPLENTE,
+						LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.DELINQUENT,
 						false, delinquentSince)),
 				store, InstantSource.fixed(NOW), Duration.ofMinutes(20), grace);
 	}
@@ -342,7 +342,7 @@ class QuotaReservationServiceTest {
 	private static QuotaReservationService overageService(MemoryReservations store) {
 		return new QuotaReservationService(
 				(tenant, product) -> Optional.of(new PlanSubscription("id", "tenant", "product", PlanType.MONTHLY,
-						LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.ATIVA, true)),
+						LocalDate.of(2026, 11, 1), BigDecimal.valueOf(0.00001), false, SubscriptionStatus.ACTIVE, true)),
 				store, InstantSource.fixed(NOW), Duration.ofMinutes(20));
 	}
 

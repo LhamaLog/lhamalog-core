@@ -18,14 +18,14 @@ public record PlanSubscription(@Id String id, @NotBlank String tenantId, @NotBla
 
 	public PlanSubscription(String id, String tenantId, String productId, PlanType planType,
 			LocalDate firstPaymentDate) {
-		this(id, tenantId, productId, planType, firstPaymentDate, BigDecimal.ZERO, false, SubscriptionStatus.ATIVA,
+		this(id, tenantId, productId, planType, firstPaymentDate, BigDecimal.ZERO, false, SubscriptionStatus.ACTIVE,
 				false, null);
 	}
 
 	public PlanSubscription(String id, String tenantId, String productId, PlanType planType,
 			LocalDate firstPaymentDate, BigDecimal allowanceGigabytes, boolean unlimitedUsage) {
 		this(id, tenantId, productId, planType, firstPaymentDate, allowanceGigabytes, unlimitedUsage,
-				SubscriptionStatus.ATIVA, false, null);
+				SubscriptionStatus.ACTIVE, false, null);
 	}
 
 	/** Convenience when delinquentSince is omitted (defaults to null). */
@@ -38,8 +38,9 @@ public record PlanSubscription(@Id String id, @NotBlank String tenantId, @NotBla
 
 	/**
 	 * Reads legacy subscription documents created before allowance, unlimited-usage, status, overage, and
-	 * delinquentSince fields were introduced. Missing values map to ATIVA / overageEnabled=false /
-	 * delinquentSince=null.
+	 * delinquentSince fields were introduced. Missing values map to ACTIVE / overageEnabled=false /
+	 * delinquentSince=null. Portuguese status spellings are accepted by
+	 * {@link SubscriptionStatus#fromPersisted(String)} via Mongo reading conversion.
 	 */
 	@PersistenceCreator
 	public PlanSubscription(String id, String tenantId, String productId, PlanType planType,
@@ -47,7 +48,7 @@ public record PlanSubscription(@Id String id, @NotBlank String tenantId, @NotBla
 			SubscriptionStatus status, Boolean overageEnabled, Instant delinquentSince) {
 		this(id, tenantId, productId, planType, firstPaymentDate,
 				allowanceGigabytes == null ? BigDecimal.ZERO : allowanceGigabytes,
-				Boolean.TRUE.equals(unlimitedUsage), status == null ? SubscriptionStatus.ATIVA : status,
+				Boolean.TRUE.equals(unlimitedUsage), status == null ? SubscriptionStatus.ACTIVE : status,
 				Boolean.TRUE.equals(overageEnabled), delinquentSince);
 	}
 }
