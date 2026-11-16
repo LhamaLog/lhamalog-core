@@ -33,11 +33,14 @@ public class UsageReservationsController {
 				new QuotaReservationService.ReservationRequest(request.reservationId(), request.tenantId(), request.productId(),
 						request.requestedBytes(), request.batchId(), request.domain()));
 		return switch (response.outcome()) {
-			case AUTHORIZED, AUTHORIZED_UNLIMITED -> ResponseEntity.status(response.replay() ? HttpStatus.OK : HttpStatus.CREATED)
-					.body(new ReservationResponse(response.outcome().name(), response.reservationId(), response.expiresAt()));
+			case AUTHORIZED, AUTHORIZED_UNLIMITED -> ResponseEntity
+					.status(response.replay() ? HttpStatus.OK : HttpStatus.CREATED)
+					.body(toBody(response));
 			case INSUFFICIENT_BALANCE -> ResponseEntity.status(HttpStatus.CONFLICT)
-					.body(new ReservationResponse("INSUFFICIENT_BALANCE", null, null));
-			case NO_PLAN -> ResponseEntity.unprocessableEntity().body(new ReservationResponse("NO_PLAN", null, null));
+					.body(new ReservationResponse("INSUFFICIENT_BALANCE", null, null, null));
+			case NO_PLAN -> ResponseEntity.unprocessableEntity().body(new ReservationResponse("NO_PLAN", null, null, null));
+			case SUSPENDED -> ResponseEntity.status(HttpStatus.FORBIDDEN)
+					.body(new ReservationResponse("SUSPENDED", null, null, null));
 		};
 	}
 
@@ -65,6 +68,12 @@ public class UsageReservationsController {
 				.orElseGet(() -> ResponseEntity.notFound().build());
 	}
 
+	private static ReservationResponse toBody(QuotaReservationService.ReservationResponse response) {
+		Long overageBytes = response.overageBytes() > 0 ? response.overageBytes() : null;
+		return new ReservationResponse(response.outcome().name(), response.reservationId(), response.expiresAt(),
+				overageBytes);
+	}
+
 	private static ResponseEntity<Void> transition(QuotaReservationService.TransitionResult result, String conflictCode) {
 		return switch (result) {
 			case OK -> ResponseEntity.noContent().build();
@@ -78,7 +87,7 @@ public class UsageReservationsController {
 			@Positive long requestedBytes, String batchId, @NotNull UsageDomain domain) {
 	}
 
-	public record ReservationResponse(String outcome, String reservationId, Instant expiresAt) {
+	public record ReservationResponse(String outcome, String reservationId, Instant expiresAt, Long overageBytes) {
 	}
 
 	public record BalanceResponse(long allowanceBytes, long reservedBytes, long consumedBytes, long remainingBytes,
