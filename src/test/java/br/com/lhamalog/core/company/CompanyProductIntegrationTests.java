@@ -148,7 +148,7 @@ class CompanyProductIntegrationTests {
 				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.fieldErrors.name").exists());
 		for (int index = 0; index < 5; index++) {
 			mvc.perform(post("/api/products").with(actor).contentType(MediaType.APPLICATION_JSON)
-					.content("{\"name\":\"Produto\",\"context\":{}}"))
+					.content("{\"name\":\"Produto " + index + "\",\"context\":{}}"))
 					.andExpect(status().isCreated());
 		}
 		mvc.perform(get("/api/products").with(actor)).andExpect(jsonPath("$.length()").value(5));
