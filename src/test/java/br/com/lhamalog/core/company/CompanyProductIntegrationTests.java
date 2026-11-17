@@ -210,7 +210,7 @@ class CompanyProductIntegrationTests {
 			.andExpect(jsonPath("$.fieldErrors.name").exists());
 		for (int index = 0; index < 5; index++) {
 			mvc.perform(as(post("/api/products"), org, "user", "member").contentType(MediaType.APPLICATION_JSON)
-				.content("{\"name\":\"Produto\",\"context\":{}}")).andExpect(status().isCreated());
+				.content("{\"name\":\"Produto " + index + "\",\"context\":{}}")).andExpect(status().isCreated());
 		}
 		mvc.perform(as(get("/api/products"), org, "user", "member")).andExpect(jsonPath("$.length()").value(5));
 	}

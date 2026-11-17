@@ -1,10 +1,15 @@
 package br.com.lhamalog.core.product;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Supplier;
 import br.com.lhamalog.core.shared.CompanySession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -12,6 +17,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ProductService {
+	private static final Logger log = LoggerFactory.getLogger(ProductService.class);
+	private static final String NAME_IN_USE = "Já existe um produto com este nome nesta empresa. Ele pode estar arquivado.";
+
 	private final ProductRepository products;
 	private final ProductAccessRepository accesses;
 	public ProductService(ProductRepository products, ProductAccessRepository accesses) {
@@ -19,11 +27,19 @@ public class ProductService {
 		this.accesses = accesses;
 	}
 
-	public List<Product> list(CompanySession session) {
-		if (session.administrator()) return products.findByTenantIdOrderByNameAscIdAsc(session.tenantId());
-		List<String> ids = accesses.findByTenantIdAndClerkUserId(session.tenantId(), session.userId())
+	public List<Product> list(CompanySession session) { return list(session, false); }
+
+	/** Lists active products by default; {@code archived = true} lists only archived ones. */
+	public List<Product> list(CompanySession session, boolean archived) {
+		String tenantId = session.tenantId();
+		if (session.administrator()) {
+			return archived ? products.findByTenantIdAndArchivedAtIsNotNullOrderByNameAscIdAsc(tenantId)
+					: products.findByTenantIdAndArchivedAtIsNullOrderByNameAscIdAsc(tenantId);
+		}
+		List<String> ids = accesses.findByTenantIdAndClerkUserId(tenantId, session.userId())
 				.stream().map(ProductAccess::productId).toList();
-		return products.findByTenantIdAndIdInOrderByNameAscIdAsc(session.tenantId(), ids);
+		return archived ? products.findByTenantIdAndIdInAndArchivedAtIsNotNullOrderByNameAscIdAsc(tenantId, ids)
+				: products.findByTenantIdAndIdInAndArchivedAtIsNullOrderByNameAscIdAsc(tenantId, ids);
 	}
 
 	public Product get(CompanySession session, String id) {
@@ -38,9 +54,10 @@ public class ProductService {
 		ProductAccess access = new ProductAccess(id + ":" + session.userId(), session.tenantId(), id, session.userId());
 		accesses.insert(access);
 		try {
-			return products.insert(new Product(id, session.tenantId(), request.name().trim(),
-					request.description(), request.category(), request.productVersion(), "CONFIGURING",
-					Instant.now(), request.context(), null));
+			return saveWithUniqueName("product.create.name_in_use", session.tenantId(), id,
+					() -> products.insert(new Product(id, session.tenantId(), request.name().trim(),
+							Product.normalizeName(request.name()), request.description(), request.category(),
+							request.productVersion(), "CONFIGURING", Instant.now(), null, request.context(), null)));
 		}
 		catch (RuntimeException exception) {
 			try { accesses.deleteById(access.id()); }
@@ -49,14 +66,85 @@ public class ProductService {
 		}
 	}
 
+	/** Updates name, description, category and business version. Context, status and archive state stay as they are. */
+	public Product update(CompanySession session, String id, ProductController.UpdateProduct request) {
+		Product current = get(session, id);
+		requireActive(current);
+		requireCurrentVersion(current, request.version());
+		return saveWithUniqueName("product.update.name_in_use", current.tenantId(), current.id(),
+				() -> products.save(new Product(current.id(), current.tenantId(), request.name().trim(),
+						Product.normalizeName(request.name()), request.description(), request.category(),
+						request.productVersion(), current.status(), current.createdAt(), current.archivedAt(),
+						current.context(), current.version())));
+	}
+
 	public Product updateContext(CompanySession session, String id, ProductController.UpdateContext request) {
 		Product current = get(session, id);
-		if (!Objects.equals(current.version(), request.version())) {
+		requireActive(current);
+		requireCurrentVersion(current, request.version());
+		return products.save(new Product(current.id(), current.tenantId(), current.name(), current.normalizedName(),
+				current.description(), current.category(), current.productVersion(), current.status(),
+				current.createdAt(), current.archivedAt(), request.context(), current.version()));
+	}
+
+	/** Owners/admins only. Archiving an already archived product changes nothing. */
+	public Product archive(CompanySession session, String id, Long version) {
+		Product current = get(session, id);
+		requireAdministrator(session);
+		if (current.archivedAt() != null) return current;
+		requireCurrentVersion(current, version);
+		// MongoDB stores dates in milliseconds; truncating keeps the response equal to what is persisted.
+		return products.save(withArchivedAt(current, Instant.now().truncatedTo(ChronoUnit.MILLIS)));
+	}
+
+	/** Owners/admins only. Unarchiving an active product changes nothing. */
+	public Product unarchive(CompanySession session, String id, Long version) {
+		Product current = get(session, id);
+		requireAdministrator(session);
+		if (current.archivedAt() == null) return current;
+		requireCurrentVersion(current, version);
+		return products.save(withArchivedAt(current, null));
+	}
+
+	private static Product withArchivedAt(Product current, Instant archivedAt) {
+		return new Product(current.id(), current.tenantId(), current.name(), current.normalizedName(),
+				current.description(), current.category(), current.productVersion(), current.status(),
+				current.createdAt(), archivedAt, current.context(), current.version());
+	}
+
+	/**
+	 * Runs a write that sets the name; the unique normalized-name index is the only key such a write can violate.
+	 * The refusal is an expected business outcome: logged at INFO with the event code, without stack trace and
+	 * without the submitted name.
+	 */
+	private static Product saveWithUniqueName(String event, String tenantId, String productId, Supplier<Product> write) {
+		try {
+			return write.get();
+		}
+		catch (DuplicateKeyException exception) {
+			log.info("event={} | Product name already in use in the company; write refused with 409 | tenantId={} productId={}",
+					event, tenantId, productId);
+			throw new ResponseStatusException(HttpStatus.CONFLICT, NAME_IN_USE, exception);
+		}
+	}
+
+	private static void requireActive(Product product) {
+		if (product.archivedAt() != null) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Produto arquivado não pode ser editado.");
+		}
+	}
+
+	private static void requireCurrentVersion(Product product, Long version) {
+		if (!Objects.equals(product.version(), version)) {
 			throw new OptimisticLockingFailureException("Product version conflict");
 		}
-		return products.save(new Product(current.id(), current.tenantId(), current.name(), current.description(),
-				current.category(), current.productVersion(), current.status(), current.createdAt(),
-				request.context(), current.version()));
+	}
+
+	private static void requireAdministrator(CompanySession session) {
+		if (!session.administrator()) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+					"Somente donos e administradores podem arquivar ou desarquivar produtos.");
+		}
 	}
 
 	private ResponseStatusException notFound() {
