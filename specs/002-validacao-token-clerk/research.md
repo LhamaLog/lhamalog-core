@@ -111,7 +111,7 @@ Fontes consultadas: ADR_022, ADR_032, ADR_121, ADR_122, ADR_123, ADR_158, ADR_15
 - **Dispatch de erro liberado** (`DispatcherType.ERROR`): a página de erro (ex.: 404 de rota inexistente com token válido) não passa de novo pela decisão de acesso, evitando revogação indevida.
 - **Contexto único nos testes**: anotação `support.CoreIntegrationTest` (Spring Boot Test + MockMvc + Testcontainers + `ClerkTestConfiguration`), e o JWKS de teste entra por um `DynamicPropertyRegistrar`. Todos os testes compartilham um contexto e um conjunto de containers.
 - **Status desconhecido de Tenant** no banco é lido como `SUSPENDED` (com `WARN`), para nunca dar acesso.
-- Teste manual com token real (formato de `o.rol`): continua [PENDENTE]; depende das chaves da instância de dev no ambiente do desenvolvedor.
+- Teste manual com token real (formato de `o.rol`): confirmado em 2026-11-15, ver R17.
 - **Smoke test** (2026-11-06): aplicação real subida com `spring-boot:test-run` (Testcontainers) e `CLERK_ISSUER` da instância de dev (derivado da publishable key pública; JWKS público com uma chave RS256). Resultados: health 200; sem token 401; token com o `kid` real e assinatura falsa 401 (o decoder buscou o JWKS da Clerk); webhook sem assinatura 400; preflight CORS de `http://localhost:5173` com `Access-Control-Allow-Origin`.
 - Teste adicional: rota inexistente com token válido responde 404 e não revoga sessões (confirma o passo 7 do quickstart).
 
@@ -139,4 +139,13 @@ Resultado do `/speckit-converge` (tarefas T034 a T037).
 
 - **JWKS indisponível respondia 500.** Quando a Clerk não entrega o JWKS, o decoder do Nimbus lança `JwtException` (não `BadJwtException`), o Spring Security transforma isso em `AuthenticationServiceException` e a requisição termina em 500. A spec pede 401. Decisão: o decoder é envolvido por `UnavailableKeysAsInvalidTokenJwtDecoder`, que converte essa falha em `BadJwtException` (401 básico) e registra um `WARN` só com o tipo da causa, sem o token. As chaves já obtidas continuam em cache no decoder original. Teste: `ClerkTokenAuthenticationTests.unavailableJwksIsUnauthorized` (JWKS de teste respondendo 503 e token com `kid` fora do cache, o que força a busca).
 - **Algoritmo diferente de RS256** já era rejeitado (`jwsAlgorithm(RS256)`); faltava o teste. Adicionado `symmetricAlgorithmIsUnauthorized` (HS256).
-- **Formato real de `o.rol`**: continua [PENDENTE] (T037). Precisa de um token da instância de dev, que só o desenvolvedor gera. O código aceita as duas formas, então o risco é só de documentação.
+- **Formato real de `o.rol`** (T037, confirmado em 2026-11-15): com um token real da instância de dev, decodificado localmente, as claims vieram como token v2, `o.rol: "admin"` sem o prefixo `org:` e `sts: "active"`, como diz a documentação da Clerk. O código continua aceitando as duas formas. No mesmo teste, um relógio local atrasado deu 401 por `nbf`, o que é o comportamento esperado.
+
+## R18. Integração com a Development: Produtos e Membros (2026-11-16)
+
+A `Development` recebeu a LLT-123 (editar e arquivar produto), a LLT-177 (nome único), a LLT-168 (listar, editar e desativar usuários) e a LLT-183/185 (planos e retenção), escritas com o modelo antigo: `CompanySessionResolver.resolve(Jwt)` e `CompanySession.tenantId` igual ao `org_id` da Clerk.
+
+- **Sessão única**: `ProductController`, `CompanyMemberController` e `MemberAccessInterceptor` passam a usar `CompanySessionResolver.current()`, que lê o `RequestContext` já validado pela cadeia de segurança. O interceptor só age quando há um `ClerkAuthentication` concedido.
+- **`tenantId` interno**: Produtos e a coleção `CompanyMember` gravam o id interno do Tenant, e não o `org_id`. Dados locais gravados antes com o `org_id` ficam órfãos. Não há migração, porque essas features ainda não foram publicadas.
+- **Sem organização ativa**: o 403 passa a vir da cadeia de segurança (`{"error":"forbidden"}` e revogação), e não mais da mensagem "Selecione uma empresa para continuar." do `CompanySession`. Os 403 de negócio da LLT-168 (`not_admin`, `user_deactivated`, `last_admin`) saem do MVC e não revogam sessão.
+- **Testes**: `ProductEditArchiveIntegrationTests`, `ProductUniqueNameIntegrationTests` e `CompanyMemberHttpTests` trocam `jwt()` do spring-security-test por `support.TestTenants` (token real e Tenant `ACTIVE`) e usam `@CoreIntegrationTest`. Antes dependiam de `TEST_MONGODB_URI` e eram pulados no verify; agora rodam sempre. Verify: 279 testes, nenhum pulado.

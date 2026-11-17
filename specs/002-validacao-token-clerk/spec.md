@@ -20,7 +20,7 @@
 - Q: A feature gera o JWT interno da ADR_028? → A: Não. Fica para feature própria.
 - Q: Como obter Tenants para teste, já que o fluxo de compra não existe? → A: Só fixtures nos testes. Nenhum seed no código de produção. **Atualizado em 2026-11-09 (research R16):** o perfil `local` ganhou um Tenant de desenvolvimento opcional (`DEV_TENANT_CLERK_ORG_ID`), criado na subida e nunca alterado depois. Ele nunca fica ativo em prod; sem ele, o ambiente integrado deslogaria todo usuário enquanto o fluxo de compra não existe.
 - Q: Origens permitidas (`azp`) em desenvolvimento? → A: `http://localhost:5173` (lhamalog-web e projeto de teste usam essa porta com `strictPort`). Em prod, só por variável de ambiente.
-- Q: Formato de `o.rol`? → A: Pela documentação da Clerk (token v2), `rol` vem sem o prefixo `org:` (ex.: `admin`). O Core aceita as duas formas (`admin` e `org:admin`). Confirmação com token real da instância de dev: [PENDENTE], feita no teste manual (quickstart).
+- Q: Formato de `o.rol`? → A: Pela documentação da Clerk (token v2), `rol` vem sem o prefixo `org:` (ex.: `admin`). O Core aceita as duas formas (`admin` e `org:admin`). Confirmado com token real da instância de dev em 2026-11-15 (T037): token v2, `o.rol: "admin"` sem prefixo e `sts: "active"`.
 - Q: Tenant vs. Empresa (branch `Development` tem `Company` com `clerkOrgId`)? → A: Pela ADR_158, Tenant (identidade e chave de isolamento) e Empresa (cadastro) são entidades distintas, 1:1. Esta feature cria só a coleção `tenant`.
 - Q: Git? → A: O desenvolvedor cria as branches e faz os commits. A IA não cria branch, não faz commit nem push.
 

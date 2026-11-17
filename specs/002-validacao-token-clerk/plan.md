@@ -154,7 +154,7 @@ Request ─▶ CorsFilter ─▶ BearerTokenAuthenticationFilter
 
 ## Riscos
 
-- Formato real de `o.rol` e `sts` só confirmado no teste manual (quickstart).
+- Formato real de `o.rol` e `sts`: confirmado em 2026-11-15 com token real (research R17).
 - Conflito de merge com a `Development` (R14): resolvido na R16, a branch parte da `Development`.
 - JDK 25 ausente na máquina (R13): resolvido na R15.
 
