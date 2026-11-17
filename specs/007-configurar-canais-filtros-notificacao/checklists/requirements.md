@@ -1,0 +1,5 @@
+- [x] Fonte limitada à LLT-173 e decisões do usuário.
+- [x] Cenários, requisitos e critérios mensuráveis registrados.
+- [x] Web obrigatório e isolamento por usuário/empresa esclarecidos.
+- [x] Catálogo indefinido explicitado e estrutura configurável autorizada.
+- [x] Entrega real separada de avaliação unitária; limite da entrega registrado.
