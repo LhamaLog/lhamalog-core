@@ -2,7 +2,6 @@ package br.com.lhamalog.core.company;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -11,42 +10,35 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-import br.com.lhamalog.core.TestcontainersConfiguration;
 import br.com.lhamalog.core.product.Product;
 import br.com.lhamalog.core.product.ProductAccess;
 import br.com.lhamalog.core.product.ProductRepository;
+import br.com.lhamalog.core.support.CoreIntegrationTest;
+import br.com.lhamalog.core.support.TestTenants;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-@Import(TestcontainersConfiguration.class)
-@SpringBootTest(properties = {
-		"management.otlp.metrics.export.enabled=false",
-		"management.tracing.export.otlp.enabled=false"
-})
-@AutoConfigureMockMvc
+/** Empresa over HTTP with real tokens (TestJwks) and real tenants (LLT-175). */
+@CoreIntegrationTest
 class CompanyRegistrationHttpTests {
 	private static final String ADMIN_ONLY = "Somente o administrador da empresa pode alterar este cadastro.";
-	private static final String SELECT_COMPANY = "Selecione uma empresa para continuar.";
 	private static final byte[] PNG = {(byte) 0x89, 0x50, 0x4E, 0x47, 0, 0, 0, 0};
 
 	@Autowired MockMvc mvc;
 	@Autowired ObjectMapper mapper;
 	@Autowired ProductRepository products;
 	@Autowired org.springframework.data.mongodb.core.MongoTemplate mongo;
+	private TestTenants tenants;
 
 	@Test
 	void adminRegistersAndUpdatesOwnCompany() throws Exception {
@@ -54,7 +46,7 @@ class CompanyRegistrationHttpTests {
 		RequestPostProcessor admin = session(tenant, "admin_a", "admin");
 		MvcResult created = mvc.perform(put("/api/company").with(admin).contentType(MediaType.APPLICATION_JSON)
 				.content(registration("Empresa A", "Fantasia", null, "Atuacao inicial")))
-				.andExpect(status().isOk()).andExpect(jsonPath("$.id").value(tenant))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.clerkOrgId").value(tenant))
 				.andExpect(jsonPath("$.data.legalName").value("Empresa A"))
 				.andExpect(jsonPath("$.data.tradeName").value("Fantasia")).andReturn();
 		long version = version(created);
@@ -104,13 +96,15 @@ class CompanyRegistrationHttpTests {
 		String tenant = organization();
 		mvc.perform(put("/api/company").with(session(tenant, "admin_a", "admin")).contentType(MediaType.APPLICATION_JSON)
 				.content(registration("Empresa P", null, null, "Contexto"))).andExpect(status().isOk());
+		// Unknown roles are denied by the security layer (LLT-163): basic 403 body, nothing changes.
 		for (String role : new String[] {"owner", "Administrador"}) {
 			RequestPostProcessor actor = session(tenant, "user_" + role, role);
-			mvc.perform(get("/api/company").with(actor)).andExpect(status().isOk())
-					.andExpect(jsonPath("$.data.legalName").value("Empresa P"));
-			assertForbidden(put("/api/company").with(actor).contentType(MediaType.APPLICATION_JSON).content("{}"));
-			assertForbidden(delete("/api/company").with(actor));
+			assertDenied(get("/api/company").with(actor));
+			assertDenied(put("/api/company").with(actor).contentType(MediaType.APPLICATION_JSON).content("{}"));
+			assertDenied(delete("/api/company").with(actor));
 		}
+		mvc.perform(get("/api/company").with(session(tenant, "admin_a", "admin")))
+				.andExpect(jsonPath("$.data.legalName").value("Empresa P"));
 	}
 
 	@Test
@@ -119,12 +113,10 @@ class CompanyRegistrationHttpTests {
 		mvc.perform(put("/api/company").contentType(MediaType.APPLICATION_JSON).content("{}"))
 				.andExpect(status().isUnauthorized());
 		mvc.perform(delete("/api/company")).andExpect(status().isUnauthorized());
-		mvc.perform(get("/api/company").with(jwt())).andExpect(status().isForbidden())
-				.andExpect(jsonPath("$.message").value(SELECT_COMPANY));
-		mvc.perform(put("/api/company").with(jwt()).contentType(MediaType.APPLICATION_JSON).content("{}"))
-				.andExpect(status().isForbidden()).andExpect(jsonPath("$.message").value(SELECT_COMPANY));
-		mvc.perform(delete("/api/company").with(jwt())).andExpect(status().isForbidden())
-				.andExpect(jsonPath("$.message").value(SELECT_COMPANY));
+		RequestPostProcessor noCompany = TestTenants.withoutOrganization("user");
+		assertDenied(get("/api/company").with(noCompany));
+		assertDenied(put("/api/company").with(noCompany).contentType(MediaType.APPLICATION_JSON).content("{}"));
+		assertDenied(delete("/api/company").with(noCompany));
 	}
 
 	@Test
@@ -148,9 +140,10 @@ class CompanyRegistrationHttpTests {
 		assertEmpty(removed, tenant);
 		mvc.perform(get("/api/company/logo").with(admin)).andExpect(status().isNotFound());
 		mvc.perform(get("/api/company/context/revisions").with(admin)).andExpect(jsonPath("$.revisions.length()").value(0));
-		assertEquals(tenant, products.findById(productId).orElseThrow().tenantId());
+		String tenantId = tenants().tenantId(tenant);
+		assertEquals(tenantId, products.findById(productId).orElseThrow().tenantId());
 		assertTrue(mongo.findById(productId + ":" + "member_a", ProductAccess.class) != null
-				|| !mongo.findAll(ProductAccess.class).stream().filter(access -> tenant.equals(access.tenantId())).toList().isEmpty());
+				|| !mongo.findAll(ProductAccess.class).stream().filter(access -> tenantId.equals(access.tenantId())).toList().isEmpty());
 		String second = mvc.perform(delete("/api/company").with(admin)).andExpect(status().isOk())
 				.andReturn().getResponse().getContentAsString();
 		assertEmpty(second, tenant);
@@ -176,12 +169,12 @@ class CompanyRegistrationHttpTests {
 		mvc.perform(put("/api/company").with(adminB).contentType(MediaType.APPLICATION_JSON)
 				.content(registration("Empresa B", null, null, "Contexto B"))).andExpect(status().isOk());
 		mvc.perform(get("/api/company").with(adminA)).andExpect(jsonPath("$.data.legalName").value("Empresa A"))
-				.andExpect(jsonPath("$.id").value(tenantA));
+				.andExpect(jsonPath("$.clerkOrgId").value(tenantA));
 		mvc.perform(put("/api/company").with(adminA).contentType(MediaType.APPLICATION_JSON)
 				.content("""
 						{"organizationId":"%s","clerkOrgId":"%s","data":{"legalName":"So A"},"context":{},"address":{},"version":0}
 						""".formatted(tenantB, tenantB))).andExpect(status().isOk())
-				.andExpect(jsonPath("$.id").value(tenantA)).andExpect(jsonPath("$.data.legalName").value("So A"));
+				.andExpect(jsonPath("$.clerkOrgId").value(tenantA)).andExpect(jsonPath("$.data.legalName").value("So A"));
 		mvc.perform(get("/api/company").with(adminB)).andExpect(jsonPath("$.data.legalName").value("Empresa B"));
 		assertForbidden(put("/api/company").with(memberA).contentType(MediaType.APPLICATION_JSON)
 				.content("""
@@ -189,7 +182,7 @@ class CompanyRegistrationHttpTests {
 						""".formatted(tenantB)));
 		mvc.perform(get("/api/company").with(adminA)).andExpect(jsonPath("$.data.legalName").value("So A"));
 		mvc.perform(get("/api/company").with(adminB)).andExpect(jsonPath("$.data.legalName").value("Empresa B"));
-		mvc.perform(delete("/api/company").with(adminA)).andExpect(status().isOk()).andExpect(jsonPath("$.id").value(tenantA));
+		mvc.perform(delete("/api/company").with(adminA)).andExpect(status().isOk()).andExpect(jsonPath("$.clerkOrgId").value(tenantA));
 		mvc.perform(get("/api/company").with(adminB)).andExpect(jsonPath("$.data.legalName").value("Empresa B"))
 				.andExpect(jsonPath("$.context.description").value("Contexto B"));
 	}
@@ -208,9 +201,14 @@ class CompanyRegistrationHttpTests {
 		mvc.perform(request).andExpect(status().isForbidden()).andExpect(jsonPath("$.message").value(ADMIN_ONLY));
 	}
 
+	/** Denied by the security layer (no organization, unknown role): basic body (ADR_032). */
+	private void assertDenied(org.springframework.test.web.servlet.RequestBuilder request) throws Exception {
+		mvc.perform(request).andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("forbidden"));
+	}
+
 	private void assertEmpty(String json, String tenant) throws Exception {
 		JsonNode body = mapper.readTree(json);
-		assertEquals(tenant, body.get("id").asText());
+		assertEquals(tenant, body.get("clerkOrgId").asText());
 		assertTrue(body.get("version") == null || body.get("version").isNull());
 		assertEquals("", body.get("data").get("legalName").asText());
 		assertTrue(body.get("logo") == null || !body.get("logo").path("present").asBoolean());
@@ -229,7 +227,14 @@ class CompanyRegistrationHttpTests {
 	}
 
 	private RequestPostProcessor session(String organization, String user, String role) {
-		return jwt().jwt(token -> token.subject(user).claim("o", Map.of("id", organization, "rol", role)));
+		return tenants().session(organization, user, role);
+	}
+
+	private TestTenants tenants() {
+		if (tenants == null) {
+			tenants = new TestTenants(mongo);
+		}
+		return tenants;
 	}
 
 	private String organization() {

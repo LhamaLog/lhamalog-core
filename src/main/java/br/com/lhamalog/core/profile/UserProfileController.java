@@ -1,8 +1,6 @@
 package br.com.lhamalog.core.profile;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,13 +24,13 @@ public class UserProfileController {
 	}
 
 	@GetMapping
-	public UserProfileView get(@AuthenticationPrincipal Jwt jwt) {
-		return service.get(sessions.resolve(jwt).userId());
+	public UserProfileView get() {
+		return service.get(sessions.current().userId());
 	}
 
 	@PutMapping
-	public UserProfileView save(@AuthenticationPrincipal Jwt jwt, @RequestBody String body) {
-		String userId = sessions.resolve(jwt).userId();
+	public UserProfileView save(@RequestBody String body) {
+		String userId = sessions.current().userId();
 		return service.save(userId, json(body));
 	}
 

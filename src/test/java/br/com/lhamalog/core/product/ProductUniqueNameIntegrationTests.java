@@ -1,7 +1,6 @@
 package br.com.lhamalog.core.product;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -19,13 +18,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -34,16 +30,13 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import br.com.lhamalog.core.support.CoreIntegrationTest;
+import br.com.lhamalog.core.support.TestTenants;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /** Feature 006: product name unique per company (LLT-177). */
-@SpringBootTest(properties = {
-		"spring.mongodb.uri=${TEST_MONGODB_URI}",
-		"management.otlp.metrics.export.enabled=false", "management.tracing.export.otlp.enabled=false"
-})
-@AutoConfigureMockMvc
-@EnabledIfEnvironmentVariable(named = "TEST_MONGODB_URI", matches = ".+")
+@CoreIntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
 class ProductUniqueNameIntegrationTests {
 	private static final String NAME_IN_USE = "Já existe um produto com este nome nesta empresa. Ele pode estar arquivado.";
@@ -54,9 +47,18 @@ class ProductUniqueNameIntegrationTests {
 	@Autowired ObjectMapper mapper;
 	@Autowired MongoTemplate mongo;
 	@Autowired ProductRepository products;
+	private TestTenants tenants;
 
 	private RequestPostProcessor session(String organization, String user, String role) {
-		return jwt().jwt(token -> token.subject(user).claim("o", Map.of("id", organization, "rol", role)));
+		return tenants().session(organization, user, role);
+	}
+
+	/** Real tokens and an ACTIVE tenant per organization (LLT-163). */
+	private TestTenants tenants() {
+		if (tenants == null) {
+			tenants = new TestTenants(mongo);
+		}
+		return tenants;
 	}
 
 	private String organization() { return "org_test_" + UUID.randomUUID(); }
@@ -95,11 +97,11 @@ class ProductUniqueNameIntegrationTests {
 	}
 
 	private long storedProducts(String tenant) {
-		return mongo.count(Query.query(Criteria.where("tenantId").is(tenant)), Product.class);
+		return mongo.count(Query.query(Criteria.where("tenantId").is(tenants().tenantId(tenant))), Product.class);
 	}
 
 	private long storedAccesses(String tenant) {
-		return mongo.count(Query.query(Criteria.where("tenantId").is(tenant)), ProductAccess.class);
+		return mongo.count(Query.query(Criteria.where("tenantId").is(tenants().tenantId(tenant))), ProductAccess.class);
 	}
 
 	/** Releases all requests at once and returns their responses, in submission order. */
@@ -343,7 +345,7 @@ class ProductUniqueNameIntegrationTests {
 		List<MockHttpServletResponse> responses = inParallel(requests);
 
 		expectOneAcceptedAndOthersNameInUse(responses, 200);
-		assertEquals(1, mongo.count(Query.query(Criteria.where("tenantId").is(tenant)
+		assertEquals(1, mongo.count(Query.query(Criteria.where("tenantId").is(tenants().tenantId(tenant))
 				.and("normalizedName").is("checkout")), Product.class));
 	}
 
@@ -450,8 +452,8 @@ class ProductUniqueNameIntegrationTests {
 		expectNameInUse(attemptCreate(creator, "checkout"));
 		expectNameInUse(edit(creator, id, general("CHECKOUT", "", target.get("version").asLong())));
 
-		String createLine = logLine(output, "event=product.create.name_in_use | ", tenant);
-		String updateLine = logLine(output, "event=product.update.name_in_use | ", tenant);
+		String createLine = logLine(output, "event=product.create.name_in_use | ", tenants().tenantId(tenant));
+		String updateLine = logLine(output, "event=product.update.name_in_use | ", tenants().tenantId(tenant));
 		assertTrue(createLine.contains(" INFO "), createLine);
 		assertTrue(updateLine.contains(" INFO "), updateLine);
 		assertTrue(updateLine.contains("productId=" + id), updateLine);

@@ -1,6 +1,6 @@
 # lhamalog-core
 
-Empresa e Produtos: endpoints e persistência Mongo. O arranque Docker independente deste repositório está na branch `dev/developer`, criada a partir de `dev/empresa-produtos`. [Especificação](specs/001-empresa-produtos/spec.md), [contrato](specs/001-empresa-produtos/contracts/api.md) e [execução/testes](specs/001-empresa-produtos/quickstart.md).
+Empresa e Produtos: endpoints e persistência Mongo. O arranque Docker independente deste repositório está na branch `dev/developer`, criada a partir de `dev/empresa-produtos`. [Especificação](specs/001-empresa-produtos/spec.md), [contrato](specs/001-empresa-produtos/contracts/api.md) e [execução/testes](specs/001-empresa-produtos/quickstart.md). A segurança e o Tenant usados por eles são os da LLT-163 (ver "Segurança").
 
 API pública do LhamaLog: assinatura, multi-tenant (Clerk Organizations), papéis e matriz de alertas, WebSocket e único ponto de contato do front.
 
@@ -101,7 +101,7 @@ No Web, com Node.js 26.12.1: `npm ci`, crie `.env.local` com a chave **publicáv
 
 `CLERK_AUTHORIZED_PARTIES` define, ao mesmo tempo, as origens CORS de `/api/**` e o claim `azp` aceito no JWT. O padrão do compose de desenvolvimento é `http://localhost:5173`. Várias origens: separe por vírgula, sem espaço. A origem tem de ser exatamente a que o navegador usa; `localhost` e `127.0.0.1` são origens diferentes.
 
-Sem `CLERK_ISSUER` e `CLERK_JWKS_URI`, a API sobe e rejeita tokens. `/actuator/health` e `/actuator/info` continuam públicos. Login e telas autenticadas dependem da chave publicável no Web e da mesma instância Clerk. Não há autenticação alternativa.
+Sem `CLERK_ISSUER` a API não sobe (o `compose.yaml` para com erro). Preencha também `DEV_TENANT_CLERK_ORG_ID` com o `org_id` da sua organização: sem Tenant, toda chamada responde 403 e o Web desloga o usuário (ver "Segurança"). `/actuator/health` e `/actuator/info` continuam públicos. Login e telas autenticadas dependem da chave publicável no Web e da mesma instância Clerk. Não há autenticação alternativa.
 
 O compose do Web na branch `dev/empresa-produtos` daquele repositório ainda não repassa `VITE_CLERK_PUBLISHABLE_KEY` ao contêiner; nesse modo a página fica em branco. Para a interface com login, use `npm run dev` e o `.env.local`.
 
@@ -147,14 +147,83 @@ Não extraia por cima de um volume que você não tenha acabado de conferir. Nã
 - Uma porta 8080 por vez: contêiner ou `mvnw`.
 - Os testes com Testcontainers sobem imagens próprias e não usam estes volumes.
 
-## Segurança
+## Segurança (LLT-163)
+Toda rota exige o session token da Clerk no header `Authorization: Bearer <token>`, exceto `/actuator/health`, `/actuator/info` e `POST /webhooks/clerk` (que tem autenticação própria por assinatura). A configuração fica em `config.SecurityConfig`. Decisões em `specs/002-validacao-token-clerk/`.
 
-`config.SecurityConfig` valida JWT Clerk por JWKS, issuer, validade e origem permitida. A variável `CLERK_AUTHORIZED_PARTIES` alimenta o CORS de `/api/**` e o claim `azp`. `/actuator/health` e `/actuator/info` permanecem públicos. Sem essa configuração, a API rejeita tokens. Empresa vem da organização ativa; Produtos exigem vínculo ou papel administrativo configurado (`CLERK_ADMIN_ROLES`, padrão `admin`). Veja o guia da feature.
+- **401** `{"error":"unauthorized"}`: token ausente ou inválido (assinatura RS256 pelo JWKS da Clerk, `exp`/`nbf` com 5 s de tolerância, `iss`, `azp` fora da lista de origens, `sts` diferente de `active`). O motivo não é informado (ADR_032).
+- **403** `{"error":"forbidden"}`: token válido, mas sem organização ativa (claim `o`), sem Tenant para a organização, com Tenant não ativo ou com papel desconhecido. No 403 o Core revoga todas as sessões ativas do usuário na Clerk (Backend API). Se a Clerk falhar, o 403 se mantém e o erro vai para o log.
+- O restante do código lê a identidade da requisição pela porta `identity.application.port.CurrentRequestContext` (clerkUserId, sessionId, clerkOrgId, role, tenantId). Empresa e Produtos usam essa porta por meio do `shared.CompanySessionResolver`: o `tenantId` é o id interno do Tenant (não o `org_id` da Clerk) e o administrador é o papel `admin` da organização.
+- A Empresa fica no próprio documento do Tenant (coleção `tenant`): `/api/company` grava só os dados da Empresa, sem alterar nome e status do Tenant. Produto inacessível ou de outro Tenant responde 404, e não 403, para não deslogar o usuário.
+- CORS liberado só para as origens de `CLERK_AUTHORIZED_PARTIES`.
+
+### Variáveis da Clerk
+| Variável | Obrigatória | Padrão |
+|---|---|---|
+| `CLERK_ISSUER` | sim, em todos os perfis (a aplicação não sobe sem ela) | — |
+| `CLERK_AUTHORIZED_PARTIES` | em prod | local: `http://localhost:5173` |
+| `CLERK_SECRET_KEY` | em prod | local: vazia (revogação pulada, com aviso no log) |
+| `CLERK_JWKS_URI` | não | `<CLERK_ISSUER>/.well-known/jwks.json` |
+| `CLERK_API_URL` | não | `https://api.clerk.com` |
+| `CLERK_CLOCK_SKEW` | não | `5s` |
+
+O `CLERK_ISSUER` é a Frontend API URL da instância (Dashboard da Clerk > API keys). Também é possível obtê-lo da publishable key do front (`pk_test_...`): o trecho depois de `pk_test_` é o Base64 do host seguido de `$`. Os segredos ficam só no ambiente, nunca no repositório.
+
+### Testar manualmente
+Passo a passo em `specs/002-validacao-token-clerk/quickstart.md`. Como o fluxo de compra (que cria o Tenant) ainda não existe, sem Tenant toda chamada responde 403 e desloga o usuário. No perfil local, defina `DEV_TENANT_CLERK_ORG_ID` com o `org_id` da organização usada no lhamalog-web: ao subir, o Core cria um Tenant `ACTIVE` para ela (e não altera um Tenant que já exista). Também é possível inserir à mão no Mongo local:
+
+```javascript
+db.tenant.insertOne({ _id: "<um UUID>", clerkOrgId: "<org_id da organizacao>", name: "Teste local", status: "ACTIVE" })
+```
+
+### Login e organização de teste (enquanto não há fluxo de compra)
+Provisório, até existir o fluxo de compra que cria o Tenant (LLT-157, ADR_121). Cada desenvolvedor usa o próprio login e a própria organização na instância de **desenvolvimento** da Clerk, a mesma da chave `pk_test_` do Web. Nunca use a instância de produção.
+
+1. **Criar o login.** Com o Web rodando, abra `http://localhost:5173/sign-up` e cadastre-se. Também é possível criar pelo Dashboard da Clerk > **Users** > **Create user**. Na instância de desenvolvimento, um e-mail com `+clerk_test` (ex.: `fulano+clerk_test@exemplo.com`) aceita o código de verificação `424242` sem enviar e-mail. Se a instância exigir segundo fator, configure um app autenticador na etapa "configurar MFA" e guarde os códigos de recuperação.
+2. **Criar a organização.** Depois do login, o Web abre a etapa "escolher ou criar organização": crie uma (ex.: "Teste - <seu nome>"). Quem cria fica com o papel `admin`. Pelo Dashboard: **Organizations** > **Create organization** e adicione o seu usuário como `admin`.
+3. **Copiar o `org_id`.** No Dashboard da Clerk > **Organizations** > a sua organização, copie o ID (`org_...`).
+4. **Criar o Tenant no Core.** No `.env` da raiz deste repositório, preencha `DEV_TENANT_CLERK_ORG_ID=<org_id>` e reinicie a API (`docker compose up -d`). Para mais de uma organização (isolamento entre empresas, convites), separe por vírgula: `DEV_TENANT_CLERK_ORG_ID=<org A>,<org B>`. No log (`docker compose logs api`) aparece uma linha por organização: `event=dev_tenant.seed.created` na primeira subida e `event=dev_tenant.seed.exists` nas próximas. O Tenant fica no volume do Mongo e não é recriado. Valor que não é `org_...` é ignorado com o aviso `event=dev_tenant.seed.invalid_org_id`, e a API sobe mesmo assim.
+5. **Conferir.** Entre no Web com essa organização ativa e abra `/empresa`: a tela carrega sem "Você foi deslogado". Para a revogação de sessão no 403 funcionar, preencha também `CLERK_SECRET_KEY` (`sk_test_...`, Dashboard > **API keys**) só no seu `.env`.
+
+Se não funcionar:
+- **Toda chamada responde 401**: o Web e o Core apontam para instâncias diferentes da Clerk (confira se o host do `CLERK_ISSUER` é o mesmo da `pk_test_` do Web), ou o relógio da máquina está fora da tolerância de 5 s (`exp`/`nbf`).
+- **403 e logout com a organização certa**: o log mostra `event=dev_tenant.seed.inactive`. O Tenant existe, mas não está `ACTIVE`, e o Core nunca o altera. Corrija o `status` para `ACTIVE` no Mongo local (coleção `tenant`) ou apague o documento e reinicie a API.
+- **403 e logout com outra organização**: ela não está em `DEV_TENANT_CLERK_ORG_ID`. Acrescente o `org_id` e reinicie.
+
+Roteiro completo de validação com a Clerk real: `specs/008-login-organizacao-teste/quickstart.md`.
+
+Limitações enquanto isso:
+- Qualquer organização sem Tenant, inclusive uma criada agora pela tela "Cadastrar empresa", recebe 403 e o usuário é deslogado. Isso é o esperado (ADR_032), não um defeito.
+- Login, senha e `org_id` de teste não entram no repositório nem em issue; os segredos ficam só no `.env` (ignorado pelo Git).
+
+## Webhooks da Clerk (LLT-164)
+`POST /webhooks/clerk` é público em relação à sessão e protegido pela assinatura do Svix (headers `svix-id`, `svix-timestamp`, `svix-signature`), verificada sobre o corpo bruto com `CLERK_WEBHOOK_SIGNING_SECRET` e tolerância de 5 min. Decisões em `specs/003-webhooks-clerk/`.
+
+- Eventos tratados: `user.created`, `user.updated`, `user.deleted`, `organizationMembership.created`, `organizationMembership.updated` e `organizationMembership.deleted`. Os demais recebem 200 e são ignorados.
+- Mantém a coleção `member` (Membro: tenantId, clerkUserId, papel DONO/ADMIN/MEMBRO, nome e e-mail). `org:admin` vira ADMIN e `org:member` vira MEMBRO. Um DONO nunca é rebaixado. O webhook **não cria Tenant** (ADR_121): vínculo de organização sem Tenant é ignorado.
+- Idempotência: cada `svix-id` é processado uma vez (coleção `clerk_webhook_event`, TTL de 7 dias), e eventos mais antigos que o estado salvo (`updated_at`) são ignorados. `user.deleted` faz soft delete (`deletedAt`) e o usuário nunca é recriado (coleção `deleted_clerk_user`).
+- Respostas: 200 processado/duplicado/ignorado; 400 assinatura ou payload inválido; 500 falha ao gravar (o Svix reenvia).
+
+| Variável | Obrigatória | Padrão |
+|---|---|---|
+| `CLERK_WEBHOOK_SIGNING_SECRET` | em prod | local: vazia (todo webhook é rejeitado com 400) |
+| `CLERK_WEBHOOK_TOLERANCE` | não | `5m` |
+
+### Receber webhooks em desenvolvimento (túnel)
+A Clerk precisa alcançar o Core pela internet, então em desenvolvimento é preciso um túnel HTTPS para a porta local.
+
+1. Suba o Core com o perfil local (`make run-local`), com as variáveis da Clerk exportadas.
+2. Instale uma ferramenta de túnel (por exemplo, ngrok ou Cloudflare Tunnel) e exponha a porta `8080`. Ela mostra uma URL pública HTTPS.
+3. No Dashboard da Clerk (instância de desenvolvimento) > **Webhooks** > **Add Endpoint**, informe `<URL do túnel>/webhooks/clerk` e assine os seis eventos listados acima.
+4. Copie o **Signing Secret** do endpoint para a variável `CLERK_WEBHOOK_SIGNING_SECRET` do seu terminal (nunca para um arquivo versionado) e reinicie o Core.
+5. Use a aba **Testing** do endpoint para enviar eventos de exemplo e confira a coleção `member` no Mongo local.
+6. Nas versões gratuitas a URL do túnel costuma mudar a cada execução: atualize o endpoint no Dashboard quando isso acontecer.
+
+Mais detalhes em `specs/003-webhooks-clerk/quickstart.md`.
 
 ## Dependências
 Antes de adicionar qualquer biblioteca, ver Drive da equipe > Arquitetura > Dependências específicas dos módulos (evita bibliotecas com a mesma função).
 
-Dependências a adicionar manualmente (fora do Initializr): nenhuma obrigatória; SDK da Clerk/Svix e gateway de pagamento [PENDENTE].
+Dependências a adicionar manualmente (fora do Initializr): nenhuma obrigatória. A validação do token da Clerk usa o resource server já presente, e a assinatura do Svix é verificada com o JDK (LLT-163/164), por isso o SDK da Clerk e o `com.svix:svix` não são usados. Gateway de pagamento [PENDENTE].
 
 Sem GitHub Actions: rode `make verify` localmente antes de cada push.
 

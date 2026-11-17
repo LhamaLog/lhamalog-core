@@ -1,35 +1,27 @@
 package br.com.lhamalog.core.company;
 
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-import br.com.lhamalog.core.TestcontainersConfiguration;
+import br.com.lhamalog.core.support.CoreIntegrationTest;
+import br.com.lhamalog.core.support.TestTenants;
 
-@Import(TestcontainersConfiguration.class)
-@SpringBootTest(properties = {
-		"management.otlp.metrics.export.enabled=false",
-		"management.tracing.export.otlp.enabled=false"
-})
-@AutoConfigureMockMvc
+/** Real tokens (TestJwks) and real tenants: the core keeps no invite flow (LLT-167). */
+@CoreIntegrationTest
 class OrganizationInviteBoundaryTests {
 	private static final String ADMIN_ONLY = "Somente o administrador da empresa pode alterar este cadastro.";
-	private static final String SELECT_COMPANY = "Selecione uma empresa para continuar.";
 	private static final String REGISTRATION = """
 			{"data":{"legalName":"Empresa Convidada","document":""},"context":{"description":"Aceite"},"address":{},"organizationId":"org_outra","version":null}
 			""";
@@ -38,6 +30,8 @@ class OrganizationInviteBoundaryTests {
 	};
 
 	@Autowired MockMvc mvc;
+	@Autowired MongoTemplate mongo;
+	private TestTenants tenants;
 
 	@Test
 	void invitePathsStayUnmapped() throws Exception {
@@ -60,17 +54,15 @@ class OrganizationInviteBoundaryTests {
 		mvc.perform(put("/api/company").with(current(organization, "admin_a", "admin"))
 				.contentType(MediaType.APPLICATION_JSON).content(REGISTRATION))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.id").value(organization))
+				.andExpect(jsonPath("$.clerkOrgId").value(organization))
 				.andExpect(jsonPath("$.data.legalName").value("Empresa Convidada"));
 		mvc.perform(get("/api/company").with(current(organization, "admin_a", "admin")))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.id").value(organization))
+				.andExpect(jsonPath("$.clerkOrgId").value(organization))
 				.andExpect(jsonPath("$.data.legalName").value("Empresa Convidada"));
 		for (RequestPostProcessor member : new RequestPostProcessor[] {
 				current(organization, "member_current", "member"),
-				current(organization, "member_prefixed", "org:member"),
-				legacy(organization, "member_legacy", "member"),
-				legacy(organization, "member_legacy_prefixed", "org:member")}) {
+				current(organization, "member_prefixed", "org:member")}) {
 			mvc.perform(get("/api/company").with(member)).andExpect(status().isOk())
 					.andExpect(jsonPath("$.data.legalName").value("Empresa Convidada"));
 			mvc.perform(get("/api/user/profile").with(member)).andExpect(status().isOk());
@@ -85,12 +77,12 @@ class OrganizationInviteBoundaryTests {
 	void acceptedAdministratorCanUpdateCompany() throws Exception {
 		String organization = organization();
 		assertAdminSaves(current(organization, "admin_prefixed", "org:admin"), organization);
-		String legacyAdmin = organization();
-		assertAdminSaves(legacy(legacyAdmin, "admin_legacy", "admin"), legacyAdmin);
-		String legacyPrefixed = organization();
-		assertAdminSaves(legacy(legacyPrefixed, "admin_legacy_prefixed", "org:admin"), legacyPrefixed);
-		mvc.perform(get("/api/company").with(jwt().jwt(token -> token.subject("user"))))
-				.andExpect(status().isForbidden()).andExpect(jsonPath("$.message").value(SELECT_COMPANY));
+		// Session token v1 (flat org_id/org_role, no sts) is rejected before any role check (LLT-163, research R3).
+		mvc.perform(put("/api/company").with(legacy(organization(), "admin_legacy", "admin"))
+				.contentType(MediaType.APPLICATION_JSON).content(REGISTRATION)).andExpect(status().isUnauthorized());
+		// No active organization: the security layer denies with the basic 403 body (ADR_032).
+		mvc.perform(get("/api/company").with(TestTenants.withoutOrganization("user")))
+				.andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("forbidden"));
 	}
 
 	@Test
@@ -106,16 +98,23 @@ class OrganizationInviteBoundaryTests {
 	private void assertAdminSaves(RequestPostProcessor actor, String organization) throws Exception {
 		mvc.perform(put("/api/company").with(actor).contentType(MediaType.APPLICATION_JSON).content(REGISTRATION))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.id").value(organization))
+				.andExpect(jsonPath("$.clerkOrgId").value(organization))
 				.andExpect(jsonPath("$.data.legalName").value("Empresa Convidada"));
 	}
 
 	private RequestPostProcessor current(String organization, String user, String role) {
-		return jwt().jwt(token -> token.subject(user).claim("o", Map.of("id", organization, "rol", role)));
+		return tenants().session(organization, user, role);
 	}
 
 	private RequestPostProcessor legacy(String organization, String user, String role) {
-		return jwt().jwt(token -> token.subject(user).claim("org_id", organization).claim("org_role", role));
+		return tenants().legacySession(organization, user, role);
+	}
+
+	private TestTenants tenants() {
+		if (tenants == null) {
+			tenants = new TestTenants(mongo);
+		}
+		return tenants;
 	}
 
 	private String organization() {

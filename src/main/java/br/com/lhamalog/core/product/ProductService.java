@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
+import br.com.lhamalog.core.shared.ApiStatusException;
 import br.com.lhamalog.core.shared.CompanySession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +18,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ProductService {
+	/** Business 403 code: the Web keeps the session for any 403 that carries a code (spec 008, FR-010). */
+	static final String NOT_ADMIN_CODE = "not_admin";
 	private static final Logger log = LoggerFactory.getLogger(ProductService.class);
 	private static final String NAME_IN_USE = "Já existe um produto com este nome nesta empresa. Ele pode estar arquivado.";
 
@@ -142,8 +145,8 @@ public class ProductService {
 
 	private static void requireAdministrator(CompanySession session) {
 		if (!session.administrator()) {
-			throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-					"Somente donos e administradores podem arquivar ou desarquivar produtos.");
+			throw new ApiStatusException(HttpStatus.FORBIDDEN,
+					"Somente donos e administradores podem arquivar ou desarquivar produtos.", NOT_ADMIN_CODE);
 		}
 	}
 

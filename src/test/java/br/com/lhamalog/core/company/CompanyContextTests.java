@@ -89,7 +89,7 @@ class CompanyContextTests {
 		assertTrue(prompt.prompt().contains("Backend"));
 		assertTrue(prompt.prompt().contains("Horário comercial"));
 		assertTrue(prompt.prompt().contains("Atua com monitoramento de APIs"));
-		Company base = Company.empty("org_long");
+		Company base = Company.empty("org_long", "org_long");
 		stored.set(new Company(base.id(), base.clerkOrgId(), base.data(),
 				new Company.Context("", "", "", "", "", List.of(), "", List.of(), "B".repeat(2500)), base.address(),
 				base.preferences(), base.settings(), base.logo(), base.updatedAt(), base.updatedByUserId(), base.version()));
@@ -103,7 +103,8 @@ class CompanyContextTests {
 		CompanyContextRevisionRepository revisions = mock(CompanyContextRevisionRepository.class);
 		List<CompanyContextRevision> saved = new ArrayList<>();
 		when(companies.findById(any())).thenAnswer(invocation -> Optional.ofNullable(
-				stored.get() != null && stored.get().id().equals(invocation.getArgument(0)) ? stored.get() : null));
+				stored.get() != null && stored.get().id().equals(invocation.getArgument(0)) ? stored.get()
+						: existingTenant(invocation.getArgument(0))));
 		when(companies.save(any())).thenAnswer(invocation -> persist(stored, invocation.getArgument(0)));
 		when(revisions.save(any())).thenAnswer(invocation -> {
 			CompanyContextRevision revision = invocation.getArgument(0);
@@ -118,6 +119,11 @@ class CompanyContextTests {
 						&& revision.revision() == (Long) invocation.getArgument(1))
 				.findFirst());
 		return new CompanyService(companies, mock(CompanyLogoRepository.class), revisions);
+	}
+
+	/** The tenant always exists (security only grants ACTIVE tenants); before the first save it has no company data. */
+	private static Company existingTenant(String tenantId) {
+		return new Company(tenantId, tenantId, null, null, null, null, null, null, null, null, null);
 	}
 
 	private static Company persist(AtomicReference<Company> stored, Company company) {
