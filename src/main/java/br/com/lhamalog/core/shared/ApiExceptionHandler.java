@@ -2,6 +2,7 @@ package br.com.lhamalog.core.shared;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -11,11 +12,29 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
-	public record ApiError(String message, Map<String, String> fieldErrors) {}
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	public record ApiError(String message, Map<String, String> fieldErrors, String code) {
+		public ApiError(String message, Map<String, String> fieldErrors) {
+			this(message, fieldErrors, null);
+		}
+	}
+
+	@ExceptionHandler(FieldValidationException.class)
+	ResponseEntity<ApiError> fields(FieldValidationException exception) {
+		return ResponseEntity.badRequest().body(new ApiError(exception.getMessage(), exception.fieldErrors()));
+	}
+
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	ResponseEntity<ApiError> uploadTooLarge() {
+		return error(HttpStatus.BAD_REQUEST, "O logotipo excede 2 MB.");
+	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)
 	ResponseEntity<ApiError> validation(MethodArgumentNotValidException exception) {
@@ -29,6 +48,12 @@ public class ApiExceptionHandler {
 	@ExceptionHandler(HttpMessageNotReadableException.class)
 	ResponseEntity<ApiError> invalidBody() {
 		return error(HttpStatus.BAD_REQUEST, "Os dados enviados são inválidos.");
+	}
+
+	@ExceptionHandler(ApiStatusException.class)
+	ResponseEntity<ApiError> coded(ApiStatusException exception) {
+		return ResponseEntity.status(exception.getStatusCode())
+				.body(new ApiError(exception.getReason(), Map.of(), exception.code()));
 	}
 
 	@ExceptionHandler(ResponseStatusException.class)

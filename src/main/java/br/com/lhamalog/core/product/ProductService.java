@@ -7,6 +7,8 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
 import br.com.lhamalog.core.shared.CompanySession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -15,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ProductService {
+	private static final Logger log = LoggerFactory.getLogger(ProductService.class);
 	private static final String NAME_IN_USE = "Já existe um produto com este nome nesta empresa. Ele pode estar arquivado.";
 
 	private final ProductRepository products;
@@ -55,9 +58,10 @@ public class ProductService {
 		accesses.insert(access);
 		Product created;
 		try {
-			created = saveWithUniqueName(() -> products.insert(new Product(id, session.tenantId(), request.name().trim(),
-					Product.normalizeName(request.name()), request.description(), request.category(),
-					request.productVersion(), "CONFIGURING", Instant.now(), null, request.context(), null)));
+			created = saveWithUniqueName("product.create.name_in_use", session.tenantId(), id,
+					() -> products.insert(new Product(id, session.tenantId(), request.name().trim(),
+							Product.normalizeName(request.name()), request.description(), request.category(),
+							request.productVersion(), "CONFIGURING", Instant.now(), null, request.context(), null)));
 		}
 		catch (RuntimeException exception) {
 			try { accesses.deleteById(access.id()); }
@@ -74,10 +78,11 @@ public class ProductService {
 		Product current = get(session, id);
 		requireActive(current);
 		requireCurrentVersion(current, request.version());
-		return saveWithUniqueName(() -> products.save(new Product(current.id(), current.tenantId(), request.name().trim(),
-				Product.normalizeName(request.name()), request.description(), request.category(),
-				request.productVersion(), current.status(), current.createdAt(), current.archivedAt(),
-				current.context(), current.version())));
+		return saveWithUniqueName("product.update.name_in_use", current.tenantId(), current.id(),
+				() -> products.save(new Product(current.id(), current.tenantId(), request.name().trim(),
+						Product.normalizeName(request.name()), request.description(), request.category(),
+						request.productVersion(), current.status(), current.createdAt(), current.archivedAt(),
+						current.context(), current.version())));
 	}
 
 	public Product updateContext(CompanySession session, String id, ProductController.UpdateContext request) {
@@ -143,12 +148,18 @@ public class ProductService {
 				current.createdAt(), archivedAt, current.context(), current.version());
 	}
 
-	/** Runs a write that sets the name; the unique normalized-name index is the only key such a write can violate. */
-	private static Product saveWithUniqueName(Supplier<Product> write) {
+	/**
+	 * Runs a write that sets the name; the unique normalized-name index is the only key such a write can violate.
+	 * The refusal is an expected business outcome: logged at INFO with the event code, without stack trace and
+	 * without the submitted name.
+	 */
+	private static Product saveWithUniqueName(String event, String tenantId, String productId, Supplier<Product> write) {
 		try {
 			return write.get();
 		}
 		catch (DuplicateKeyException exception) {
+			log.info("event={} | Product name already in use in the company; write refused with 409 | tenantId={} productId={}",
+					event, tenantId, productId);
 			throw new ResponseStatusException(HttpStatus.CONFLICT, NAME_IN_USE, exception);
 		}
 	}
