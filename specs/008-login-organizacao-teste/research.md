@@ -43,7 +43,7 @@
 ## R8. Código em todo 403 de negócio
 
 - **Decision**: `CompanyController.requireAdministrator` (LLT-175) e `ProductService.requireAdministrator` (LLT-123) passam de `ResponseStatusException` para `ApiStatusException` com o código `not_admin`, mantendo o texto atual. Um teste simples, que varre o código-fonte, impede um `ResponseStatusException(HttpStatus.FORBIDDEN` novo em `src/main/java`.
-- **Rationale**: o Web (spec 005) separa o 403 de segurança (`{"error":"forbidden"}`, sem código, com revogação) do 403 de negócio pelo código. Sem o código, um membro seria deslogado por tentar uma ação de administrador. O código `not_admin` já existe na LLT-168 com o mesmo sentido.
+- **Rationale**: o Web (spec 006) separa o 403 de segurança (`{"error":"forbidden"}`, sem código, com revogação) do 403 de negócio pelo código. Sem o código, um membro seria deslogado por tentar uma ação de administrador. O código `not_admin` já existe na LLT-168 com o mesmo sentido.
 - **Alternatives considered**: códigos diferentes por tela (`not_company_admin`, `not_product_admin`), que o Web não precisa distinguir; deixar o Web decidir só pela mensagem (o Web também faz isso, por defesa, mas o contrato deve ser explícito).
 
 ## R7. Revogação de sessão no roteiro

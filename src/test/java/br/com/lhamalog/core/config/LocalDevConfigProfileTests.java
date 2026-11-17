@@ -10,7 +10,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 
 import br.com.lhamalog.core.tenant.adapter.out.mongo.LocalDevTenantSeeder;
 
-/** Development tenants are provisioned only in the local profile (spec 007, US4). */
+/** Development tenants are provisioned only in the local profile (spec 008, US4). */
 class LocalDevConfigProfileTests {
 
 	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()

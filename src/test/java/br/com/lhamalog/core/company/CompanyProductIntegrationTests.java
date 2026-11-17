@@ -157,7 +157,7 @@ class CompanyProductIntegrationTests {
 			.andExpect(status().isForbidden())
 			.andExpect(jsonPath("$.code").value("not_admin"))
 			.andExpect(jsonPath("$.message").value("Somente o administrador da empresa pode alterar este cadastro."));
-		// Business 403 (spec 007, FR-010): the only revocation is the one of the token without organization.
+		// Business 403 (spec 008, FR-010): the only revocation is the one of the token without organization.
 		assertThat(revocation.revokedUsers()).containsExactly("user_no_org");
 		mvc.perform(as(put("/api/company"), organization(), "user", "admin").contentType(MediaType.APPLICATION_JSON)
 			.content("{}")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fieldErrors.data").exists());

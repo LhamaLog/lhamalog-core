@@ -15,7 +15,7 @@ import br.com.lhamalog.core.tenant.domain.TenantStatus;
 /**
  * Development only: makes sure a tenant exists for a Clerk organization, so the local environment works before the
  * purchase flow (which creates tenants, ADR_121) exists. Inserts an ACTIVE tenant when missing and never changes an
- * existing one (its status included); an existing tenant that is not ACTIVE is reported with a warning (spec 007).
+ * existing one (its status included); an existing tenant that is not ACTIVE is reported with a warning (spec 008).
  */
 public class LocalDevTenantSeeder {
 

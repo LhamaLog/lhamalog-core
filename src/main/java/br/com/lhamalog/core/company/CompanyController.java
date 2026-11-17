@@ -26,7 +26,7 @@ import tools.jackson.databind.json.JsonMapper;
 @RestController
 @RequestMapping("/api/company")
 public class CompanyController {
-	/** Business 403 code: the Web keeps the session for any 403 that carries a code (spec 007, FR-010). */
+	/** Business 403 code: the Web keeps the session for any 403 that carries a code (spec 008, FR-010). */
 	static final String NOT_ADMIN_CODE = "not_admin";
 	private final CompanyService service;
 	private final CompanySessionResolver sessions;

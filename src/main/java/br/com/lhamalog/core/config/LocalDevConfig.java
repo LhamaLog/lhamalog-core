@@ -14,7 +14,7 @@ import br.com.lhamalog.core.tenant.adapter.out.mongo.LocalDevTenantSeeder;
 /**
  * Local profile only. With {@code DEV_TENANT_CLERK_ORG_ID} set to one or more Clerk organization ids (comma
  * separated), creates an ACTIVE tenant for each one on startup; without it, does nothing. Invalid values are ignored
- * with a warning and never stop the startup. Never active in prod (spec 007).
+ * with a warning and never stop the startup. Never active in prod (spec 008).
  */
 @Configuration(proxyBeanMethods = false)
 @Profile("local")

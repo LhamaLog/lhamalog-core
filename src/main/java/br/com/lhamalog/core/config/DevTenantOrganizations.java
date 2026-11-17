@@ -6,7 +6,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * Clerk organizations configured for local development tenants ({@code DEV_TENANT_CLERK_ORG_ID}, spec 007): a comma
+ * Clerk organizations configured for local development tenants ({@code DEV_TENANT_CLERK_ORG_ID}, spec 008): a comma
  * separated list. Items are stripped; empty items and repeats are ignored; values that are not Clerk organization ids
  * are kept apart so the caller can warn about them. Order is preserved.
  *

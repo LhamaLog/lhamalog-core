@@ -1,8 +1,6 @@
 package br.com.lhamalog.core.notificationpreferences;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import br.com.lhamalog.core.shared.CompanySessionResolver;
@@ -22,17 +20,17 @@ public class NotificationPreferencesController {
         this.catalog = catalog;
     }
     @GetMapping
-    public NotificationPreferencesView get(@AuthenticationPrincipal Jwt jwt) {
-        return service.get(sessions.resolve(jwt));
+    public NotificationPreferencesView get() {
+        return service.get(sessions.current());
     }
     @GetMapping("/catalog")
-    public NotificationCatalog.View catalog(@AuthenticationPrincipal Jwt jwt) {
-        sessions.resolve(jwt);
+    public NotificationCatalog.View catalog() {
+        sessions.current();
         return catalog.view();
     }
     @PutMapping
-    public NotificationPreferencesView save(@AuthenticationPrincipal Jwt jwt, @RequestBody String body) {
-        var session = sessions.resolve(jwt);
+    public NotificationPreferencesView save(@RequestBody String body) {
+        var session = sessions.current();
         JsonNode json;
         try { json = JsonMapper.shared().readTree(body); }
         catch (RuntimeException exception) {

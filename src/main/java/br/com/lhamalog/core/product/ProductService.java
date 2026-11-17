@@ -18,7 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ProductService {
-	/** Business 403 code: the Web keeps the session for any 403 that carries a code (spec 007, FR-010). */
+	/** Business 403 code: the Web keeps the session for any 403 that carries a code (spec 008, FR-010). */
 	static final String NOT_ADMIN_CODE = "not_admin";
 	private static final Logger log = LoggerFactory.getLogger(ProductService.class);
 	private static final String NAME_IN_USE = "Já existe um produto com este nome nesta empresa. Ele pode estar arquivado.";

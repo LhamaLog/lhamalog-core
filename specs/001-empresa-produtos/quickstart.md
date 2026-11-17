@@ -111,5 +111,5 @@ A segurança desta feature passou a ser a da LLT-163 (specs/002-validacao-token-
 
 ## Validação final (17/11/2026)
 
-- `.\mvnw.cmd clean verify` completo com Docker e JDK 25: 289 testes, 0 falhas, 0 ignorados (fecha a T012).
-- Login com segundo fator, logout, troca entre duas organizações com Tenant, isolamento de produtos entre elas e recusa da organização sem Tenant conferidos com a instância de desenvolvimento da Clerk e o Web, pelos roteiros V1 a V10 de `specs/007-login-organizacao-teste/quickstart.md` e E1 a E12 do quickstart da spec 005 do `lhamalog-web` (fecha a T013). Resultado registrado no PR #6.
+- `.\mvnw.cmd clean verify` completo com Docker e JDK 25: 295 testes, 0 falhas, 0 ignorados, já com a LLT-173 da `Development` (fecha a T012).
+- Login com segundo fator, logout, troca entre duas organizações com Tenant, isolamento de produtos entre elas e recusa da organização sem Tenant conferidos com a instância de desenvolvimento da Clerk e o Web, pelos roteiros V1 a V10 de `specs/008-login-organizacao-teste/quickstart.md` e E1 a E12 do quickstart da spec 006 do `lhamalog-web` (fecha a T013). Resultado registrado no PR #6.

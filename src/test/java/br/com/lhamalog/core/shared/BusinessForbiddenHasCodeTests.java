@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Every business 403 must carry a code (ApiStatusException): the Web signs the user out on a 403 without code, which is
- * reserved for the security chain (spec 007, FR-010).
+ * reserved for the security chain (spec 008, FR-010).
  */
 class BusinessForbiddenHasCodeTests {
 

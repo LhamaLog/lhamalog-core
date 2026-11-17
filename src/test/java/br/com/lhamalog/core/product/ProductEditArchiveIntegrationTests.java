@@ -184,7 +184,7 @@ class ProductEditArchiveIntegrationTests {
 		long version = created.get("version").asLong();
 
 		revocation.reset();
-		// Business 403: code and message, and no session is revoked (spec 007, FR-010).
+		// Business 403: code and message, and no session is revoked (spec 008, FR-010).
 		changeArchive(creator, id, "archive", version).andExpect(status().isForbidden())
 				.andExpect(jsonPath("$.code").value("not_admin"))
 				.andExpect(jsonPath("$.message").value("Somente donos e administradores podem arquivar ou desarquivar produtos."));

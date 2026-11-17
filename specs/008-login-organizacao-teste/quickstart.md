@@ -29,7 +29,7 @@ Usa a instância de **desenvolvimento** da Clerk. Nada daqui vai para o reposit�
 | V3 | Reiniciar o Core sem mudar o `.env` | Log `dev_tenant.seed.exists` para A e B; nada é recriado |
 | V4 | Criar um produto em A, trocar para B e abrir `/produtos` e o endereço do produto | O produto não aparece em B; o endereço responde como inexistente |
 | V5 | `curl -i http://localhost:8080/api/company` sem token e com `Authorization: Bearer abc` | 401 `{"error":"unauthorized"}` nas duas |
-| V6 | Trocar para a organização C (sem Tenant) e abrir a Empresa | O Core responde 403 e a sessão some da lista de sessões do usuário no Dashboard da Clerk; o Web volta ao login (na mesma ação ou na seguinte, enquanto a spec 005 do web não estiver na `Development`) |
+| V6 | Trocar para a organização C (sem Tenant) e abrir a Empresa | O Core responde 403 e a sessão some da lista de sessões do usuário no Dashboard da Clerk; o Web volta ao login (na mesma ação ou na seguinte, enquanto a spec 006 do web não estiver na `Development`) |
 | V7 | Entrar com a conta membro da Parte A, abrir Equipe, tentar salvar o cadastro da Empresa e arquivar um produto | Recusas de negócio com `code` `not_admin` e mensagem; a pessoa continua logada |
 | V8 | Preencher `DEV_TENANT_CLERK_ORG_ID=org_exemplo,valor-invalido` e reiniciar | WARN `dev_tenant.seed.invalid_org_id` para o inválido; a API sobe |
 | V9 | Webhook pelo túnel: seguir o quickstart da spec 003 (endpoint, `CLERK_WEBHOOK_SIGNING_SECRET`) e mudar o nome ou o papel de um membro de A na Clerk | A mudança aparece na coleção `member` do Mongo local |

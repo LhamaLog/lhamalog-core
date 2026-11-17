@@ -189,7 +189,7 @@ Se não funcionar:
 - **403 e logout com a organização certa**: o log mostra `event=dev_tenant.seed.inactive`. O Tenant existe, mas não está `ACTIVE`, e o Core nunca o altera. Corrija o `status` para `ACTIVE` no Mongo local (coleção `tenant`) ou apague o documento e reinicie a API.
 - **403 e logout com outra organização**: ela não está em `DEV_TENANT_CLERK_ORG_ID`. Acrescente o `org_id` e reinicie.
 
-Roteiro completo de validação com a Clerk real: `specs/007-login-organizacao-teste/quickstart.md`.
+Roteiro completo de validação com a Clerk real: `specs/008-login-organizacao-teste/quickstart.md`.
 
 Limitações enquanto isso:
 - Qualquer organização sem Tenant, inclusive uma criada agora pela tela "Cadastrar empresa", recebe 403 e o usuário é deslogado. Isso é o esperado (ADR_032), não um defeito.

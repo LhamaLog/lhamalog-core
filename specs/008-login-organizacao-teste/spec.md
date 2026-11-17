@@ -83,7 +83,7 @@ O provisionamento de Tenant de teste existe só para o ambiente local. Em produ�
 - O Web e o Core apontam para instâncias diferentes da Clerk: toda chamada responde 401. O guia mostra como conferir que as duas apontam para a mesma instância.
 - O relógio da máquina está atrasado ou adiantado além da tolerância: as chamadas respondem 401. O guia cita esse sintoma.
 - Sem a chave secreta da Clerk no Core: o 403 ainda leva o Web ao login, mas as sessões não são revogadas na Clerk. O roteiro de validação exige a chave.
-- Um 403 de negócio sem código seria lido pelo Web como 403 de segurança e deslogaria a pessoa (spec 005 do web). Por isso a FR-010.
+- Um 403 de negócio sem código seria lido pelo Web como 403 de segurança e deslogaria a pessoa (spec 006 do web). Por isso a FR-010.
 - A pessoa cria uma organização nova pelo Web durante o teste: ela não tem Tenant e recebe 403. É o esperado até a LLT-157.
 
 ## Requirements *(mandatory)*
@@ -123,5 +123,5 @@ O provisionamento de Tenant de teste existe só para o ambiente local. Em produ�
 - Todos usam a mesma instância de desenvolvimento da Clerk, a da chave publicável do Web. A instância de produção fica fora do escopo.
 - A instância de desenvolvimento mantém os e-mails de teste (`+clerk_test`, código `424242`) habilitados, como é o padrão da Clerk.
 - O Tenant de desenvolvimento é provisório: some do fluxo quando a LLT-157 (fluxo de compra e criação do Tenant) for implementada. Migrar esses Tenants não faz parte desta feature.
-- O tratamento das respostas 401 e 403 no Web (sair na hora no 403 de segurança e manter a pessoa na tela no 403 de negócio) é a spec 005 do `lhamalog-web`. O roteiro desta feature confere o resultado com o Web disponível na `Development`.
+- O tratamento das respostas 401 e 403 no Web (sair na hora no 403 de segurança e manter a pessoa na tela no 403 de negócio) é a spec 006 do `lhamalog-web`. O roteiro desta feature confere o resultado com o Web disponível na `Development`.
 - O guia de login e organização de teste já está no README do Core (commit `d7ef2f3`). Esta feature o completa com a configuração de várias organizações e com o roteiro de validação.

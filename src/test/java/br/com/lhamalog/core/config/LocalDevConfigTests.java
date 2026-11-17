@@ -17,7 +17,7 @@ import br.com.lhamalog.core.support.CoreIntegrationTest;
 import br.com.lhamalog.core.tenant.adapter.out.mongo.LocalDevTenantSeeder;
 import br.com.lhamalog.core.tenant.adapter.out.mongo.TenantDocument;
 
-/** Several development organizations in one variable (spec 007, US3). */
+/** Several development organizations in one variable (spec 008, US3). */
 @CoreIntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
 class LocalDevConfigTests {

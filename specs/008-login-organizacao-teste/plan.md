@@ -2,7 +2,7 @@
 
 **Branch**: `LLT-163-validar-o-token-do-clerk-no-core` (mesma do PR #6, padrão do Jira) | **Date**: 2026-11-16 | **Spec**: [spec.md](spec.md)
 
-**Input**: Feature specification from `specs/007-login-organizacao-teste/spec.md`
+**Input**: Feature specification from `specs/008-login-organizacao-teste/spec.md`
 
 ## Summary
 
@@ -50,7 +50,7 @@ Re-check pós-design: sem violações novas.
 ### Documentation (this feature)
 
 ```text
-specs/007-login-organizacao-teste/
+specs/008-login-organizacao-teste/
 ├── plan.md
 ├── research.md
 ├── data-model.md

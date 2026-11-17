@@ -25,7 +25,7 @@
 
 - [X] T004 [US1] Em `src/main/java/br/com/lhamalog/core/tenant/adapter/out/mongo/LocalDevTenantSeeder.java`, trocar os logs pelo padrão da constituição VI (contrato, seção Logs): INFO `event=dev_tenant.seed.created | Development tenant created | clerkOrgId={} tenantId={}`; INFO `event=dev_tenant.seed.exists | Development tenant already exists | clerkOrgId={} status=ACTIVE`; WARN `event=dev_tenant.seed.inactive | Development tenant exists but is not active; access stays denied | clerkOrgId={} status={}` quando o status não for `ACTIVE`. O retorno `boolean` e a regra "nunca altera um Tenant existente" não mudam
 - [X] T005 [US1] Em `src/test/java/br/com/lhamalog/core/tenant/adapter/out/mongo/LocalDevTenantSeederTests.java`, com `OutputCaptureExtension`: a primeira subida registra `event=dev_tenant.seed.created` com o `tenantId` gravado; a segunda registra `event=dev_tenant.seed.exists`; o Tenant `SUSPENDED` registra `event=dev_tenant.seed.inactive` em WARN e continua `SUSPENDED`
-- [X] T006 [US1] Em `README.md`, seção "Login e organização de teste (enquanto não há fluxo de compra)": passo 4 com a lista de organizações e as linhas de log `dev_tenant.seed.*`; Tenant não ativo (WARN) e como corrigir; um bloco "Se não funcionar" com os sintomas da spec (Web e Core em instâncias diferentes da Clerk → 401; relógio fora da tolerância → 401; Tenant não ativo → 403; organização fora da lista → 403); link para `specs/007-login-organizacao-teste/quickstart.md`. Manter o restante do guia do commit `d7ef2f3`
+- [X] T006 [US1] Em `README.md`, seção "Login e organização de teste (enquanto não há fluxo de compra)": passo 4 com a lista de organizações e as linhas de log `dev_tenant.seed.*`; Tenant não ativo (WARN) e como corrigir; um bloco "Se não funcionar" com os sintomas da spec (Web e Core em instâncias diferentes da Clerk → 401; relógio fora da tolerância → 401; Tenant não ativo → 403; organização fora da lista → 403); link para `specs/008-login-organizacao-teste/quickstart.md`. Manter o restante do guia do commit `d7ef2f3`
 
 **Checkpoint**: `.\mvnw.cmd clean verify` verde.
 
@@ -62,7 +62,7 @@
 
 **Checkpoint**: `.\mvnw.cmd clean verify` verde antes do roteiro.
 
-- [X] T013 [US2] (manual, Felipe) Preparar o ambiente pela Parte A de `specs/007-login-organizacao-teste/quickstart.md`: login, organizações A, B e C, conta membro `+clerk_test`, `CLERK_SECRET_KEY` e `DEV_TENANT_CLERK_ORG_ID` só no `.env` local
+- [X] T013 [US2] (manual, Felipe) Preparar o ambiente pela Parte A de `specs/008-login-organizacao-teste/quickstart.md`: login, organizações A, B e C, conta membro `+clerk_test`, `CLERK_SECRET_KEY` e `DEV_TENANT_CLERK_ORG_ID` só no `.env` local
 - [X] T014 [US2] (manual, Felipe) Executar os itens V1 a V10 da Parte B do quickstart, inclusive o webhook pelo túnel (V9, quickstart da spec 003), com o Web da `Development` mais o PR #7
 - [ ] T015 [US2] (manual, Felipe) Pedir a uma pessoa do time que ainda não preparou o ambiente para seguir só o guia do README, cronometrando do cadastro até a Empresa (SC-001, até 15 minutos), e incluir o tempo na tabela. Comentar no PR #6 a tabela `Item | Data | Resultado | Observação`, sem token, chave, `org_id` real ou e-mail. Item que falhar vira task nova neste arquivo antes do merge
 
@@ -70,7 +70,7 @@
 
 - [X] T016 Rodar `.\mvnw.cmd clean verify` completo e registrar o total de testes na descrição do PR #6 (seção Testes)
 - [X] T017 Conferir os arquivos alterados contra a constituição V: nenhum `org_` real, `sk_test`, `whsec_`, senha ou e-mail; exemplos só fictícios
-- [X] T018 Em `specs/002-validacao-token-clerk/research.md`, citar na R18 que o provisionamento local passou a aceitar várias organizações e que todo 403 de negócio tem `code` (spec 007)
+- [X] T018 Em `specs/002-validacao-token-clerk/research.md`, citar na R18 que o provisionamento local passou a aceitar várias organizações e que todo 403 de negócio tem `code` (spec 008)
 
 ## Dependencies
 
