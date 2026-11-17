@@ -13,9 +13,9 @@ import org.springframework.data.mongodb.core.query.Update;
 import br.com.lhamalog.core.tenant.domain.TenantStatus;
 
 /**
- * Development only: makes sure a tenant exists for one Clerk organization, so the local environment works before the
+ * Development only: makes sure a tenant exists for a Clerk organization, so the local environment works before the
  * purchase flow (which creates tenants, ADR_121) exists. Inserts an ACTIVE tenant when missing and never changes an
- * existing one (its status included).
+ * existing one (its status included); an existing tenant that is not ACTIVE is reported with a warning (spec 007).
  */
 public class LocalDevTenantSeeder {
 
@@ -31,21 +31,27 @@ public class LocalDevTenantSeeder {
 
 	/** @return {@code true} when the tenant was created now, {@code false} when it already existed */
 	public boolean seed(String clerkOrgId) {
+		String tenantId = UUID.randomUUID().toString();
 		Query query = Query.query(Criteria.where(TenantDocument.CLERK_ORG_ID).is(clerkOrgId));
-		Update update = new Update().setOnInsert("_id", UUID.randomUUID().toString())
+		Update update = new Update().setOnInsert("_id", tenantId)
 			.setOnInsert("name", DEV_TENANT_NAME)
 			.setOnInsert("status", TenantStatus.ACTIVE.name());
 		TenantDocument previous = mongoTemplate.findAndModify(query, update,
 				FindAndModifyOptions.options().upsert(true).returnNew(false), TenantDocument.class);
-		boolean created = previous == null;
-		if (created) {
-			log.info("Development tenant created for organization {}", clerkOrgId);
+		if (previous == null) {
+			log.info("event=dev_tenant.seed.created | Development tenant created | clerkOrgId={} tenantId={}",
+					clerkOrgId, tenantId);
+			return true;
+		}
+		if (TenantStatus.ACTIVE.name().equals(previous.status())) {
+			log.info("event=dev_tenant.seed.exists | Development tenant already exists | clerkOrgId={} status={}",
+					clerkOrgId, previous.status());
 		}
 		else {
-			log.info("Development tenant already exists for organization {} (status {})", clerkOrgId,
-					previous.status());
+			log.warn("event=dev_tenant.seed.inactive | Development tenant exists but is not active; access stays denied"
+					+ " | clerkOrgId={} status={}", clerkOrgId, previous.status());
 		}
-		return created;
+		return false;
 	}
 
 }

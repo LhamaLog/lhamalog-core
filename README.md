@@ -181,11 +181,17 @@ Provisório, até existir o fluxo de compra que cria o Tenant (LLT-157, ADR_121)
 1. **Criar o login.** Com o Web rodando, abra `http://localhost:5173/sign-up` e cadastre-se. Também é possível criar pelo Dashboard da Clerk > **Users** > **Create user**. Na instância de desenvolvimento, um e-mail com `+clerk_test` (ex.: `fulano+clerk_test@exemplo.com`) aceita o código de verificação `424242` sem enviar e-mail. Se a instância exigir segundo fator, configure um app autenticador na etapa "configurar MFA" e guarde os códigos de recuperação.
 2. **Criar a organização.** Depois do login, o Web abre a etapa "escolher ou criar organização": crie uma (ex.: "Teste - <seu nome>"). Quem cria fica com o papel `admin`. Pelo Dashboard: **Organizations** > **Create organization** e adicione o seu usuário como `admin`.
 3. **Copiar o `org_id`.** No Dashboard da Clerk > **Organizations** > a sua organização, copie o ID (`org_...`).
-4. **Criar o Tenant no Core.** No `.env` da raiz deste repositório, preencha `DEV_TENANT_CLERK_ORG_ID=<org_id>` e reinicie a API (`docker compose up -d`). No log aparece `Development tenant created for organization <org_id>`. Nas próximas subidas aparece `Development tenant already exists ... (status ACTIVE)`. O Tenant fica no volume do Mongo e não é recriado.
+4. **Criar o Tenant no Core.** No `.env` da raiz deste repositório, preencha `DEV_TENANT_CLERK_ORG_ID=<org_id>` e reinicie a API (`docker compose up -d`). Para mais de uma organização (isolamento entre empresas, convites), separe por vírgula: `DEV_TENANT_CLERK_ORG_ID=<org A>,<org B>`. No log (`docker compose logs api`) aparece uma linha por organização: `event=dev_tenant.seed.created` na primeira subida e `event=dev_tenant.seed.exists` nas próximas. O Tenant fica no volume do Mongo e não é recriado. Valor que não é `org_...` é ignorado com o aviso `event=dev_tenant.seed.invalid_org_id`, e a API sobe mesmo assim.
 5. **Conferir.** Entre no Web com essa organização ativa e abra `/empresa`: a tela carrega sem "Você foi deslogado". Para a revogação de sessão no 403 funcionar, preencha também `CLERK_SECRET_KEY` (`sk_test_...`, Dashboard > **API keys**) só no seu `.env`.
 
+Se não funcionar:
+- **Toda chamada responde 401**: o Web e o Core apontam para instâncias diferentes da Clerk (confira se o host do `CLERK_ISSUER` é o mesmo da `pk_test_` do Web), ou o relógio da máquina está fora da tolerância de 5 s (`exp`/`nbf`).
+- **403 e logout com a organização certa**: o log mostra `event=dev_tenant.seed.inactive`. O Tenant existe, mas não está `ACTIVE`, e o Core nunca o altera. Corrija o `status` para `ACTIVE` no Mongo local (coleção `tenant`) ou apague o documento e reinicie a API.
+- **403 e logout com outra organização**: ela não está em `DEV_TENANT_CLERK_ORG_ID`. Acrescente o `org_id` e reinicie.
+
+Roteiro completo de validação com a Clerk real: `specs/007-login-organizacao-teste/quickstart.md`.
+
 Limitações enquanto isso:
-- `DEV_TENANT_CLERK_ORG_ID` aceita uma organização só. Para testar com mais de uma (isolamento entre empresas, convites), insira os outros Tenants à mão no Mongo, como no comando acima.
 - Qualquer organização sem Tenant, inclusive uma criada agora pela tela "Cadastrar empresa", recebe 403 e o usuário é deslogado. Isso é o esperado (ADR_032), não um defeito.
 - Login, senha e `org_id` de teste não entram no repositório nem em issue; os segredos ficam só no `.env` (ignorado pelo Git).
 

@@ -17,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import br.com.lhamalog.core.company.CompanyResponses.CompanyResponse;
+import br.com.lhamalog.core.shared.ApiStatusException;
 import br.com.lhamalog.core.shared.CompanySession;
 import br.com.lhamalog.core.shared.CompanySessionResolver;
 import tools.jackson.databind.JsonNode;
@@ -25,6 +26,8 @@ import tools.jackson.databind.json.JsonMapper;
 @RestController
 @RequestMapping("/api/company")
 public class CompanyController {
+	/** Business 403 code: the Web keeps the session for any 403 that carries a code (spec 007, FR-010). */
+	static final String NOT_ADMIN_CODE = "not_admin";
 	private final CompanyService service;
 	private final CompanySessionResolver sessions;
 
@@ -119,8 +122,8 @@ public class CompanyController {
 	private CompanySession requireAdministrator() {
 		CompanySession session = session();
 		if (!session.administrator()) {
-			throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-					"Somente o administrador da empresa pode alterar este cadastro.");
+			throw new ApiStatusException(HttpStatus.FORBIDDEN,
+					"Somente o administrador da empresa pode alterar este cadastro.", NOT_ADMIN_CODE);
 		}
 		return session;
 	}

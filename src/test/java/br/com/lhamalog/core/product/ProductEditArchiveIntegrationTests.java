@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import br.com.lhamalog.core.support.CoreIntegrationTest;
+import br.com.lhamalog.core.support.RecordingSessionRevocation;
 import br.com.lhamalog.core.support.TestTenants;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -25,6 +26,7 @@ class ProductEditArchiveIntegrationTests {
 	@Autowired ObjectMapper mapper;
 	@Autowired MongoTemplate mongo;
 	@Autowired ProductRepository products;
+	@Autowired RecordingSessionRevocation revocation;
 	private TestTenants tenants;
 
 	private RequestPostProcessor session(String organization, String user, String role) {
@@ -181,7 +183,12 @@ class ProductEditArchiveIntegrationTests {
 		String id = created.get("id").asText();
 		long version = created.get("version").asLong();
 
-		changeArchive(creator, id, "archive", version).andExpect(status().isForbidden());
+		revocation.reset();
+		// Business 403: code and message, and no session is revoked (spec 007, FR-010).
+		changeArchive(creator, id, "archive", version).andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value("not_admin"))
+				.andExpect(jsonPath("$.message").value("Somente donos e administradores podem arquivar ou desarquivar produtos."));
+		assertTrue(revocation.revokedUsers().isEmpty());
 		changeArchive(session(tenant, "other", "member"), id, "archive", version).andExpect(status().isNotFound());
 		changeArchive(session(organization(), "admin", "admin"), id, "archive", version)
 				.andExpect(status().isNotFound());
@@ -244,7 +251,8 @@ class ProductEditArchiveIntegrationTests {
 				.andExpect(status().isOk()));
 		long version = archived.get("version").asLong();
 
-		changeArchive(creator, id, "unarchive", version).andExpect(status().isForbidden());
+		changeArchive(creator, id, "unarchive", version).andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value("not_admin"));
 		changeArchive(session(organization(), "admin", "admin"), id, "unarchive", version)
 				.andExpect(status().isNotFound());
 
