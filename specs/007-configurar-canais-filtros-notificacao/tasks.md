@@ -5,6 +5,10 @@ Executar na ordem. Marcas representam trabalho concluído, não aceite manual.
 - [x] T002 Implementar persistência/versionamento e API autenticada.
 - [x] T003 Implementar avaliação de preferências com acesso atual a produtos.
 - [x] T004 Testar API, isolamento, concorrência e avaliação.
-- [ ] T005 Executar mvnw verify e registrar resultados.
+- [x] T005 Executar mvnw verify e registrar resultados.
 
-Validação: os seis testes da LLT-173 passaram com MongoDB no Docker. O build da imagem do Core passou. A suíte completa ficou sem resultado após repetidos tempos limite no download de grafana/otel-lgtm:0.37.0. Reexecutar mvnw verify quando a imagem estiver disponível.
+Os seis testes da LLT-173 passaram com MongoDB no Docker. O build da imagem do Core passou.
+
+Vinicius executou a suíte completa com mvnw verify em 17/11/2026, concluída às 08:25:07 (America/Sao_Paulo). O Maven registrou 186 testes, 1 falha, 0 erros e 34 pulados, com BUILD FAILURE. A falha conhecida CompanyRegistrationHttpTests.adminDeletesRegistrationAndMemberCannot esperava HTTP 409 e recebeu 200. Os seis testes da LLT-173 passaram nessa execução. O resultado substitui o registro anterior de interrupção no download da imagem de observabilidade.
+
+T005 concluída representa execução e registro do resultado. A suíte completa continua com a falha conhecida de cadastro de empresa.

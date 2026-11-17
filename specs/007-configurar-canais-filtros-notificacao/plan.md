@@ -36,4 +36,4 @@ Teste real Clerk e entrega real não realizados por testes automatizados.
 
 ## Sequência
 Core modelo/regras → API/persistência/avaliação → testes → Web contrato → UI → verificações → relatório.
-Sem PR ou push. Mensagem de commit autorizada: LLT-173 Configurar canais e filtros de notificação.
+Vinicius autorizou commit e push na branch LLT-173-configurar-canais-e-filtros-de-notificacao e, posteriormente, a abertura dos PRs para Development. O Core está no PR https://github.com/LhamaLog/lhamalog-core/pull/13 e o Web no PR https://github.com/LhamaLog/lhamalog-web/pull/8. Mensagem de commit autorizada para a implementação: LLT-173 Configurar canais e filtros de notificação.
