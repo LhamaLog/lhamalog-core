@@ -175,6 +175,20 @@ Passo a passo em `specs/002-validacao-token-clerk/quickstart.md`. Como o fluxo d
 db.tenant.insertOne({ _id: "<um UUID>", clerkOrgId: "<org_id da organizacao>", name: "Teste local", status: "ACTIVE" })
 ```
 
+### Login e organização de teste (enquanto não há fluxo de compra)
+Provisório, até existir o fluxo de compra que cria o Tenant (LLT-157, ADR_121). Cada desenvolvedor usa o próprio login e a própria organização na instância de **desenvolvimento** da Clerk, a mesma da chave `pk_test_` do Web. Nunca use a instância de produção.
+
+1. **Criar o login.** Com o Web rodando, abra `http://localhost:5173/sign-up` e cadastre-se. Também é possível criar pelo Dashboard da Clerk > **Users** > **Create user**. Na instância de desenvolvimento, um e-mail com `+clerk_test` (ex.: `fulano+clerk_test@exemplo.com`) aceita o código de verificação `424242` sem enviar e-mail. Se a instância exigir segundo fator, configure um app autenticador na etapa "configurar MFA" e guarde os códigos de recuperação.
+2. **Criar a organização.** Depois do login, o Web abre a etapa "escolher ou criar organização": crie uma (ex.: "Teste - <seu nome>"). Quem cria fica com o papel `admin`. Pelo Dashboard: **Organizations** > **Create organization** e adicione o seu usuário como `admin`.
+3. **Copiar o `org_id`.** No Dashboard da Clerk > **Organizations** > a sua organização, copie o ID (`org_...`).
+4. **Criar o Tenant no Core.** No `.env` da raiz deste repositório, preencha `DEV_TENANT_CLERK_ORG_ID=<org_id>` e reinicie a API (`docker compose up -d`). No log aparece `Development tenant created for organization <org_id>`. Nas próximas subidas aparece `Development tenant already exists ... (status ACTIVE)`. O Tenant fica no volume do Mongo e não é recriado.
+5. **Conferir.** Entre no Web com essa organização ativa e abra `/empresa`: a tela carrega sem "Você foi deslogado". Para a revogação de sessão no 403 funcionar, preencha também `CLERK_SECRET_KEY` (`sk_test_...`, Dashboard > **API keys**) só no seu `.env`.
+
+Limitações enquanto isso:
+- `DEV_TENANT_CLERK_ORG_ID` aceita uma organização só. Para testar com mais de uma (isolamento entre empresas, convites), insira os outros Tenants à mão no Mongo, como no comando acima.
+- Qualquer organização sem Tenant, inclusive uma criada agora pela tela "Cadastrar empresa", recebe 403 e o usuário é deslogado. Isso é o esperado (ADR_032), não um defeito.
+- Login, senha e `org_id` de teste não entram no repositório nem em issue; os segredos ficam só no `.env` (ignorado pelo Git).
+
 ## Webhooks da Clerk (LLT-164)
 `POST /webhooks/clerk` é público em relação à sessão e protegido pela assinatura do Svix (headers `svix-id`, `svix-timestamp`, `svix-signature`), verificada sobre o corpo bruto com `CLERK_WEBHOOK_SIGNING_SECRET` e tolerância de 5 min. Decisões em `specs/003-webhooks-clerk/`.
 
