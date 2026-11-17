@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -19,8 +20,11 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -33,13 +37,14 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-/** Feature 003: product name unique per company (LLT-177). */
+/** Feature 006: product name unique per company (LLT-177). */
 @SpringBootTest(properties = {
 		"spring.mongodb.uri=${TEST_MONGODB_URI}",
 		"management.otlp.metrics.export.enabled=false", "management.tracing.export.otlp.enabled=false"
 })
 @AutoConfigureMockMvc
 @EnabledIfEnvironmentVariable(named = "TEST_MONGODB_URI", matches = ".+")
+@ExtendWith(OutputCaptureExtension.class)
 class ProductUniqueNameIntegrationTests {
 	private static final String NAME_IN_USE = "Já existe um produto com este nome nesta empresa. Ele pode estar arquivado.";
 	private static final String STALE_VERSION = "Os dados foram alterados. Recarregue antes de salvar novamente.";
@@ -430,5 +435,41 @@ class ProductUniqueNameIntegrationTests {
 		attemptCreate(creator, "Checkout").andExpect(status().isConflict());
 
 		assertEquals(1, storedProducts(tenant));
+	}
+
+	// Constitution VI: the refusal is logged with the event code
+
+	@Test
+	void nameInUseRefusalIsLoggedWithEventCodeWithoutNameOrStackTrace(CapturedOutput output) throws Exception {
+		String tenant = organization();
+		var creator = session(tenant, "creator", "member");
+		create(creator, "Checkout");
+		JsonNode target = create(creator, "Pagamentos");
+		String id = target.get("id").asText();
+
+		expectNameInUse(attemptCreate(creator, "checkout"));
+		expectNameInUse(edit(creator, id, general("CHECKOUT", "", target.get("version").asLong())));
+
+		String createLine = logLine(output, "event=product.create.name_in_use | ", tenant);
+		String updateLine = logLine(output, "event=product.update.name_in_use | ", tenant);
+		assertTrue(createLine.contains(" INFO "), createLine);
+		assertTrue(updateLine.contains(" INFO "), updateLine);
+		assertTrue(updateLine.contains("productId=" + id), updateLine);
+		assertFalse(createLine.toLowerCase(Locale.ROOT).contains("checkout"), createLine);
+		assertFalse(updateLine.toLowerCase(Locale.ROOT).contains("checkout"), updateLine);
+	}
+
+	/** Finds the refusal line of this tenant and checks that no stack trace follows it. */
+	private static String logLine(CapturedOutput output, String event, String tenant) {
+		List<String> lines = output.getAll().lines().toList();
+		for (int index = 0; index < lines.size(); index++) {
+			String line = lines.get(index);
+			if (line.contains(event) && line.contains("tenantId=" + tenant)) {
+				String next = index + 1 < lines.size() ? lines.get(index + 1) : "";
+				assertFalse(next.contains("Exception") || next.startsWith("\tat "), "stack trace after: " + line);
+				return line;
+			}
+		}
+		throw new AssertionError("log line not found: " + event + "tenantId=" + tenant);
 	}
 }

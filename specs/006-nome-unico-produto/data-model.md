@@ -41,4 +41,4 @@ Unicidade por Empresa (`tenantId`). Um cadastro recusado não deixa documento em
 
 ## Migração
 
-Não há. Documentos gravados antes desta feature não têm `normalizedName`; por isso esta branch roda em banco próprio, sem apagar nem alterar o banco compartilhado. Ver [quickstart.md](quickstart.md).
+Não há migração automática. Documentos gravados antes desta feature não têm `normalizedName`; por isso esta branch roda em banco próprio, sem apagar nem alterar o banco compartilhado. Antes de qualquer deploy em banco que já tenha produtos, é obrigatório o procedimento manual de checagem de duplicatas por empresa e backfill de `normalizedName` descrito em [quickstart.md](quickstart.md#antes-de-deploy-em-banco-com-produtos).

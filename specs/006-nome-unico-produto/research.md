@@ -18,6 +18,12 @@
 - **Rationale**: o handler global mapeia `DuplicateKeyException` para "Os dados foram alterados...", e atende também outras gravações (`ProductAccess` tem índice único próprio; `Company` grava com `_id` igual ao tenant). Mudar o handler daria a mensagem errada a elas. Nas duas gravações capturadas, a única chave única que pode ser violada é a do nome: o `_id` é um UUID novo em `create` e não muda em `update`. Por isso não é preciso inspecionar o texto da exceção. Em `create`, a tradução fica dentro do `try` existente, e o vínculo de acesso continua sendo removido quando o cadastro é recusado (FR-010).
 - **Alternatives considered**: tratar no handler global inspecionando o nome do índice na mensagem do driver (frágil e desnecessário); código de erro legível por máquina na resposta (não pedido; a mensagem própria atende FR-009).
 
+## Log da recusa (16/11/2026)
+
+- **Decisão**: no mesmo ponto da tradução, `saveWithUniqueName` registra `log.info` com `event=product.create.name_in_use` ou `event=product.update.name_in_use`, o aviso `Product name already in use in the company; write refused with 409` e `tenantId` e `productId`. O código do evento é passado por quem chama, como texto literal, para continuar localizável por busca no código. No cadastro, `productId` é o id gerado para a tentativa, o mesmo do vínculo de acesso que é removido em seguida.
+- **Rationale**: a constituição 2.1.0 (princípio VI) exige `event=<dominio.acao.resultado> | <aviso> | chave=valor` em todo evento de negócio em INFO e em todo WARN e ERROR. Nome em uso é condição esperada, causada pelo usuário: não é degradação (WARN) nem algo a notificar ao time (ERROR), e por isso vai em INFO, sem stack trace. O nome digitado faz parte do corpo da requisição e fica fora do log, que não pode levar payload.
+- **Alternatives considered**: WARN (marcaria uma recusa normal como degradação monitorada); logar no `ApiExceptionHandler` (ele não sabe se o 409 veio do nome, da versão ou do arquivamento); incluir o nome normalizado (seria payload no log).
+
 ## Ordem das recusas
 
 - **Decisão**: nenhuma lógica nova de ordem. A violação do índice só ocorre na gravação, que é o último passo.
@@ -47,6 +53,7 @@
 - **Decisão**: sem migração, sem preenchimento retroativo e sem apagar dados. Esta branch roda e testa em banco próprio, vazio, separado do `lhamalog_core` compartilhado. Orientação em [quickstart.md](quickstart.md).
 - **Rationale**: não há dados de produção (informado pelo usuário). A condição vai além de nomes repetidos: documentos antigos não têm `normalizedName`, e índice único trata campo ausente como nulo. Dois produtos antigos na mesma empresa colidem em (`tenantId`, nulo) mesmo com nomes diferentes, e a criação do índice falha na subida. Com um só, o índice é criado, mas o produto antigo não bloqueia cadastros com o mesmo nome. Além disso, um índice criado em banco compartilhado continua lá ao trocar de branch: branches sem esta feature gravam produtos sem o campo e passariam a receber 409 a partir do segundo produto da mesma empresa. O banco próprio evita os dois efeitos sem tocar no que as outras branches usam.
 - **Alternatives considered**: limpar o banco local compartilhado (apagaria dados usados por outras branches); preenchimento retroativo na subida (código para dado que não existe em produção, e alteraria o banco compartilhado); índice parcial só para documentos com o campo (permitiria subir no banco compartilhado sem afetar outras branches, mas os produtos antigos ficariam fora da regra sem aviso; mantido o índice pedido).
+- **Complemento (16/11/2026)**: para qualquer deploy em banco que já tenha produtos, o quickstart define um procedimento manual obrigatório: backup, checagem de duplicatas por empresa, backfill de `normalizedName` com `trim` e minúsculas e conferência antes da subida. O script normaliza em JavaScript, não com `$toLower`/`$trim`, para dar o mesmo resultado de `Product.normalizeName`. Continua sem migração automática, porque hoje só há bancos locais e de teste.
 
 ## Testes
 

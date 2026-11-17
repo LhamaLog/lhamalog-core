@@ -1,6 +1,6 @@
 # Tasks: Nome único de produto por empresa
 
-**Input**: Design documents from `/specs/003-nome-unico-produto/`
+**Input**: Design documents from `/specs/006-nome-unico-produto/`
 
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
@@ -27,7 +27,7 @@ Módulo existente `src/main/java/br/com/lhamalog/core/product/` e testes em `src
 **Purpose**: Delimitar o alcance e preparar um banco de teste próprio; sem projeto novo nem dependência Maven.
 
 - [X] T001 Confirmar que a implementação fica restrita a `src/main/java/br/com/lhamalog/core/product/Product.java`, `src/main/java/br/com/lhamalog/core/product/ProductService.java`, `src/test/java/br/com/lhamalog/core/product/ProductUniqueNameIntegrationTests.java` (novo) e ao teste `validatesProductNameAndAcceptsEmptyOptionalContext` de `src/test/java/br/com/lhamalog/core/company/CompanyProductIntegrationTests.java`, sem alterar `pom.xml`, `src/main/java/br/com/lhamalog/core/shared/ApiExceptionHandler.java` nem criar pacotes
-- [X] T002 Na sessão PowerShell usada para os testes, definir `$env:TEST_MONGODB_URI='mongodb://127.0.0.1:27019/lhamalog_nome_unico_produto_test'` conforme `specs/003-nome-unico-produto/quickstart.md`; se o Mongo separado da porta 27019 não estiver no ar, parar e perguntar ao desenvolvedor em vez de usar outro banco
+- [X] T002 Na sessão PowerShell usada para os testes, definir `$env:TEST_MONGODB_URI='mongodb://127.0.0.1:27019/lhamalog_nome_unico_produto_test'` conforme `specs/006-nome-unico-produto/quickstart.md`; se o Mongo separado da porta 27019 não estiver no ar, parar e perguntar ao desenvolvedor em vez de usar outro banco
 
 ---
 
@@ -42,7 +42,7 @@ Módulo existente `src/main/java/br/com/lhamalog/core/product/` e testes em `src
 - [X] T005 Em `src/main/java/br/com/lhamalog/core/product/ProductService.java`, ajustar os quatro `new Product(...)`: `create` e `update` passam `Product.normalizeName(request.name())`; `updateContext` e `withArchivedAt` passam `current.normalizedName()`
 - [X] T006 Em `src/main/java/br/com/lhamalog/core/product/ProductService.java`, acrescentar a constante da mensagem `Já existe um produto com este nome nesta empresa. Ele pode estar arquivado.` e o método privado `saveWithUniqueName(Supplier<Product> write)`, que executa `write.get()` e converte `org.springframework.dao.DuplicateKeyException` em `new ResponseStatusException(HttpStatus.CONFLICT, <mensagem>, exception)`, sem inspecionar o texto da exceção
 - [X] T007 [P] Em `validatesProductNameAndAcceptsEmptyOptionalContext` de `src/test/java/br/com/lhamalog/core/company/CompanyProductIntegrationTests.java`, trocar o corpo do POST no laço para usar o nome `"Produto " + index`, mantendo a asserção de 400 para nome em branco, os 5 cadastros e a contagem `$.length()` igual a 5; não alterar nenhum outro teste desse arquivo
-- [X] T008 [P] Criar `src/test/java/br/com/lhamalog/core/product/ProductUniqueNameIntegrationTests.java` com as mesmas anotações de classe e campos `@Autowired` de `ProductEditArchiveIntegrationTests` (`@SpringBootTest` com `spring.mongodb.uri=${TEST_MONGODB_URI}`, `@EnabledIfEnvironmentVariable(named = "TEST_MONGODB_URI", matches = ".+")`, empresa aleatória por teste), os helpers `session`, `organization`, `json`, `create`, `general`, `edit` e `changeArchive` no mesmo formato, constantes das três mensagens 409 de `specs/003-nome-unico-produto/contracts/api.md`, contagem de documentos por `tenantId` em `Product` e `ProductAccess` via `MongoTemplate`, e um helper que dispara requisições em paralelo com `ExecutorService` e devolve a lista de status HTTP
+- [X] T008 [P] Criar `src/test/java/br/com/lhamalog/core/product/ProductUniqueNameIntegrationTests.java` com as mesmas anotações de classe e campos `@Autowired` de `ProductEditArchiveIntegrationTests` (`@SpringBootTest` com `spring.mongodb.uri=${TEST_MONGODB_URI}`, `@EnabledIfEnvironmentVariable(named = "TEST_MONGODB_URI", matches = ".+")`, empresa aleatória por teste), os helpers `session`, `organization`, `json`, `create`, `general`, `edit` e `changeArchive` no mesmo formato, constantes das três mensagens 409 de `specs/006-nome-unico-produto/contracts/api.md`, contagem de documentos por `tenantId` em `Product` e `ProductAccess` via `MongoTemplate`, e um helper que dispara requisições em paralelo com `ExecutorService` e devolve a lista de status HTTP
 
 **Checkpoint**: Foundation ready — `src/main` compila e o índice existe no banco de teste; nomes repetidos já são recusados, ainda com a mensagem genérica do handler global
 
@@ -109,8 +109,22 @@ Esta história não tem código de produção próprio: o índice sem filtro por
 
 **Purpose**: Aceite da constituição e do quickstart
 
-- [X] T015 Executar `.\mvnw.cmd verify` com o `TEST_MONGODB_URI` de T002, confirmar que os testes de persistência não foram omitidos e registrar o resultado em uma seção "Resultados executados" de `specs/003-nome-unico-produto/quickstart.md`
-- [X] T016 Com `git status --short` e `git diff --stat`, confirmar que só mudaram os arquivos de T001 e `specs/003-nome-unico-produto/`, sem alteração em `specs/001-empresa-produtos/` e `specs/002-editar-arquivar-produto/`; confirmar ausência de segredos, de limite por plano e de mudança de ingestão em `src/main/java/br/com/lhamalog/core/product/` e `src/test/java/br/com/lhamalog/core/product/`
+- [X] T015 Executar `.\mvnw.cmd verify` com o `TEST_MONGODB_URI` de T002, confirmar que os testes de persistência não foram omitidos e registrar o resultado em uma seção "Resultados executados" de `specs/006-nome-unico-produto/quickstart.md`
+- [X] T016 Com `git status --short` e `git diff --stat`, confirmar que só mudaram os arquivos de T001 e `specs/006-nome-unico-produto/`, sem alteração em `specs/001-empresa-produtos/` e `specs/002-editar-arquivar-produto/`; confirmar ausência de segredos, de limite por plano e de mudança de ingestão em `src/main/java/br/com/lhamalog/core/product/` e `src/test/java/br/com/lhamalog/core/product/`
+
+---
+
+## Phase 7: Ajustes antes do merge (16/11/2026)
+
+**Purpose**: Pendências da revisão do PR: evidência do verify no merge com a Development, numeração livre para a spec, constituição 2.1.0 (princípio VI) e procedimento para deploy em banco com dados. Mesma restrição de toda a feature: nada de outras branches ou features é apagado ou alterado.
+
+- [X] T017 No commit `31ffea3` (merge da Development), antes de qualquer alteração, executar `.\mvnw.cmd verify` com o `TEST_MONGODB_URI` de T002 e registrar o resultado em "Resultados executados" de `specs/006-nome-unico-produto/quickstart.md`
+- [X] T018 Renomear `specs/003-nome-unico-produto/` para `specs/006-nome-unico-produto/` (a 003 já existe na Development como `003-manter-perfil-usuario`, e a 007 está reservada para a LLT-183 na constituição); atualizar as referências a ela nesta pasta, no Javadoc de `src/test/java/br/com/lhamalog/core/product/ProductUniqueNameIntegrationTests.java` e em `.specify/feature.json` (arquivo local, ignorado pelo Git); não alterar pastas de outras features
+- [X] T019 Alinhar `specs/006-nome-unico-produto/plan.md` à constituição 2.1.0: Constraints, Constitution Check com o princípio VI e reavaliação registrada
+- [X] T020 Em `src/main/java/br/com/lhamalog/core/product/ProductService.java`, `saveWithUniqueName` passa a receber o código do evento, `tenantId` e `productId` e, antes de lançar o 409, registra `log.info("event={} | Product name already in use in the company; write refused with 409 | tenantId={} productId={}", ...)`; `create` passa `product.create.name_in_use` e `update` passa `product.update.name_in_use`; o log não leva o nome digitado nem a exceção (sem stack trace)
+- [X] T021 Em `src/test/java/br/com/lhamalog/core/product/ProductUniqueNameIntegrationTests.java`, com `OutputCaptureExtension`, teste `nameInUseRefusalIsLoggedWithEventCodeWithoutNameOrStackTrace` (cenário 19 do quickstart): os dois eventos aparecem em INFO com `tenantId` e, na edição, `productId`, sem o nome e sem stack trace na linha seguinte
+- [X] T022 Em `specs/006-nome-unico-produto/quickstart.md`, seção "Antes de deploy em banco com produtos": backup, checagem de duplicatas por empresa, backfill de `normalizedName` (trim e minúsculas, equivalente a `Product.normalizeName`) e conferência antes da subida; registrar em `research.md` e `data-model.md` que hoje só há bancos locais e de teste
+- [X] T023 Executar `.\mvnw.cmd verify` com o `TEST_MONGODB_URI` de T002 depois de T020 e T021, registrar em "Resultados executados" e conferir com `git status --short` que só mudaram `specs/006-nome-unico-produto/` (renomeada), `ProductService.java` e `ProductUniqueNameIntegrationTests.java`. Executado em 16/11/2026: classes de produto verdes; o build segue vermelho só pela falha herdada da Development em `CompanyRegistrationHttpTests`, registrada no quickstart
 
 ---
 
@@ -121,7 +135,8 @@ Esta história não tem código de produção próprio: o índice sem filtro por
 - **Setup (Phase 1)**: No dependencies — can start immediately
 - **Foundational (Phase 2)**: Depends on Setup — BLOCKS all user stories
 - **User Stories (Phase 3+)**: All depend on Foundational
-- **Polish (Final Phase)**: Depends on US1–US3
+- **Polish (Phase 6)**: Depends on US1–US3
+- **Ajustes antes do merge (Phase 7)**: T017 antes de qualquer alteração; T020 e T021 antes de T023
 
 ### User Story Dependencies
 
