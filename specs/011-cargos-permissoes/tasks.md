@@ -30,7 +30,7 @@
 
 ## Fase 2: acesso por produto (US2)
 
-- [ ] T011 [P] [US2] Criar `src/test/java/br/com/lhamalog/core/access/MemberProductAccessHttpTests.java`, cobrindo os cenários 1 a 7 da US2:
+- [X] T011 [P] [US2] Criar `src/test/java/br/com/lhamalog/core/access/MemberProductAccessHttpTests.java`, cobrindo os cenários 1 a 7 da US2:
   - liberar A e B, listar como membro, retirar B e ver o 404 no detalhe;
   - produto de outra empresa responde 404 `product_not_found`, sem gravar nada;
   - alvo admin conhecido (feito `touch` com cargo admin, ou `member` ADMIN) ou Dono (`member` DONO) responde 409 `full_access`;
@@ -39,12 +39,12 @@
   - produto arquivado;
   - mais de 500 ids responde 400;
   - `userId` com 201 caracteres responde 400 "Informe o usuário.".
-- [ ] T012 [US2] Em `product/ProductAccessRepository.java`, acrescentar `deleteByTenantIdAndClerkUserIdAndProductIdIn(String, String, Collection<String>)`. Em `product/ProductRepository.java`, acrescentar `countByTenantIdAndIdIn` ou `findByTenantIdAndIdIn`, para validar a lista.
-- [ ] T013 [US2] Criar `access/application/ProductAccessService.java`:
+- [X] T012 [US2] Em `product/ProductAccessRepository.java`, acrescentar `deleteByTenantIdAndClerkUserIdAndProductIdIn(String, String, Collection<String>)`. Em `product/ProductRepository.java`, acrescentar `countByTenantIdAndIdIn` ou `findByTenantIdAndIdIn`, para validar a lista.
+- [X] T013 [US2] Criar `access/application/ProductAccessService.java`:
   - `list(tenantId, userId)` devolve `allProducts`/`productIds`, usando `AccessService.roleOf` (OWNER ou ADMIN = acesso total);
   - `replace(tenantId, userId, productIds)`: deduplica, valida que todos são da empresa (404 `product_not_found`, sem gravar), recusa alvo com acesso total (409 `full_access`), insere o que falta ignorando `DuplicateKeyException`, remove o que sobra e loga `event=product_access.updated | added=n removed=m`.
-- [ ] T014 [US2] Criar `access/api/MemberProductAccessController.java` com `GET` e `PUT /api/company/members/{userId}/products` (exige `PRODUCT_ACCESS_MANAGE`; `userId` de 1 a 200; `productIds` obrigatório, até 500).
-- [ ] T015 [US2] Rodar `.\mvnw.cmd verify`, com atenção aos testes de produto que já existem (`ProductEditArchiveIntegrationTests`, `ProductUniqueNameIntegrationTests`, `CompanyProductIntegrationTests`). Parar para revisão.
+- [X] T014 [US2] Criar `access/api/MemberProductAccessController.java` com `GET` e `PUT /api/company/members/{userId}/products` (exige `PRODUCT_ACCESS_MANAGE`; `userId` de 1 a 200; `productIds` obrigatório, até 500).
+- [X] T015 [US2] Rodar `.\mvnw.cmd verify`, com atenção aos testes de produto que já existem (`ProductEditArchiveIntegrationTests`, `ProductUniqueNameIntegrationTests`, `CompanyProductIntegrationTests`). Parar para revisão.
 
 ## Fase 3: catálogo de cargos de notificação (US3)
 
