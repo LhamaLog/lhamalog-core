@@ -18,6 +18,8 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import br.com.lhamalog.core.access.application.AccessService;
+import br.com.lhamalog.core.access.application.UserIds;
 import br.com.lhamalog.core.shared.ApiStatusException;
 import br.com.lhamalog.core.shared.FieldValidationException;
 
@@ -44,14 +46,27 @@ public class NotificationRoleService {
 
 	static final String LIST_REQUIRED = "Escolha pelo menos um valor válido.";
 
+	static final String MEMBERS_FROM_ACCESS_ROLE = "Os membros deste cargo vêm do papel de acesso.";
+
+	static final String MEMBERS_FROM_ACCESS_ROLE_CODE = "members_from_access_role";
+
+	static final String MEMBERS_LIMIT = "O cargo já tem 200 membros.";
+
+	static final String MEMBERS_LIMIT_CODE = "role_members_limit";
+
+	static final String MEMBERS_INVALID = "Informe até 200 usuários, cada um com até 200 caracteres.";
+
 	private static final Logger log = LoggerFactory.getLogger(NotificationRoleService.class);
 
 	private final NotificationRoleRepository roles;
 
+	private final AccessService access;
+
 	private final Clock clock;
 
-	public NotificationRoleService(NotificationRoleRepository roles, Clock clock) {
+	public NotificationRoleService(NotificationRoleRepository roles, AccessService access, Clock clock) {
 		this.roles = roles;
+		this.access = access;
 		this.clock = clock;
 	}
 
@@ -121,6 +136,83 @@ public class NotificationRoleService {
 		roles.save(role.deletedAt(clock.instant()));
 		log.info("event=notification_role.deleted | Notification role deleted for good | tenantId={} roleId={}",
 				tenantId, role.id());
+	}
+
+	/** Puts the person in the role; repeating it changes nothing (US4, LLT-170). */
+	public NotificationRole addMember(String tenantId, String roleId, String userId) {
+		String id = UserIds.require(userId);
+		NotificationRole role = withExplicitMembers(tenantId, roleId);
+		if (!roles.addMember(tenantId, role.id(), id, NotificationRole.MAX_MEMBERS, clock.instant())) {
+			throw new ApiStatusException(HttpStatus.CONFLICT, MEMBERS_LIMIT, MEMBERS_LIMIT_CODE);
+		}
+		logMembers(role, "add");
+		return find(tenantId, role.id());
+	}
+
+	/** Takes the person out of the role; repeating it is not an error. */
+	public void removeMember(String tenantId, String roleId, String userId) {
+		String id = UserIds.require(userId);
+		NotificationRole role = withExplicitMembers(tenantId, roleId);
+		roles.removeMember(tenantId, role.id(), id, clock.instant());
+		logMembers(role, "remove");
+	}
+
+	/** Replaces the whole list of people, up to 200, with the version the client read. */
+	public NotificationRole replaceMembers(String tenantId, String roleId, List<String> userIds, long version) {
+		NotificationRole role = withExplicitMembers(tenantId, roleId);
+		List<String> clean = validMembers(userIds);
+		requireVersion(role, version);
+		NotificationRole saved = roles.save(role.withMembers(clean, clock.instant()).expecting(version));
+		logMembers(saved, "replace");
+		return saved;
+	}
+
+	/**
+	 * Roles of a person: the owner or administrator role when the person has that access role (ADR_140), plus the
+	 * editable roles that list the person. Deleted roles never show up (ADR_137/138).
+	 */
+	public List<NotificationRole> rolesOf(String tenantId, String userId) {
+		String id = UserIds.require(userId);
+		roles.ensureDefaults(tenantId, clock.instant());
+		DefaultRole fromAccess = switch (access.roleOf(tenantId, id)) {
+			case OWNER -> DefaultRole.OWNER;
+			case ADMIN -> DefaultRole.ADMIN;
+			case MEMBER -> null;
+		};
+		List<NotificationRole> result = new ArrayList<>();
+		if (fromAccess != null) {
+			roles.findActive(tenantId).stream().filter((role) -> role.defaultKey() == fromAccess).forEach(result::add);
+		}
+		result.addAll(roles.findActiveByMember(tenantId, id));
+		return result.stream().sorted(DISPLAY_ORDER).toList();
+	}
+
+	private NotificationRole withExplicitMembers(String tenantId, String roleId) {
+		roles.ensureDefaults(tenantId, clock.instant());
+		NotificationRole role = find(tenantId, roleId);
+		if (role.immutable()) {
+			throw new ApiStatusException(HttpStatus.CONFLICT, MEMBERS_FROM_ACCESS_ROLE, MEMBERS_FROM_ACCESS_ROLE_CODE);
+		}
+		return role;
+	}
+
+	private static List<String> validMembers(List<String> userIds) {
+		if (userIds == null || userIds.size() > NotificationRole.MAX_MEMBERS) {
+			throw new FieldValidationException(Map.of("memberUserIds", MEMBERS_INVALID));
+		}
+		Set<String> clean = new LinkedHashSet<>();
+		for (String userId : userIds) {
+			if (userId == null || userId.isBlank() || userId.length() > UserIds.MAX_LENGTH) {
+				throw new FieldValidationException(Map.of("memberUserIds", MEMBERS_INVALID));
+			}
+			clean.add(userId);
+		}
+		return new ArrayList<>(clean);
+	}
+
+	private static void logMembers(NotificationRole role, String change) {
+		log.info("event=notification_role.members.updated | People of a notification role changed | tenantId={} roleId={} change={}",
+				role.tenantId(), role.id(), change);
 	}
 
 	NotificationRole find(String tenantId, String roleId) {

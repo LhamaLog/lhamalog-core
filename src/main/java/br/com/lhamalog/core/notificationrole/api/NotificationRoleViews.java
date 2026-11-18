@@ -56,4 +56,19 @@ public final class NotificationRoleViews {
 	public record ReplaceAlertTypes(List<String> alertTypes, @NotNull Long version) {
 	}
 
+	public record ReplaceMembers(List<String> memberUserIds, @NotNull Long version) {
+	}
+
+	/** {@code GET /api/company/members/{userId}/notification-roles}. */
+	public record PersonRoles(String userId, List<RoleRef> roles) {
+
+		public static PersonRoles of(String userId, List<NotificationRole> roles) {
+			return new PersonRoles(userId, roles.stream().map((role) -> new RoleRef(role.id(), role.name())).toList());
+		}
+
+	}
+
+	public record RoleRef(String id, String name) {
+	}
+
 }

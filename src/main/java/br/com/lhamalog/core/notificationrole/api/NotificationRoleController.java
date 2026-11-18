@@ -17,6 +17,7 @@ import br.com.lhamalog.core.access.application.Permission;
 import br.com.lhamalog.core.notificationrole.api.NotificationRoleViews.CreateRole;
 import br.com.lhamalog.core.notificationrole.api.NotificationRoleViews.RenameRole;
 import br.com.lhamalog.core.notificationrole.api.NotificationRoleViews.ReplaceAlertTypes;
+import br.com.lhamalog.core.notificationrole.api.NotificationRoleViews.ReplaceMembers;
 import br.com.lhamalog.core.notificationrole.api.NotificationRoleViews.ReplaceSeverities;
 import br.com.lhamalog.core.notificationrole.api.NotificationRoleViews.RoleList;
 import br.com.lhamalog.core.notificationrole.api.NotificationRoleViews.RoleView;
@@ -81,6 +82,22 @@ public class NotificationRoleController {
 	@PutMapping("/{roleId}/alert-types")
 	public RoleView replaceAlertTypes(@PathVariable String roleId, @Valid @RequestBody ReplaceAlertTypes request) {
 		return RoleView.of(service.replaceAlertTypes(tenant(), roleId, request.alertTypes(), request.version()));
+	}
+
+	@PutMapping("/{roleId}/members")
+	public RoleView replaceMembers(@PathVariable String roleId, @Valid @RequestBody ReplaceMembers request) {
+		return RoleView.of(service.replaceMembers(tenant(), roleId, request.memberUserIds(), request.version()));
+	}
+
+	@PostMapping("/{roleId}/members/{userId}")
+	public RoleView addMember(@PathVariable String roleId, @PathVariable String userId) {
+		return RoleView.of(service.addMember(tenant(), roleId, userId));
+	}
+
+	@DeleteMapping("/{roleId}/members/{userId}")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void removeMember(@PathVariable String roleId, @PathVariable String userId) {
+		service.removeMember(tenant(), roleId, userId);
 	}
 
 	/** Tenant of the session, once the caller is known to hold {@link Permission#NOTIFICATION_ROLES_MANAGE}. */

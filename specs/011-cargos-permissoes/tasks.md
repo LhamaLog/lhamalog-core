@@ -76,18 +76,18 @@
 
 ## Fase 4: atribuir cargo (US4)
 
-- [ ] T023 [P] [US4] Criar `src/test/java/br/com/lhamalog/core/notificationrole/NotificationRoleMembersHttpTests.java`, cobrindo os cenários 1 a 7 da US4:
+- [X] T023 [P] [US4] Criar `src/test/java/br/com/lhamalog/core/notificationrole/NotificationRoleMembersHttpTests.java`, cobrindo os cenários 1 a 7 da US4:
   - `POST` e `DELETE` idempotentes;
   - `PUT` com `version`;
   - Dono e Administrador respondem 409 `members_from_access_role`;
   - consulta por pessoa traz 2 cargos;
   - cargo excluído some da consulta;
   - `userId` inválido responde 400.
-- [ ] T024 [US4] No `NotificationRoleService`:
+- [X] T024 [US4] No `NotificationRoleService`:
   - `addMember` (update condicional: só inclui se o cargo tem menos de 200; cheio → 409 `role_members_limit`, analyze A5), `removeMember` e `replaceMembers` (até 200, `version`, log `event=notification_role.members.updated`);
   - `rolesOf(tenantId, userId)`: inclui Dono ou Administrador pelo papel de acesso (`AccessService.roleOf`).
-- [ ] T025 [US4] Acrescentar ao `NotificationRoleController` as rotas `PUT /{roleId}/members`, `POST /{roleId}/members/{userId}` e `DELETE /{roleId}/members/{userId}`. Criar `notificationrole/api/MemberNotificationRoleController.java` com `GET /api/company/members/{userId}/notification-roles`.
-- [ ] T026 [US4] Rodar `.\mvnw.cmd verify`. Parar para revisão.
+- [X] T025 [US4] Acrescentar ao `NotificationRoleController` as rotas `PUT /{roleId}/members`, `POST /{roleId}/members/{userId}` e `DELETE /{roleId}/members/{userId}`. Criar `notificationrole/api/MemberNotificationRoleController.java` com `GET /api/company/members/{userId}/notification-roles`.
+- [X] T026 [US4] Rodar `.\mvnw.cmd verify`. Parar para revisão.
 
 ## Fase 5: proteger o Dono (US5)
 

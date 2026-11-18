@@ -127,6 +127,35 @@ public class MongoNotificationRoleRepository implements NotificationRoleReposito
 		return toDomain(mongo.save(toDocument(role)));
 	}
 
+	@Override
+	public boolean addMember(String tenantId, String roleId, String userId, int maxMembers, Instant now) {
+		// Only writes when the person is not in yet and the role still has room, so a repeated call changes nothing,
+		// not even the version a client may be holding for a later list replace.
+		Query withRoom = Query.query(active(tenantId).and(ID).is(roleId).and(MEMBER_USER_IDS).ne(userId)
+			.and(MEMBER_USER_IDS + "." + (maxMembers - 1)).exists(false));
+		Update update = new Update().addToSet(MEMBER_USER_IDS, userId).inc(VERSION, 1).set(UPDATED_AT, now);
+		if (mongo.updateFirst(withRoom, update, NotificationRoleDocument.class).getMatchedCount() > 0) {
+			return true;
+		}
+		return mongo.exists(Query.query(active(tenantId).and(ID).is(roleId).and(MEMBER_USER_IDS).is(userId)),
+				NotificationRoleDocument.class);
+	}
+
+	@Override
+	public void removeMember(String tenantId, String roleId, String userId, Instant now) {
+		Query query = Query.query(active(tenantId).and(ID).is(roleId).and(MEMBER_USER_IDS).is(userId));
+		Update update = new Update().pull(MEMBER_USER_IDS, userId).inc(VERSION, 1).set(UPDATED_AT, now);
+		mongo.updateFirst(query, update, NotificationRoleDocument.class);
+	}
+
+	@Override
+	public List<NotificationRole> findActiveByMember(String tenantId, String userId) {
+		return mongo.find(Query.query(active(tenantId).and(MEMBER_USER_IDS).is(userId)), NotificationRoleDocument.class)
+			.stream()
+			.map(MongoNotificationRoleRepository::toDomain)
+			.toList();
+	}
+
 	static Criteria active(String tenantId) {
 		return Criteria.where(TENANT_ID).is(tenantId).and(DELETED).is(false);
 	}

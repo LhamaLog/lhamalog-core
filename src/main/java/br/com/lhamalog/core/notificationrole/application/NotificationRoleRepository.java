@@ -24,4 +24,17 @@ public interface NotificationRoleRepository {
 	 */
 	NotificationRole save(NotificationRole role);
 
+	/**
+	 * Adds the person atomically ({@code $addToSet}, no version sent by the client). Does nothing when the person is
+	 * already there.
+	 * @return false when the role is full ({@code maxMembers}) and the person is not in it yet
+	 */
+	boolean addMember(String tenantId, String roleId, String userId, int maxMembers, Instant now);
+
+	/** Removes the person atomically ({@code $pull}); nothing happens if the person is not there. */
+	void removeMember(String tenantId, String roleId, String userId, Instant now);
+
+	/** Active roles that list the person explicitly. */
+	List<NotificationRole> findActiveByMember(String tenantId, String userId);
+
 }
