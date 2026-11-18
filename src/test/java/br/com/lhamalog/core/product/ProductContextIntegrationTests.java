@@ -1,36 +1,31 @@
 package br.com.lhamalog.core.product;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import br.com.lhamalog.core.support.CoreIntegrationTest;
+import br.com.lhamalog.core.support.TestTenants;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /** Feature 004: product context with the Figma fields, its versions and the text for the AI (LLT-178). */
-@SpringBootTest(properties = {
-		"spring.mongodb.uri=${TEST_MONGODB_URI}",
-		"management.otlp.metrics.export.enabled=false", "management.tracing.export.otlp.enabled=false"
-})
-@AutoConfigureMockMvc
-@EnabledIfEnvironmentVariable(named = "TEST_MONGODB_URI", matches = ".+")
+@CoreIntegrationTest
 class ProductContextIntegrationTests {
 	@Autowired MockMvc mvc;
 	@Autowired ObjectMapper mapper;
 	@Autowired ProductRepository products;
 	@Autowired ProductContextRevisionRepository revisions;
+	@Autowired MongoTemplate mongo;
+	private TestTenants tenants;
 
 	private static final String FULL_CONTEXT = """
 			{"functionalDescription":"  Processa os pagamentos da plataforma.  ","personality":"DETAILED",
@@ -44,7 +39,15 @@ class ProductContextIntegrationTests {
 			""";
 
 	private RequestPostProcessor session(String organization, String user, String role) {
-		return jwt().jwt(token -> token.subject(user).claim("o", Map.of("id", organization, "rol", role)));
+		return tenants().session(organization, user, role);
+	}
+
+	/** Real tokens and an ACTIVE tenant per organization (LLT-163). */
+	private TestTenants tenants() {
+		if (tenants == null) {
+			tenants = new TestTenants(mongo);
+		}
+		return tenants;
 	}
 
 	private String organization() { return "org_test_" + UUID.randomUUID(); }
@@ -198,7 +201,7 @@ class ProductContextIntegrationTests {
 		var admin = session(tenant, "admin", "admin");
 		mvc.perform(get("/api/products/" + id + "/context/revisions").with(admin)).andExpect(status().isOk());
 		mvc.perform(get("/api/products/" + id + "/context/prompt").with(admin)).andExpect(status().isOk());
-		assertEquals(1, revisions.findByTenantIdAndProductIdOrderByRevisionDesc(tenant, id).size());
+		assertEquals(1, revisions.findByTenantIdAndProductIdOrderByRevisionDesc(tenants().tenantId(tenant), id).size());
 	}
 
 	@Test

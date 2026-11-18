@@ -3,7 +3,6 @@ package br.com.lhamalog.core.member;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -25,24 +24,18 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-import br.com.lhamalog.core.TestcontainersConfiguration;
+import br.com.lhamalog.core.support.CoreIntegrationTest;
+import br.com.lhamalog.core.support.TestTenants;
 
-@Import(TestcontainersConfiguration.class)
-@SpringBootTest(properties = {
-		"management.otlp.metrics.export.enabled=false",
-		"management.tracing.export.otlp.enabled=false"
-})
-@AutoConfigureMockMvc
+
+@CoreIntegrationTest
 class CompanyMemberHttpTests {
 	private static final String NOT_ADMIN = "Somente o administrador da empresa pode gerenciar os usuários.";
-	private static final String SELECT_COMPANY = "Selecione uma empresa para continuar.";
 	private static final String DEACTIVATED = "Seu acesso a esta empresa foi desativado.";
 	private static final String LAST_ADMIN = "Não é possível desativar o último administrador.";
 	private static final String USER_REQUIRED = "Informe o usuário.";
@@ -50,6 +43,8 @@ class CompanyMemberHttpTests {
 
 	@Autowired MockMvc mvc;
 	@Autowired MemberClock clock;
+	@Autowired MongoTemplate mongo;
+	private TestTenants tenants;
 
 	@BeforeEach
 	void resetClock() {
@@ -81,10 +76,10 @@ class CompanyMemberHttpTests {
 				.andExpect(jsonPath("$.code").value("not_admin"))
 				.andExpect(jsonPath("$.message").value(NOT_ADMIN));
 		mvc.perform(get("/api/company/members")).andExpect(status().isUnauthorized());
-		mvc.perform(get("/api/company/members").with(jwt().jwt(token -> token.subject("user_z"))))
+		// Without an active organization the security chain answers 403 and revokes the sessions (LLT-163).
+		mvc.perform(get("/api/company/members").with(TestTenants.withoutOrganization("user_z")))
 				.andExpect(status().isForbidden())
-				.andExpect(jsonPath("$.message").value(SELECT_COMPANY))
-				.andExpect(jsonPath("$.code").doesNotExist());
+				.andExpect(jsonPath("$.error").value("forbidden"));
 	}
 
 	@Test
@@ -202,7 +197,7 @@ class CompanyMemberHttpTests {
 		finally {
 			pool.shutdownNow();
 		}
-		long active = members.countByTenantIdAndAdministratorTrueAndStatus(organization, CompanyMember.ACTIVE);
+		long active = members.countByTenantIdAndAdministratorTrueAndStatus(tenants().tenantId(organization), CompanyMember.ACTIVE);
 		if (active != 1) {
 			throw new AssertionError("expected one active administrator, got " + active);
 		}
@@ -271,7 +266,15 @@ class CompanyMemberHttpTests {
 	}
 
 	private RequestPostProcessor current(String organization, String user, String role) {
-		return jwt().jwt(token -> token.subject(user).claim("o", Map.of("id", organization, "rol", role)));
+		return tenants().session(organization, user, role);
+	}
+
+	/** Real tokens and an ACTIVE tenant per organization (LLT-163). */
+	private TestTenants tenants() {
+		if (tenants == null) {
+			tenants = new TestTenants(mongo);
+		}
+		return tenants;
 	}
 
 	private String organization() {

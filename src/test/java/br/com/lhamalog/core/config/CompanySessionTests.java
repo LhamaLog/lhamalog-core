@@ -1,51 +1,33 @@
 package br.com.lhamalog.core.config;
 
-import java.util.Map;
-import br.com.lhamalog.core.shared.CompanySessionResolver;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import org.junit.jupiter.api.Test;
-import org.springframework.security.oauth2.jwt.Jwt;
-import static org.junit.jupiter.api.Assertions.*;
+
+import br.com.lhamalog.core.identity.domain.OrganizationRole;
+import br.com.lhamalog.core.identity.domain.RequestContext;
+import br.com.lhamalog.core.shared.CompanySession;
+import br.com.lhamalog.core.shared.CompanySessionResolver;
 
 class CompanySessionTests {
-	@Test
-	void mapsOnlyConfiguredPrivilegedRoles() {
-		Jwt owner = Jwt.withTokenValue("test").header("alg", "RS256").subject("user")
-				.claim("o", Map.of("id", "org_a", "rol", "owner")).build();
-		assertFalse(new CompanySessionResolver("admin").resolve(owner).administrator());
-		assertTrue(new CompanySessionResolver("admin,org:owner").resolve(owner).administrator());
-	}
-	@Test
-	void supportsLegacyOrganizationClaimsWithoutChangingTenant() {
-		Jwt legacy = Jwt.withTokenValue("test").header("alg", "RS256").subject("user")
-				.claim("org_id", "org_a").claim("org_role", "org:admin").build();
-		var session = new CompanySessionResolver("admin").resolve(legacy);
-		assertEquals("org_a", session.tenantId());
-		assertTrue(session.administrator());
+
+	private static RequestContext context(OrganizationRole role) {
+		return new RequestContext("user_a", "sess_a", "org_a", role, "tenant-0001");
 	}
 
 	@Test
-	void acceptedInviteRolesFollowAdministratorList() {
-		CompanySessionResolver resolver = new CompanySessionResolver("admin");
-		assertTrue(resolver.resolve(current("org_a", "admin")).administrator());
-		assertTrue(resolver.resolve(current("org_a", "org:admin")).administrator());
-		assertFalse(resolver.resolve(current("org_a", "member")).administrator());
-		assertFalse(resolver.resolve(current("org_a", "org:member")).administrator());
-		assertFalse(resolver.resolve(current("org_a", "Administrador")).administrator());
-		assertEquals("org_a", resolver.resolve(current("org_a", "member")).tenantId());
-		assertTrue(resolver.resolve(legacy("org_b", "admin")).administrator());
-		assertTrue(resolver.resolve(legacy("org_b", "org:admin")).administrator());
-		assertFalse(resolver.resolve(legacy("org_b", "member")).administrator());
-		assertFalse(resolver.resolve(legacy("org_b", "org:member")).administrator());
-		assertEquals("org_b", resolver.resolve(legacy("org_b", "member")).tenantId());
+	void onlyOrganizationAdminIsAdministrator() {
+		assertTrue(CompanySession.from(context(OrganizationRole.ADMIN)).administrator());
+		assertFalse(CompanySession.from(context(OrganizationRole.MEMBER)).administrator());
 	}
 
-	private static Jwt current(String organization, String role) {
-		return Jwt.withTokenValue("test").header("alg", "RS256").subject("user")
-				.claim("o", Map.of("id", organization, "rol", role)).build();
+	@Test
+	void usesInternalTenantIdAndClerkUser() {
+		CompanySession session = new CompanySessionResolver(() -> context(OrganizationRole.MEMBER)).current();
+		assertEquals("tenant-0001", session.tenantId());
+		assertEquals("user_a", session.userId());
 	}
 
-	private static Jwt legacy(String organization, String role) {
-		return Jwt.withTokenValue("test").header("alg", "RS256").subject("user")
-				.claim("org_id", organization).claim("org_role", role).build();
-	}
 }

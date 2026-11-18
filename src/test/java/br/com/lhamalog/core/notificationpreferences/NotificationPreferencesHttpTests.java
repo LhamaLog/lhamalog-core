@@ -1,42 +1,32 @@
 package br.com.lhamalog.core.notificationpreferences;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import java.time.Instant;
-import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
-import org.testcontainers.mongodb.MongoDBContainer;
 import br.com.lhamalog.core.product.*;
 import br.com.lhamalog.core.shared.CompanySession;
+import br.com.lhamalog.core.support.CoreIntegrationTest;
+import br.com.lhamalog.core.support.TestTenants;
 import tools.jackson.databind.json.JsonMapper;
 
-@SpringBootTest(properties = {
-    "management.otlp.metrics.export.enabled=false", "management.tracing.export.otlp.enabled=false",
+/** Real Clerk tokens and an ACTIVE tenant per organization (LLT-163): the stored company is the internal tenant id. */
+@CoreIntegrationTest
+@TestPropertySource(properties = {
     "lhamalog.notification-preferences.catalog.types[test-event]=Evento de teste",
     "lhamalog.notification-preferences.catalog.severities[test-level]=Nível de teste"
 })
-@AutoConfigureMockMvc
-@Import(NotificationPreferencesHttpTests.Database.class)
 class NotificationPreferencesHttpTests {
-    @TestConfiguration(proxyBeanMethods = false)
-    static class Database {
-        @Bean @ServiceConnection
-        MongoDBContainer preferencesMongoContainer() { return new MongoDBContainer("mongo:8.0.34"); }
-    }
     @Autowired MockMvc mvc;
+    @Autowired MongoTemplate mongo;
     @Autowired NotificationPreferencesService service;
     @Autowired ProductRepository products;
     @Autowired ProductAccessRepository accesses;
@@ -50,11 +40,19 @@ class NotificationPreferencesHttpTests {
             """.formatted(web, email, push, products, types, severity, version);
     }
     private static String selected(String id) { return "{\"all\":false,\"ids\":[\"" + id + "\"]}"; }
-    private static RequestPostProcessor session(String company, String user) {
-        return jwt().jwt(token -> token.subject(user).claim("o", Map.of("id", company, "rol", "member")));
+    private TestTenants tenants;
+    private TestTenants tenants() {
+        if (tenants == null) tenants = new TestTenants(mongo);
+        return tenants;
+    }
+    private static String organization() { return "org_test_" + UUID.randomUUID(); }
+    /** Internal tenant id of a new organization with an ACTIVE tenant. */
+    private String company(String organization) { return tenants().tenantId(organization); }
+    private RequestPostProcessor session(String organization, String user) {
+        return tenants().session(organization, user, "member");
     }
     @Test void defaultsPersistenceIsolationAndConflicts() throws Exception {
-        String company = UUID.randomUUID().toString(), user = UUID.randomUUID().toString();
+        String company = organization(), user = UUID.randomUUID().toString();
         var auth = session(company, user);
         mvc.perform(get(PATH).with(auth)).andExpect(status().isOk())
             .andExpect(jsonPath("$.web").value(true)).andExpect(jsonPath("$.email").value(false))
@@ -66,7 +64,7 @@ class NotificationPreferencesHttpTests {
         long version = JsonMapper.shared().readTree(saved.getResponse().getContentAsString()).get("version").longValue();
         mvc.perform(get(PATH).with(auth)).andExpect(jsonPath("$.email").value(true));
         mvc.perform(get(PATH).with(session(company,"other"))).andExpect(jsonPath("$.email").value(false));
-        mvc.perform(get(PATH).with(session("other",user))).andExpect(jsonPath("$.email").value(false));
+        mvc.perform(get(PATH).with(session(organization(),user))).andExpect(jsonPath("$.email").value(false));
         mvc.perform(put(PATH).with(auth).contentType(MediaType.APPLICATION_JSON)
             .content(body(true,false,true,ALL,ALL,ALL,version))).andExpect(status().isOk())
             .andExpect(jsonPath("$.push").value(true)).andExpect(jsonPath("$.email").value(false));
@@ -76,9 +74,10 @@ class NotificationPreferencesHttpTests {
             .content(body(true,true,false,ALL,ALL,ALL,null))).andExpect(status().isConflict());
     }
     @Test void rejectsInvalidChannelsCatalogSelectionsAndUnauthenticatedRequests() throws Exception {
-        var auth = session(UUID.randomUUID().toString(),UUID.randomUUID().toString());
+        var auth = session(organization(),UUID.randomUUID().toString());
         mvc.perform(get(PATH)).andExpect(status().isUnauthorized());
-        mvc.perform(get(PATH).with(jwt())).andExpect(status().isForbidden());
+        mvc.perform(get(PATH).with(TestTenants.withoutOrganization(UUID.randomUUID().toString())))
+            .andExpect(status().isForbidden());
         mvc.perform(get(PATH + "/catalog").with(auth)).andExpect(status().isOk())
             .andExpect(jsonPath("$.types[0].id").value("test-event"));
         for (String invalid : new String[] {
@@ -96,13 +95,13 @@ class NotificationPreferencesHttpTests {
         mvc.perform(get(PATH).with(auth)).andExpect(jsonPath("$.email").value(false));
     }
     @Test void evaluationCombinesFiltersAndRechecksAccess() throws Exception {
-        String company = UUID.randomUUID().toString(), user = UUID.randomUUID().toString();
+        String organization = organization(), company = company(organization), user = UUID.randomUUID().toString();
         String id = UUID.randomUUID().toString(), second = UUID.randomUUID().toString();
         Product product = products.insert(new Product(id,company,id,id,"","","","ACTIVE",Instant.now(),null,null,null));
         products.insert(new Product(second,company,second,second,"","","","ACTIVE",Instant.now(),null,null,null));
         accesses.insert(new ProductAccess(id + user,company,id,user));
         accesses.insert(new ProductAccess(second + user,company,second,user));
-        var auth = session(company,user);
+        var auth = session(organization,user);
         mvc.perform(put(PATH).with(auth).contentType(MediaType.APPLICATION_JSON)
             .content(body(true,true,false,selected(id),selected("test-event"),selected("test-level"),null)))
             .andExpect(status().isOk());
@@ -132,10 +131,10 @@ class NotificationPreferencesHttpTests {
     }
 
     @Test void deactivatedMemberCannotReadCatalogOrChangePreferences() throws Exception {
-        String company = UUID.randomUUID().toString(), user = UUID.randomUUID().toString();
+        String organization = organization(), company = company(organization), user = UUID.randomUUID().toString();
         members.insert(new br.com.lhamalog.core.member.CompanyMember(
             br.com.lhamalog.core.member.CompanyMember.idOf(company,user), company,user,false,"deactivated",null,null));
-        var auth = session(company,user);
+        var auth = session(organization,user);
         mvc.perform(get(PATH).with(auth)).andExpect(status().isForbidden())
             .andExpect(jsonPath("$.code").value("user_deactivated"));
         mvc.perform(get(PATH + "/catalog").with(auth)).andExpect(status().isForbidden());

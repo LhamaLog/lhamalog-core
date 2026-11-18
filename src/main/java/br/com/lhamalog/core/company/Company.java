@@ -5,13 +5,18 @@ import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-@Document("Tenant")
+/**
+ * Company data (Empresa) of a tenant. It lives in the tenant document itself (ADR_121: the tenant is the company), next
+ * to the fields owned by the tenant module (name, status). {@code id} is the internal tenant id, never the Clerk
+ * organization id. Writes must be partial updates of the company fields only; never save this record as a whole
+ * document (see {@link CompanyService}). {@code version} is null until the first save and is checked by hand.
+ */
+@Document(CompanyService.TENANT_COLLECTION)
 public record Company(@Id String id, String clerkOrgId, Data data, Context context, Address address,
 		Preferences preferences, CompanySettingsState settings, Logo logo, Instant updatedAt, String updatedByUserId,
-		@Version Long version) {
+		Long version) {
 
 	public record Data(String legalName, String tradeName, String document, LocalDate registrationDate, String size,
 			String stateRegistration, String email, String sector, String description, String website) {}
@@ -31,9 +36,27 @@ public record Company(@Id String id, String clerkOrgId, Data data, Context conte
 
 	public record Logo(String fileName, String contentType, long sizeBytes, Instant updatedAt) {}
 
-	public static Company empty(String organizationId) {
-		return new Company(organizationId, organizationId, new Data("", "", "", null, "", "", "", "", "", ""),
-				new Context("", "", "", "", "", List.of(), "", List.of(), ""),
-				new Address("", "", "", "", "", "", "", "", "", null), null, null, null, null, null, null);
+	/** A tenant whose company was never saved (or was removed): every company part empty. */
+	public static Company empty(String tenantId, String clerkOrgId) {
+		return new Company(tenantId, clerkOrgId, emptyData(), emptyContext(), emptyAddress(), null, null, null, null, null,
+				null);
+	}
+
+	/** Fills the company parts never saved yet with empty values, keeping the other fields. */
+	public Company withDefaults() {
+		return new Company(id, clerkOrgId, data != null ? data : emptyData(), context != null ? context : emptyContext(),
+				address != null ? address : emptyAddress(), preferences, settings, logo, updatedAt, updatedByUserId, version);
+	}
+
+	private static Data emptyData() {
+		return new Data("", "", "", null, "", "", "", "", "", "");
+	}
+
+	private static Context emptyContext() {
+		return new Context("", "", "", "", "", List.of(), "", List.of(), "");
+	}
+
+	private static Address emptyAddress() {
+		return new Address("", "", "", "", "", "", "", "", "", null);
 	}
 }

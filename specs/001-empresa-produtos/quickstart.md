@@ -22,7 +22,7 @@ $env:OTLP_ENABLED='false'
 
 Ajuste MongoDB para as credenciais da sua infra. A API usa porta 8080. Sem issuer/JWKS/origens, tokens são rejeitados; não existe fallback Basic. Health/info permanecem públicos, mas o estado de saúde depende também dos serviços configurados.
 
-`CLERK_ADMIN_ROLES` define os slugs confiáveis de administrador/dono da instância, separados por vírgula; padrão `admin`, que corresponde ao papel built-in Clerk. Se a instância usa papel DONO customizado, adicionar seu slug real à variável, sem inferi-lo pelo nome exibido. Isso não cria papéis. Todos os demais membros exigem vínculo AcessoProduto. O criador recebe esse vínculo automaticamente. Gestão de concessão/revogação de acessos de outros membros permanece fora desta feature.
+(Obsoleto desde a integração com a LLT-163, ver o fim deste guia: `CLERK_ADMIN_ROLES` foi removida.) `CLERK_ADMIN_ROLES` definia os slugs confiáveis de administrador/dono da instância, separados por vírgula; padrão `admin`, que corresponde ao papel built-in Clerk. Se a instância usa papel DONO customizado, adicionar seu slug real à variável, sem inferi-lo pelo nome exibido. Isso não cria papéis. Todos os demais membros exigem vínculo AcessoProduto. O criador recebe esse vínculo automaticamente. Gestão de concessão/revogação de acessos de outros membros permanece fora desta feature.
 
 ## Iniciar Web
 
@@ -97,3 +97,19 @@ Nova tentativa de verify completo com Docker disponível: interrompida durante d
 ## Atualização: Clerk local configurada
 
 Em 04/11/2026, o usuário autorizou criar LhamaLog Local e configurar a instância de desenvolvimento no .env ignorado. Tela de login real conferida no localhost:5173. As observações anteriores sobre ausência de chave são históricas; login e operações autenticadas ainda precisam de aceite. Consulte o progresso em lhamalog_docs/planejamento/progresso-empresa-produtos.md.
+
+## Integração com a LLT-163/164 (09/11/2026)
+
+A segurança desta feature passou a ser a da LLT-163 (specs/002-validacao-token-clerk) e os webhooks da LLT-164 (specs/003-webhooks-clerk) entraram junto. O que mudou para Empresa e Produtos:
+
+- O `ClerkTokenValidator` foi removido: a validação do token (RS256, exp/nbf obrigatórios, iss, azp, sts) é feita pelos validadores da LLT-163.
+- O `CompanySession` é montado pelo `CurrentRequestContext`. O `tenantId` é o id interno do Tenant (coleção `tenant`), não o `org_id`. O administrador é o papel `admin` da organização; `CLERK_ADMIN_ROLES` foi removida.
+- Toda chamada exige um Tenant `ACTIVE` para a organização ativa. Sem ele: 403 e revogação das sessões. No perfil local, `DEV_TENANT_CLERK_ORG_ID` cria esse Tenant ao subir.
+- A Empresa é gravada no documento do Tenant, só nos campos data, context, address e version (gravação parcial com versão otimista), sem tocar em name e status.
+- Os testes `ApiSecurityTests`, `CompanySessionTests` e `CompanyProductIntegrationTests` usam Testcontainers e tokens assinados de teste (`support.TestJwks`), sem `TEST_MONGODB_URI`. Comando único: `.\mvnw.cmd clean verify` com o Docker ligado.
+- No Docker integrado (`compose.app.yaml`), `CLERK_ISSUER` é obrigatória; `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SIGNING_SECRET` e `DEV_TENANT_CLERK_ORG_ID` são opcionais.
+
+## Validação final (17/11/2026)
+
+- `.\mvnw.cmd clean verify` completo com Docker e JDK 25: 295 testes, 0 falhas, 0 ignorados, já com a LLT-173 da `Development` (fecha a T012).
+- Login com segundo fator, logout, troca entre duas organizações com Tenant, isolamento de produtos entre elas e recusa da organização sem Tenant conferidos com a instância de desenvolvimento da Clerk e o Web, pelos roteiros V1 a V10 de `specs/008-login-organizacao-teste/quickstart.md` e E1 a E12 do quickstart da spec 006 do `lhamalog-web` (fecha a T013). Resultado registrado no PR #6.

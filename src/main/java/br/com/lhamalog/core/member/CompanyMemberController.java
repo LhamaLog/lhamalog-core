@@ -1,8 +1,6 @@
 package br.com.lhamalog.core.member;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,22 +28,22 @@ public class CompanyMemberController {
 	}
 
 	@GetMapping
-	public ListResponse list(@AuthenticationPrincipal Jwt jwt) {
-		return service.list(requireAdministrator(jwt).tenantId());
+	public ListResponse list() {
+		return service.list(requireAdministrator().tenantId());
 	}
 
 	@PostMapping("/{userId}/deactivation")
-	public CompanyMemberView deactivate(@AuthenticationPrincipal Jwt jwt, @PathVariable String userId) {
-		return service.deactivate(requireAdministrator(jwt).tenantId(), userId);
+	public CompanyMemberView deactivate(@PathVariable String userId) {
+		return service.deactivate(requireAdministrator().tenantId(), userId);
 	}
 
 	@DeleteMapping("/{userId}/deactivation")
-	public CompanyMemberView reactivate(@AuthenticationPrincipal Jwt jwt, @PathVariable String userId) {
-		return service.reactivate(requireAdministrator(jwt).tenantId(), userId);
+	public CompanyMemberView reactivate(@PathVariable String userId) {
+		return service.reactivate(requireAdministrator().tenantId(), userId);
 	}
 
-	private CompanySession requireAdministrator(Jwt jwt) {
-		CompanySession session = sessions.resolve(jwt);
+	private CompanySession requireAdministrator() {
+		CompanySession session = sessions.current();
 		if (!session.administrator()) {
 			throw new ApiStatusException(HttpStatus.FORBIDDEN, NOT_ADMIN, NOT_ADMIN_CODE);
 		}

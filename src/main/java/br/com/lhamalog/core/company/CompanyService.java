@@ -14,8 +14,15 @@ import br.com.lhamalog.core.company.CompanyResponses.CompanyResponse;
 import br.com.lhamalog.core.shared.FieldValidationException;
 import tools.jackson.databind.JsonNode;
 
+/**
+ * Empresa of the current tenant: registration, context (with revisions), preferences and logo. The company lives in the
+ * tenant document ({@link CompanyRepository}), so the tenant always exists here: the security layer only grants
+ * requests of an ACTIVE tenant (LLT-163).
+ */
 @Service
 public class CompanyService {
+	static final String TENANT_COLLECTION = "tenant";
+
 	private final CompanyRepository companies;
 	private final CompanyLogoRepository logos;
 	private final CompanyContextRevisionRepository revisions;
@@ -91,23 +98,20 @@ public class CompanyService {
 	}
 
 	/**
-	 * Removes this organization's registration documents only.
+	 * Removes this tenant's company data, logo and context revisions; the tenant itself stays.
 	 * Products, product access, and the identity provider organization stay.
 	 * No audit collection, metric, or event is written.
 	 */
 	public CompanyResponse deleteRegistration(String tenantId) {
-		if (companies.findById(tenantId).isEmpty()) {
-			return CompanyResponses.from(Company.empty(tenantId), null);
-		}
-		companies.deleteById(tenantId);
+		Company current = load(tenantId);
+		companies.clear(tenantId);
 		logos.deleteById(tenantId);
 		revisions.deleteByTenantId(tenantId);
-		return CompanyResponses.from(Company.empty(tenantId), null);
+		return CompanyResponses.from(Company.empty(tenantId, current.clerkOrgId()), null);
 	}
 
 	public CompanyLogo logo(String tenantId) {
-		Company current = companies.findById(tenantId)
-				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "A empresa não tem logotipo."));
+		Company current = load(tenantId);
 		if (current.logo() == null) {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "A empresa não tem logotipo.");
 		}
@@ -120,7 +124,9 @@ public class CompanyService {
 	}
 
 	private Company load(String tenantId) {
-		return companies.findById(tenantId).orElseGet(() -> Company.empty(tenantId));
+		// The security layer only grants access to existing tenants; this guards against a concurrent removal.
+		return companies.findById(tenantId).map(Company::withDefaults)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Empresa não encontrada."));
 	}
 
 	private static Company audited(Company company, Long version, String userId) {

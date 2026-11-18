@@ -26,8 +26,8 @@ Spec e plano neste diretório. Esclarecimentos concluídos na spec. Marcar apena
 Dependências: T001/T002 → T003/T004/T005; esclarecimentos registrados → T006 → T007/T008 → T009/T010 → T011. Testes de decoder e desenho visual podem ser preparados independentemente; implementação Empresa precede Produtos.
 
 ## Validação externa pendente
-- [ ] T012 Executar verify completo com Docker e registrar resultado em `quickstart.md`.
-- [ ] T013 Exercitar login/logout e organizações na instância Clerk real e registrar em `quickstart.md`.
+- [X] T012 Executar verify completo com Docker e registrar resultado em `quickstart.md`.
+- [X] T013 Exercitar login/logout e organizações na instância Clerk real e registrar em `quickstart.md`.
 
 ## P05 — Inicialização integrada
 - [x] T014 Preparar e validar imagem Java 25 e Compose de Core/Web com dependências saudáveis, mantendo volumes existentes.

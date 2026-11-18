@@ -1,13 +1,11 @@
 package br.com.lhamalog.core.member;
 
-import java.util.Map;
-
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.servlet.HandlerInterceptor;
 
+import br.com.lhamalog.core.identity.adapter.in.security.ClerkAuthentication;
+import br.com.lhamalog.core.identity.domain.AccessDecision;
 import br.com.lhamalog.core.shared.ApiStatusException;
 import br.com.lhamalog.core.shared.CompanySession;
 import br.com.lhamalog.core.shared.CompanySessionResolver;
@@ -29,24 +27,17 @@ public class MemberAccessInterceptor implements HandlerInterceptor {
 
 	@Override
 	public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-		if (authentication == null || !(authentication.getPrincipal() instanceof Jwt jwt) || !hasOrganization(jwt)) {
+		// The security chain (LLT-163) already granted every /api/** request: active organization, known role and an
+		// ACTIVE tenant. Without that context (public routes) there is nothing to check.
+		if (!(SecurityContextHolder.getContext().getAuthentication() instanceof ClerkAuthentication clerk)
+				|| !(clerk.decision() instanceof AccessDecision.Granted)) {
 			return true;
 		}
-		CompanySession session = sessions.resolve(jwt);
+		CompanySession session = sessions.current();
 		if (members.isDeactivated(session.tenantId(), session.userId())) {
 			throw new ApiStatusException(HttpStatus.FORBIDDEN, DEACTIVATED, DEACTIVATED_CODE);
 		}
 		members.observe(session.tenantId(), session.userId(), session.administrator());
 		return true;
-	}
-
-	private static boolean hasOrganization(Jwt jwt) {
-		Map<String, Object> organization = jwt.getClaimAsMap("o");
-		if (organization != null) {
-			return organization.get("id") instanceof String id && !id.isBlank();
-		}
-		String organizationId = jwt.getClaimAsString("org_id");
-		return organizationId != null && !organizationId.isBlank();
 	}
 }
