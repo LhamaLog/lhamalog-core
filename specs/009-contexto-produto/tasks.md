@@ -62,7 +62,7 @@
 
 ## Phase 6: Polish
 
-- [ ] T016 Executar o verify do `quickstart.md` com `TEST_MONGODB_URI` em banco novo, confirmar 0 pulados e registrar o resultado em "Resultados executados"
+- [X] T016 Executar o verify do `quickstart.md` com Testcontainers (desde a LLT-163, sem `TEST_MONGODB_URI`), confirmar 0 pulados e registrar o resultado em "Resultados executados"
 - [ ] T017 Conferir com `git status` que só mudaram os arquivos de T001 e `specs/009-contexto-produto/`; conferir ausência de segredos e de chamada à LLM
 - [ ] T018 Avisar o time do front que o `context` do produto mudou de campos (ver `quickstart.md`) e confirmar que nenhum ambiente tem produto gravado com `context.problemSolved`
 
@@ -89,4 +89,4 @@
 
 - T001–T015 implementados pela IA em 10/11/2026, sem execução local (ambiente sem Maven); T016 confirma
 - T019–T023 implementados pela IA em 17/11/2026, também sem execução no ambiente da IA (Maven Central bloqueado); T016 confirma
-- Commits `LLT-178: <descricao>`; branch `feature/LLT-178-contexto-produto`
+- Commits `LLT-178: <descricao>`; branch `LLT-178-contexto-produto`

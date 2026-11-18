@@ -33,7 +33,7 @@ Conferir no fim `Skipped: 0`. Só os testes desta feature: `.\mvnw.cmd '-Dtest=C
 
 ## Aceite local
 
-`.\mvnw.cmd verify` verde com `TEST_MONGODB_URI` definido, na máquina do desenvolvedor. Correspondência com a spec: SC-001 (1, 3), SC-002 (3, 4), SC-003 (5), SC-004 (7), SC-005 (8).
+`.\mvnw.cmd verify` verde com o Docker Desktop aberto (Testcontainers), na máquina do desenvolvedor. Correspondência com a spec: SC-001 (1, 3), SC-002 (3, 4), SC-003 (5), SC-004 (7), SC-005 (8).
 
 ## Aviso para o front
 
@@ -50,4 +50,4 @@ Documentos antigos não quebram a leitura (o campo antigo é ignorado e os novos
 ## Resultados executados
 
 - 15/11/2026 17:55 (-03:00), branch `LLT-178-contexto-produto` criada a partir da `Development` (f1e56ef): `docker start mongo-teste`, `$env:TEST_MONGODB_URI='mongodb://127.0.0.1:27019/lhamalog_contexto_produto_test'`, `.\mvnw.cmd verify`. Resultado: BUILD FAILURE na compilação; 0 testes executados, 0 falhas, 0 pulados. Causa: o `ProductService` usa `findByTenantIdAndArchivedAtIsNullOrderByNameAscIdAsc`, `findByTenantIdAndArchivedAtIsNotNullOrderByNameAscIdAsc` e as variantes com `IdIn`, que só existem no `ProductRepository` da LLT-123, ausente na `Development`.
-- Aceite pendente: rodar de novo quando a base tiver a LLT-123 e a LLT-177.
+- 17/11/2026 22:36 (-03:00), branch `LLT-178-contexto-produto` no commit `eb8a414` (já com a `Development` atual, incluindo LLT-123, LLT-177, #13 e #6/LLT-163), Docker Desktop aberto e Testcontainers, sem `TEST_MONGODB_URI`: `.\mvnw.cmd verify`. Resultado: BUILD SUCCESS; 308 testes, 0 falhas, 0 erros, 0 pulados (2min53s). Desta feature: `ProductContextIntegrationTests` 10, `ProductContextRevisionCompensationTests` 3, `ProductEditArchiveIntegrationTests` 10, `ProductUniqueNameIntegrationTests` 19 e `CompanyProductIntegrationTests` 5, todos verdes. Observação: a falha conhecida da `Development` em `CompanyRegistrationHttpTests.adminDeletesRegistrationAndMemberCannot` não apareceu nesta execução (a classe passou com 7 testes). Aceite local cumprido.
