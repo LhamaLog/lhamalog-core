@@ -48,7 +48,7 @@
 
 ## Fase 3: catálogo de cargos de notificação (US3)
 
-- [ ] T016 [P] [US3] Criar `src/test/java/br/com/lhamalog/core/notificationrole/NotificationRoleHttpTests.java`, cobrindo os cenários 1 a 9 da US3:
+- [X] T016 [P] [US3] Criar `src/test/java/br/com/lhamalog/core/notificationrole/NotificationRoleHttpTests.java`, cobrindo os cenários 1 a 9 da US3:
   - seed dos 5 cargos, com dois `GET` simultâneos sem duplicar;
   - criar personalizado;
   - nome repetido responde 409 (inclusive com maiúsculas e espaços), e o nome de um cargo excluído pode ser reutilizado;
@@ -58,12 +58,12 @@
   - listas inválidas respondem 400;
   - `version` velha responde 409;
   - membro responde 403.
-- [ ] T017 [P] [US3] Criar os enums `notificationrole/application/Severity.java`, `AlertType.java` e `DefaultRole.java` (OWNER "Dono", imutável; ADMIN "Administrador", imutável; MANAGER "Gestor"; SUPERVISOR "Supervisor"; MEMBER "Membro").
-- [ ] T018 [US3] Criar `notificationrole/application/NotificationRole.java` (record), `NotificationRoleRepository.java` (porta), `infrastructure/NotificationRoleDocument.java` (`@Document("NotificationRole")`, `@Version`) e `infrastructure/MongoNotificationRoleRepository.java`:
+- [X] T017 [P] [US3] Criar os enums `notificationrole/application/Severity.java`, `AlertType.java` e `DefaultRole.java` (OWNER "Dono", imutável; ADMIN "Administrador", imutável; MANAGER "Gestor"; SUPERVISOR "Supervisor"; MEMBER "Membro").
+- [X] T018 [US3] Criar `notificationrole/application/NotificationRole.java` (record), `NotificationRoleRepository.java` (porta), `infrastructure/NotificationRoleDocument.java` (`@Document("NotificationRole")`, `@Version`) e `infrastructure/MongoNotificationRoleRepository.java`:
   - `ensureDefaults(tenantId)` faz um upsert por `defaultKey` com `setOnInsert`;
   - `findActive`, `findById`, `save`, `addMember` (`$addToSet`) e `removeMember` (`$pull`).
-- [ ] T019 [US3] Criar os índices da tabela de `data-model.md`. Se `@CompoundIndex(partialFilter=...)` não funcionar, criar `infrastructure/NotificationRoleIndexInitializer.java` com `IndexOperations`, no padrão do `UsageMongoIndexInitializer`.
-- [ ] T020 [US3] Criar `notificationrole/application/NotificationRoleService.java`:
+- [X] T019 [US3] Criar os índices da tabela de `data-model.md`. Se `@CompoundIndex(partialFilter=...)` não funcionar, criar `infrastructure/NotificationRoleIndexInitializer.java` com `IndexOperations`, no padrão do `UsageMongoIndexInitializer`.
+- [X] T020 [US3] Criar `notificationrole/application/NotificationRoleService.java`:
   - seed na entrada de toda operação;
   - validação de nome (1 a 60 caracteres, normalizado com `Locale.ROOT`) e das listas (personalizado de 1 a 3; padrão editável de 0 a 3 na criação e de 1 a 3 no PUT);
   - 409 `role_name_in_use` traduzido da `DuplicateKeyException` do índice de nome;
@@ -71,8 +71,8 @@
   - 404 `role_not_found` para cargo excluído ou de outra empresa;
   - exclusão lógica;
   - logs `event=notification_role.created|updated|deleted`.
-- [ ] T021 [US3] Criar `notificationrole/api/NotificationRoleViews.java` e `NotificationRoleController.java` com `GET/POST /`, `GET/PATCH/DELETE /{roleId}`, `PUT /{roleId}/severities` e `PUT /{roleId}/alert-types` (exige `NOTIFICATION_ROLES_MANAGE`).
-- [ ] T022 [US3] Rodar `.\mvnw.cmd verify`. Parar para revisão.
+- [X] T021 [US3] Criar `notificationrole/api/NotificationRoleViews.java` e `NotificationRoleController.java` com `GET/POST /`, `GET/PATCH/DELETE /{roleId}`, `PUT /{roleId}/severities` e `PUT /{roleId}/alert-types` (exige `NOTIFICATION_ROLES_MANAGE`).
+- [X] T022 [US3] Rodar `.\mvnw.cmd verify`. Parar para revisão.
 
 ## Fase 4: atribuir cargo (US4)
 
