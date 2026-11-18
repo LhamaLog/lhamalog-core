@@ -111,7 +111,7 @@ Base: `src/main/java/br/com/lhamalog/core/` (abreviado `main/`) e `src/test/java
 - [X] T034 [P] README do core: seção "Contratar um plano (Asaas simulado)" com o roteiro curto e as variáveis novas; nota de que o seed `DEV_TENANT_CLERK_ORG_ID` continua valendo
 - [X] T035 [P] Conferir todos os logs novos contra o princípio VI (`event=`, sem token, nome da empresa ou e-mail)
 - [X] T036 Rodar `.\mvnw.cmd clean verify` com o Docker Desktop aberto e registrar o total de testes — 2026-11-18: BUILD SUCCESS, 360 testes, 0 falhas, 0 pulados
-- [ ] T037 Roteiro manual M1–M11 do `quickstart.md` com a Clerk real (precisa do Core e do web no ar); registrar o resultado no PR — 2026-11-18: feitos só os passos sem sessão, com o Core no Docker (webhook sem token e com token errado → 401 `invalid_token` e log `billing.webhook.rejected` sem o token, M9; simulador com cobrança inexistente → 404; `/api/billing/plans` sem token → 401). M1–M8, M10 e M11 dependem do login real no navegador
+- [X] T037 Roteiro manual M1–M11 do `quickstart.md` com a Clerk real — 2026-11-18: M1–M9 passaram com a conta admin `+clerk_test` e a organização "Teste C sem Tenant"; M10 e M11 cobertos só pelos testes automáticos (`CheckoutIntegrationTests` e `BillingProfileTests`). Resultado em `quickstart.md`, seção "Resultados executados"
 
 ---
 

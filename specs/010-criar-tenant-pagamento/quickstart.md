@@ -31,3 +31,24 @@ Pré-requisitos: o Core no ar (`docker compose up -d --build`) e o `.env` da spe
 | M11 | Com o Core em `SPRING_PROFILES_ACTIVE=prod` (e as variáveis de prod), abrir `/dev/fake-asaas/checkouts/x` | 404 |
 
 No Mongo (`lhamalog_core`): um documento em `tenant` com `originOrderId`, um em `tenant_subscription`, um `member` com `role: DONO` e os eventos em `gateway_event`.
+
+## Resultados executados
+
+18/11/2026, Core no Docker (perfil local) com o PR #14, Web da `Development` em `npm run dev`, instância de desenvolvimento da Clerk, conta admin `+clerk_test` (TOTP) e a organização "Teste C sem Tenant".
+
+| # | Resultado | Observado |
+|---|---|---|
+| M1 | passou | 403 `subscription_required` com mensagem; o Web mostrou "Contrate um plano para continuar" sem logout; log `access.denied.subscription_required`, nenhuma revogação |
+| M2 | passou | 200 com FREE, STARTER, PRO, BUSINESS e ENTERPRISE |
+| M3 | passou | 201, pedido `PENDING` e `paymentUrl` do simulador |
+| M4 | passou | página com empresa, plano STARTER e R$ 49,90 |
+| M5 | passou | `billing.fake.payment_sent` (webhook 200) e `billing.activation.executed` |
+| M6 | passou | `PAID` e `subscriptionActive: true` |
+| M7 | passou | `/empresa` carrega sem recusa |
+| M8 | passou | segundo pagamento → evento `IGNORED order_already_paid`; nada duplicado |
+| extra | passou | novo checkout com Tenant ativo → 409 `already_subscribed` |
+| M9 | passou | token ausente ou errado → 401 `invalid_token`; log sem o token |
+| M10 | teste automático | sem login real da conta membro; `CheckoutIntegrationTests.memberWhoIsNotAdministratorCannotBuyAndStaysSignedIn` |
+| M11 | teste automático | sem reiniciar em prod; `BillingProfileTests` |
+
+No Mongo: um Tenant `ACTIVE` com `originOrderId`, uma `tenant_subscription` STARTER, o admin como `DONO` e dois eventos em `gateway_event` (`EXECUTED` e `IGNORED`). Depois, o mesmo fluxo foi repetido só com cliques pela tela `/plano` do Web (spec 007, PR #9 do lhamalog-web).
