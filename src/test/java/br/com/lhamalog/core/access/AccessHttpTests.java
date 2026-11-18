@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -162,6 +163,29 @@ class AccessHttpTests {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.ownerUserId").value("user_a"));
 		assertTrue(output.getOut().contains("event=access.owner.duplicated"));
+	}
+
+	@Test
+	void ownerCannotBeDeactivatedAndStaysActive() throws Exception {
+		String org = organization();
+		var owner = session(org, "user_owner", "admin");
+		var otherAdmin = session(org, "user_admin_b", "admin");
+		mvc.perform(get("/api/products").with(owner)).andExpect(status().isOk());
+		mvc.perform(get("/api/products").with(otherAdmin)).andExpect(status().isOk());
+		owner(org, "user_owner");
+
+		mvc.perform(post("/api/company/members/user_owner/deactivation").with(otherAdmin))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value("owner_protected"))
+				.andExpect(jsonPath("$.message").value("Não é possível desativar o Dono da empresa."));
+		mvc.perform(get("/api/company/members").with(otherAdmin)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.members[?(@.userId=='user_owner')].status").value(hasItem("active")));
+		mvc.perform(get("/api/company/access/me").with(owner)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.role").value("OWNER"));
+
+		// Anyone else still follows the LLT-168 rule.
+		mvc.perform(post("/api/company/members/user_admin_b/deactivation").with(owner)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.status").value("deactivated"));
 	}
 
 	/** Active member with role DONO, as the purchase flow creates it (ADR_121, spec 003). */

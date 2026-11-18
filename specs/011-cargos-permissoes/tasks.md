@@ -91,9 +91,9 @@
 
 ## Fase 5: proteger o Dono (US5)
 
-- [ ] T027 [US5] Em `AccessHttpTests`, acrescentar o cenário: o admin A tem `member` DONO (gravado no teste); o admin B tenta desativar A pela rota da LLT-168 e recebe 403 `owner_protected`; A continua `active` no `GET /api/company/members`. Rodar e ver falhar.
-- [ ] T028 [US5] Em `member/CompanyMemberController.java` (LLT-168), injetar o `AccessService` e, em `deactivate`, recusar o Dono com `ApiStatusException(FORBIDDEN, "Não é possível desativar o Dono da empresa.", "owner_protected")`, antes de chamar o serviço. **Avisar o Vinicius no PR** (C6).
-- [ ] T029 [US5] Rodar `.\mvnw.cmd verify`, inclusive `CompanyMemberHttpTests`, que tem que continuar verde sem mudança.
+- [X] T027 [US5] Em `AccessHttpTests`, acrescentar o cenário: o admin A tem `member` DONO (gravado no teste); o admin B tenta desativar A pela rota da LLT-168 e recebe 403 `owner_protected`; A continua `active` no `GET /api/company/members`. Rodar e ver falhar.
+- [X] T028 [US5] Em `member/CompanyMemberController.java` (LLT-168), injetar o `AccessService` e, em `deactivate`, recusar o Dono com `ApiStatusException(FORBIDDEN, "Não é possível desativar o Dono da empresa.", "owner_protected")`, antes de chamar o serviço. **Avisar o Vinicius no PR** (C6).
+- [X] T029 [US5] Rodar `.\mvnw.cmd verify`, inclusive `CompanyMemberHttpTests`, que tem que continuar verde sem mudança.
 
 ## Fase 6: fechamento
 
