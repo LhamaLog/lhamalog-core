@@ -28,8 +28,24 @@ Para conferências manuais no banco, use só o seu container e o banco desta fea
 | `CompanyMemberHttpTests` (LLT-168) | continua verde sem mudança |
 
 Linha de base antes do código (T001): 18/11/2026, de 06:51 a 06:54 (-03:00), branch `LLT-120-cargos-permissoes` em `de4cd79` (igual à `origin/Development`), Docker Desktop 29.6.2. `.\mvnw.cmd -B clean verify`: BUILD SUCCESS, com **308 testes, 0 falhas, 0 erros e 0 ignorados**. O ERROR `ClerkWebhookController.receive ... DataIntegrityViolationException` no log é de um cenário de falha proposital da `ClerkWebhookTests`, que passou.
-Resultado final (T034): _preencher_.
+Resultado final (T034): 18/11/2026, de 07:35 a 07:38 (-03:00), branch `LLT-120-cargos-permissoes` no commit `8bb3f3b` mais os ajustes de documentação da Fase 6. `.\mvnw.cmd -B clean verify`: BUILD SUCCESS, com **347 testes, 0 falhas, 0 erros e 0 ignorados** (308 da linha de base + 39 novos: `AccessHttpTests` 11, `AccessPolicyTest` 5, `MemberProductAccessHttpTests` 7, `NotificationRoleHttpTests` 10, `NotificationRoleMembersHttpTests` 6). `CompanyMemberHttpTests` (LLT-168) passou sem mudança.
 
+## Rotas desta feature
+
+Todas exigem sessão com empresa. Detalhes em `contracts/api.md`.
+
+| Método e rota | Quem pode | Para quê |
+|---|---|---|
+| `GET /api/company/access/me` | qualquer pessoa da empresa | papel e permissões de quem chamou |
+| `GET /api/company/access` | Dono e Administrador | Dono da empresa, os três papéis e a matriz |
+| `GET` e `PUT /api/company/members/{userId}/products` | Dono e Administrador | produtos liberados para um Membro |
+| `GET` e `POST /api/company/notification-roles` | Dono e Administrador | listar (cria os padrão) e criar cargo |
+| `GET`, `PATCH` e `DELETE /api/company/notification-roles/{roleId}` | Dono e Administrador | detalhe, renomear e excluir |
+| `PUT /api/company/notification-roles/{roleId}/severities` e `/alert-types` | Dono e Administrador | trocar gravidades e tipos |
+| `PUT /api/company/notification-roles/{roleId}/members` | Dono e Administrador | trocar a lista de pessoas |
+| `POST` e `DELETE /api/company/notification-roles/{roleId}/members/{userId}` | Dono e Administrador | incluir e retirar uma pessoa |
+| `GET /api/company/members/{userId}/notification-roles` | Dono e Administrador | cargos de uma pessoa |
+| `POST /api/company/members/{userId}/deactivation` (LLT-168, alterada) | Dono e Administrador | agora recusa o Dono com 403 `owner_protected` |
 ## Conferir à mão (Core local + token do navegador)
 
 1. Suba o Core local (README do Core) e entre no Web com um admin da empresa de teste.

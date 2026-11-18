@@ -62,7 +62,7 @@
 - [X] T018 [US3] Criar `notificationrole/application/NotificationRole.java` (record), `NotificationRoleRepository.java` (porta), `infrastructure/NotificationRoleDocument.java` (`@Document("NotificationRole")`, `@Version`) e `infrastructure/MongoNotificationRoleRepository.java`:
   - `ensureDefaults(tenantId)` faz um upsert por `defaultKey` com `setOnInsert`;
   - `findActive`, `findById`, `save`, `addMember` (`$addToSet`) e `removeMember` (`$pull`).
-- [X] T019 [US3] Criar os índices da tabela de `data-model.md`. Se `@CompoundIndex(partialFilter=...)` não funcionar, criar `infrastructure/NotificationRoleIndexInitializer.java` com `IndexOperations`, no padrão do `UsageMongoIndexInitializer`.
+- [X] T019 [US3] Criar os índices da tabela de `data-model.md`. Feito com `Index.partial(PartialIndexFilter)` no `afterPropertiesSet` do `MongoNotificationRoleRepository` (padrão do `MongoMemberRepository`), sem initializer separado. O teste `indexesOfTheDataModelExistWithTheirPartialFilters` confere os três.
 - [X] T020 [US3] Criar `notificationrole/application/NotificationRoleService.java`:
   - seed na entrada de toda operação;
   - validação de nome (1 a 60 caracteres, normalizado com `Locale.ROOT`) e das listas (personalizado de 1 a 3; padrão editável de 0 a 3 na criação e de 1 a 3 no PUT);
@@ -97,12 +97,12 @@
 
 ## Fase 6: fechamento
 
-- [ ] T030 [P] Atualizar o `quickstart.md` com os comandos de teste, a correção manual do Dono e a lista de rotas.
-- [ ] T031 [P] Conferir os logs novos contra a constituição VI: formato `event=`, sem `userId` em claro, sem stack trace em condição esperada.
-- [ ] T032 Conferir que não há segredo (`sk_`, `CLERK_SECRET_KEY`, JWT) em nenhum arquivo novo.
-- [ ] T033 Rodar `speckit-analyze` e resolver as inconsistências entre spec, plan, tasks e código.
-- [ ] T034 Rodar `.\mvnw.cmd verify` final (com Docker aberto) e registrar o resumo no `quickstart.md`.
-- [ ] T035 Checklist de merge da constituição: Spec Kit completo, revisão do Pedro (ele precisa conseguir explicar cada classe), verde local, branch e commits no padrão, nenhum segredo. PR só com a confirmação do Pedro.
+- [X] T030 [P] Atualizar o `quickstart.md` com os comandos de teste, a correção manual do Dono e a lista de rotas.
+- [X] T031 [P] Conferir os logs novos contra a constituição VI: formato `event=`, sem `userId` em claro, sem stack trace em condição esperada.
+- [X] T032 Conferir que não há segredo (`sk_`, `CLERK_SECRET_KEY`, JWT) em nenhum arquivo novo.
+- [X] T033 Rodar `speckit-analyze` e resolver as inconsistências entre spec, plan, tasks e código.
+- [X] T034 Rodar `.\mvnw.cmd verify` final (com Docker aberto) e registrar o resumo no `quickstart.md`.
+- [ ] T035 Checklist de merge da constituição: Spec Kit completo, revisão do Pedro (ele precisa conseguir explicar cada classe), verde local, branch e commits no padrão, nenhum segredo. PR só com a confirmação do Pedro. **Em 18/11: verde local, branch e commits no padrão do time e nenhum segredo conferidos; faltam a revisão do Pedro, a confirmação das decisões do clarify (C1) e a emenda da constituição sobre o nome da branch (analyze A1).**
 
 ## Dependências
 

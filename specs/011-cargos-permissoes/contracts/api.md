@@ -34,6 +34,8 @@ Qualquer sessão com empresa. Só lê: o papel `OWNER` vem do `member` DONO da L
 
 `role` é `OWNER`, `ADMIN` ou `MEMBER`. `permissions` vem em ordem alfabética.
 
+Na matriz, `note` só aparece quando há observação: `PRODUCTS_EDIT` ("MEMBER só nos produtos liberados"), as três de convite e promoção ("Aplicada no Web, pela Clerk.") e `SUBSCRIPTION_MANAGE` e `PENDING_ACCESS_APPROVE` ("Ainda não existe no Core."). A matriz vem na ordem da tabela do `data-model.md`.
+
 ### `GET /api/company/access`
 
 Exige `MEMBERS_VIEW`, ou seja, Dono ou Administrador.
@@ -116,14 +118,14 @@ Formato do cargo:
 
 | Método | Caminho | Corpo | Sucesso | Recusas |
 |---|---|---|---|---|
-| GET | `/` | — | 200 `{"roles":[...]}`. Cria os padrão na primeira vez | — |
+| GET | `/` | — | 200 `{"roles":[...]}`, com os padrão na ordem Dono, Administrador, Gestor, Supervisor e Membro, depois os personalizados por nome. Cria os padrão na primeira vez | — |
 | POST | `/` | `{"name","severities":[..],"alertTypes":[..]}` | 201 cargo | 400 campos; 409 `role_name_in_use` |
 | GET | `/{roleId}` | — | 200 cargo | 404 `role_not_found` |
 | PATCH | `/{roleId}` | `{"name","version"}` | 200 cargo | 404; 409 `immutable_role`; 409 `role_name_in_use`; 409 versão |
 | DELETE | `/{roleId}` | — | 204 | 404; 409 `immutable_role` |
 | PUT | `/{roleId}/severities` | `{"severities":[..],"version"}` | 200 cargo | 400; 404; 409 `immutable_role`; 409 versão |
 | PUT | `/{roleId}/alert-types` | `{"alertTypes":[..],"version"}` | 200 cargo | 400; 404; 409 `immutable_role`; 409 versão |
-| PUT | `/{roleId}/members` | `{"memberUserIds":[..],"version"}` | 200 cargo | 400; 404; 409 `members_from_access_role`; 409 versão |
+| PUT | `/{roleId}/members` | `{"memberUserIds":[..],"version"}` | 200 cargo (ids repetidos são deduplicados) | 400 `fieldErrors.memberUserIds` (mais de 200, ou id vazio ou com mais de 200 caracteres); 404; 409 `members_from_access_role`; 409 versão |
 | POST | `/{roleId}/members/{userId}` | — | 200 cargo (idempotente) | 400 "Informe o usuário."; 404; 409 `members_from_access_role`; 409 `role_members_limit` (cargo já com 200) |
 | DELETE | `/{roleId}/members/{userId}` | — | 204 (idempotente) | 400; 404; 409 `members_from_access_role` |
 
@@ -132,6 +134,8 @@ Mensagens:
 | Código | Mensagem |
 |---|---|
 | `role_not_found` | "Cargo não encontrado." |
+| (campo `name`) | "Informe o nome do cargo, com até 60 caracteres." |
+| (campos `severities` / `alertTypes`) | "Escolha pelo menos um valor válido." |
 | `role_name_in_use` | "Já existe um cargo com este nome nesta empresa." |
 | `immutable_role` | "Este cargo é padrão e não pode ser alterado." |
 | `members_from_access_role` | "Os membros deste cargo vêm do papel de acesso." |

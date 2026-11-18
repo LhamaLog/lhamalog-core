@@ -79,6 +79,8 @@ src/main/java/br/com/lhamalog/core/
 │   │   ├── AccessPolicy.java                     # require(session, permission) -> 403 not_admin
 │   │   ├── AccessService.java                    # resolve(session), roleOf(alvo), isOwner, ownerOf
 │   │   ├── MemberRoleDirectory.java              # porta: papel do alvo e Dono (member LLT-163 + CompanyMember LLT-168)
+│   │   ├── UserHash.java                         # SHA-256 curto do userId para os logs (constituição VI)
+│   │   ├── UserIds.java                          # valida o userId do caminho (1 a 200, "Informe o usuário.")
 │   │   └── ProductAccessService.java             # replace/list sobre ProductAccessRepository
 │   └── infrastructure/
 │       └── MongoMemberRoleDirectory.java         # só leitura em member e CompanyMember (MongoTemplate)
@@ -96,8 +98,7 @@ src/main/java/br/com/lhamalog/core/
 │   │   └── NotificationRoleService.java          # seed, CRUD, membros, validações
 │   └── infrastructure/
 │       ├── NotificationRoleDocument.java         # @Document("NotificationRole")
-│       ├── MongoNotificationRoleRepository.java  # usa MongoTemplate para $addToSet/$pull e upsert dos padrão
-│       └── NotificationRoleIndexInitializer.java # índices parciais (se @CompoundIndex não aceitar partialFilter)
+│       └── MongoNotificationRoleRepository.java  # MongoTemplate: $addToSet/$pull, upsert dos padrão e os 3 índices (Index.partial) na inicialização
 ├── member/CompanyMemberController.java           # +1 checagem: owner_protected (FR-020)
 └── product/ProductAccessRepository.java          # +deleteByTenantIdAndClerkUserIdAndProductIdIn
 
@@ -127,4 +128,4 @@ src/test/java/br/com/lhamalog/core/
 | Sem fluxo de compra, nenhuma empresa real tem Dono | o quickstart mostra como marcar o `member` DONO no banco local. Decisão C1 (18/11) aguarda o Pedro |
 | Testes da LLT-168 desativam alguém que é Dono | nenhum teste antigo grava `member` DONO; só os testes novos gravam. Conferir no `verify` |
 | A unificação de `member` e `CompanyMember` (D1) muda as fontes | só o `MongoMemberRoleDirectory` lê as duas coleções |
-| `@CompoundIndex` sem `partialFilter` | `NotificationRoleIndexInitializer` com `IndexOperations` |
+| `@CompoundIndex` sem `partialFilter` | resolvido: `Index.partial(PartialIndexFilter)` no `afterPropertiesSet` do repositório, como no `MongoMemberRepository`; um teste confere os índices |
