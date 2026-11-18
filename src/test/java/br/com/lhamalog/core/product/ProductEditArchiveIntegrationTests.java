@@ -49,7 +49,7 @@ class ProductEditArchiveIntegrationTests {
 
 	private JsonNode create(RequestPostProcessor actor, String name) throws Exception {
 		return json(mvc.perform(post("/api/products").with(actor).contentType(MediaType.APPLICATION_JSON)
-				.content("{\"name\":\"" + name + "\",\"context\":{\"problemSolved\":\"Contexto original\"}}"))
+				.content("{\"name\":\"" + name + "\",\"context\":{\"functionalDescription\":\"Contexto original\"}}"))
 				.andExpect(status().isCreated()));
 	}
 
@@ -90,7 +90,7 @@ class ProductEditArchiveIntegrationTests {
 				.andExpect(jsonPath("$.description").value("Nova descrição"))
 				.andExpect(jsonPath("$.category").value("Pagamentos"))
 				.andExpect(jsonPath("$.productVersion").value("2.0"))
-				.andExpect(jsonPath("$.context.problemSolved").value("Contexto original"))
+				.andExpect(jsonPath("$.context.functionalDescription").value("Contexto original"))
 				.andExpect(jsonPath("$.status").value("CONFIGURING"));
 		assertEquals("Produto B", products.findById(id).orElseThrow().name());
 	}
@@ -162,17 +162,17 @@ class ProductEditArchiveIntegrationTests {
 		mvc.perform(get("/api/products").with(creator)).andExpect(jsonPath("$.length()").value(0));
 		mvc.perform(get("/api/products").with(admin)).andExpect(jsonPath("$.length()").value(0));
 		mvc.perform(get("/api/products/" + id).with(creator)).andExpect(status().isOk())
-				.andExpect(jsonPath("$.context.problemSolved").value("Contexto original"));
+				.andExpect(jsonPath("$.context.functionalDescription").value("Contexto original"));
 
 		long version = archived.get("version").asLong();
 		edit(creator, id, general("Mudou", "", version)).andExpect(status().isConflict())
 				.andExpect(jsonPath("$.message").value("Produto arquivado não pode ser editado."));
 		mvc.perform(put("/api/products/" + id + "/context").with(creator).contentType(MediaType.APPLICATION_JSON)
-				.content("{\"context\":{\"problemSolved\":\"Mudou\"},\"version\":" + version + "}"))
+				.content("{\"context\":{\"functionalDescription\":\"Mudou\"},\"version\":" + version + "}"))
 				.andExpect(status().isConflict());
 		Product stored = products.findById(id).orElseThrow();
 		assertEquals("Produto A", stored.name());
-		assertEquals("Contexto original", stored.context().problemSolved());
+		assertEquals("Contexto original", stored.context().functionalDescription());
 	}
 
 	@Test
@@ -260,7 +260,7 @@ class ProductEditArchiveIntegrationTests {
 		assertTrue(nullOrMissing(restored, "archivedAt"));
 		mvc.perform(get("/api/products").with(creator)).andExpect(jsonPath("$[0].id").value(id));
 		mvc.perform(get("/api/products/" + id).with(creator))
-				.andExpect(jsonPath("$.context.problemSolved").value("Contexto original"));
+				.andExpect(jsonPath("$.context.functionalDescription").value("Contexto original"));
 
 		JsonNode again = json(changeArchive(admin, id, "unarchive", restored.get("version").asLong())
 				.andExpect(status().isOk()));

@@ -47,6 +47,19 @@ public class ProductController {
 	public Product updateContext(@PathVariable String id, @Valid @RequestBody UpdateContext request) {
 		return service.updateContext(sessions.current(), id, request);
 	}
+	@GetMapping("/{id}/context/revisions")
+	public ProductContextRevision.ViewList contextRevisions(@PathVariable String id) {
+		return ProductContextRevision.ViewList.from(service.contextRevisions(sessions.current(), id));
+	}
+	@GetMapping("/{id}/context/revisions/{revision}")
+	public ProductContextRevision.View contextRevision(@PathVariable String id,
+			@PathVariable long revision) {
+		return ProductContextRevision.View.from(service.contextRevision(sessions.current(), id, revision));
+	}
+	@GetMapping("/{id}/context/prompt")
+	public ProductContextPrompt contextPrompt(@PathVariable String id) {
+		return service.contextPrompt(sessions.current(), id);
+	}
 	@PostMapping("/{id}/archive")
 	public Product archive(@PathVariable String id, @Valid @RequestBody ChangeArchive request) {
 		return service.archive(sessions.current(), id, request.version());

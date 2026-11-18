@@ -182,7 +182,7 @@ class CompanyProductIntegrationTests {
 		mvc.perform(as(get("/api/products/" + id), org, "other", "member")).andExpect(status().isNotFound());
 		mvc.perform(as(get("/api/products/" + id), org, "admin", "admin")).andExpect(status().isOk());
 		mvc.perform(as(get("/api/products/" + id), organization(), "admin", "admin")).andExpect(status().isNotFound());
-		String update = "{\"context\":{\"problemSolved\":\"Problema resolvido\"},\"version\":"
+		String update = "{\"context\":{\"functionalDescription\":\"Problema resolvido\"},\"version\":"
 				+ created.get("version").asLong() + "}";
 		mvc.perform(as(put("/api/products/" + id + "/context"), organization(), "creator", "admin")
 			.contentType(MediaType.APPLICATION_JSON)
@@ -194,7 +194,7 @@ class CompanyProductIntegrationTests {
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(update)).andExpect(status().isOk());
 		mvc.perform(as(get("/api/products/" + id), org, "creator", "member"))
-			.andExpect(jsonPath("$.context.problemSolved").value("Problema resolvido"));
+			.andExpect(jsonPath("$.context.functionalDescription").value("Problema resolvido"));
 		mvc.perform(as(put("/api/products/" + id + "/context"), org, "creator", "member")
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(update)).andExpect(status().isConflict());
