@@ -71,9 +71,22 @@ public class ProductService {
 			catch (RuntimeException cleanupFailure) { exception.addSuppressed(cleanupFailure); }
 			throw exception;
 		}
-		// Feature 004: a context with content at registration becomes version 1.
-		if (created.context() != null && created.context().hasContent()) recordContextRevision(created, session);
-		return created;
+		// Feature 009: a context with content at registration becomes version 1. If that write fails, the product
+		// and its access are removed, so no product is left without the version of its initial context.
+		final Product product = created;
+		if (product.context() != null && product.context().hasContent()) {
+			try {
+				recordContextRevision(product, session);
+			}
+			catch (RuntimeException exception) {
+				undoAfterRevisionFailure(exception, "create", product, () -> {
+					products.deleteById(product.id());
+					accesses.deleteById(access.id());
+				});
+				throw exception;
+			}
+		}
+		return product;
 	}
 
 	/** Updates name, description, category and business version. Context, status and archive state stay as they are. */
@@ -95,9 +108,21 @@ public class ProductService {
 		Product saved = products.save(new Product(current.id(), current.tenantId(), current.name(), current.normalizedName(),
 				current.description(), current.category(), current.productVersion(), current.status(),
 				current.createdAt(), current.archivedAt(), request.context(), current.version()));
-		// Feature 004: a new version only when the (normalized) context changed. Written after the product, so a
-		// stale version is refused above before any revision exists.
-		if (!Objects.equals(current.context(), saved.context())) recordContextRevision(saved, session);
+		// Feature 009: a new version only when the (normalized) context changed. Written after the product, so a
+		// stale version is refused above before any revision exists. If the version cannot be written, the previous
+		// context is put back, so the product never shows a context without its version.
+		if (!Objects.equals(current.context(), saved.context())) {
+			try {
+				recordContextRevision(saved, session);
+			}
+			catch (RuntimeException exception) {
+				undoAfterRevisionFailure(exception, "update", saved, () -> products.save(new Product(saved.id(),
+						saved.tenantId(), saved.name(), saved.normalizedName(), saved.description(), saved.category(),
+						saved.productVersion(), saved.status(), saved.createdAt(), saved.archivedAt(), current.context(),
+						saved.version())));
+				throw exception;
+			}
+		}
 		return saved;
 	}
 
@@ -124,6 +149,28 @@ public class ProductService {
 				.map(ProductContextRevision::revision).orElse(0L) + 1L;
 		revisions.insert(ProductContextRevision.of(product, next, Instant.now().truncatedTo(ChronoUnit.MILLIS),
 				session.userId()));
+		// Business event (constitution VI): ids and number only, never the context text.
+		log.info("event=product.context.revision.created | Product context version saved | tenantId={} productId={} revision={}",
+				product.tenantId(), product.id(), next);
+	}
+
+	/**
+	 * Compensation when the context version could not be written after the product write: runs {@code undo} and
+	 * logs the outcome. The caller rethrows {@code failure}, which keeps the usual HTTP answer (409 for a duplicate
+	 * version number, 500 for an unavailable database). A failed undo is attached to {@code failure} as suppressed.
+	 */
+	private static void undoAfterRevisionFailure(RuntimeException failure, String operation, Product product,
+			Runnable undo) {
+		try {
+			undo.run();
+			log.warn("event=product.context.revision.failed | Context version not saved; product write undone | tenantId={} productId={} operation={}",
+					product.tenantId(), product.id(), operation);
+		}
+		catch (RuntimeException undoFailure) {
+			failure.addSuppressed(undoFailure);
+			log.error("event=product.context.revision.undo_failed | Context version not saved and product write not undone; product and versions diverge | tenantId={} productId={} operation={}",
+					product.tenantId(), product.id(), operation);
+		}
 	}
 
 	/** Owners/admins only. Archiving an already archived product changes nothing. */

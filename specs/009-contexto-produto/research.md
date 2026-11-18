@@ -47,3 +47,9 @@
 - **Decisão**: trocar `problemSolved` por `functionalDescription` nos corpos e asserções de `CompanyProductIntegrationTests` (1 teste) e `ProductEditArchiveIntegrationTests` (3 testes), sem mudar o que eles comprovam.
 - **Rationale**: o campo antigo deixa de existir; sem o ajuste, o JSON ignoraria o campo e as asserções falhariam.
 - **Alternatives considered**: manter os campos antigos ao lado dos novos (dois modelos de contexto ao mesmo tempo).
+
+## Falha ao gravar a versão (ajuste de 17/11/2026)
+
+- **Decisão**: compensação no `ProductService`. Se a gravação da versão falhar depois do produto, o cadastro remove o produto e o acesso criados, e a edição grava de novo o contexto anterior. A exceção original segue para o handler global (409 para número de versão repetido, 500 para banco indisponível); uma falha ao desfazer vira exceção suprimida e log ERROR.
+- **Rationale**: pedido da revisão do PR #9. Sem a compensação, uma falha entre as duas gravações deixaria o produto com um contexto que não aparece no histórico. Gravações concorrentes no mesmo produto já são barradas pelo `@Version` do produto antes da versão, e o índice único `productId` + `revision` impede número repetido se algo escapar.
+- **Alternatives considered**: transação MongoDB (exige replica set; o `mongo-teste` e o compose local rodam como servidor único, então os testes e o ambiente local deixariam de funcionar); gravar a versão antes do produto (a versão poderia existir para um contexto recusado pelo controle de `version`).

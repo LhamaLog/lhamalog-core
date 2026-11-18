@@ -4,9 +4,13 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -17,8 +21,9 @@ import br.com.lhamalog.core.support.TestTenants;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-/** Feature 004: product context with the Figma fields, its versions and the text for the AI (LLT-178). */
+/** Feature 009: product context with the Figma fields, its versions and the text for the AI (LLT-178). */
 @CoreIntegrationTest
+@ExtendWith(OutputCaptureExtension.class)
 class ProductContextIntegrationTests {
 	@Autowired MockMvc mvc;
 	@Autowired ObjectMapper mapper;
@@ -246,5 +251,27 @@ class ProductContextIntegrationTests {
 		assertTrue(prompt.contains("\nNível de detalhe da resposta: Detalhado\n"));
 		assertTrue(prompt.endsWith("\nIdioma da resposta: pt-BR"));
 		assertEquals(8, prompt.split("\n").length);
+	}
+
+	// Constitution VI: each new version is a business event logged with ids only
+
+	@Test
+	void newVersionIsLoggedWithEventCodeWithoutContextText(CapturedOutput output) throws Exception {
+		var creator = session(organization(), "creator", "member");
+		JsonNode created = create(creator, "Produto A", FULL_CONTEXT);
+		String id = created.get("id").asText();
+		putContext(creator, id, CHANGED_CONTEXT, created.get("version").asLong()).andExpect(status().isOk());
+
+		List<String> lines = output.getAll().lines()
+				.filter(line -> line.contains("event=product.context.revision.created | ") && line.contains("productId=" + id))
+				.toList();
+		assertEquals(2, lines.size(), lines.toString());
+		assertTrue(lines.get(0).contains(" INFO "), lines.get(0));
+		assertTrue(lines.get(0).endsWith("revision=1"), lines.get(0));
+		assertTrue(lines.get(1).endsWith("revision=2"), lines.get(1));
+		lines.forEach(line -> {
+			assertFalse(line.contains("Processa"), line);
+			assertFalse(line.contains("Dados de cart"), line);
+		});
 	}
 }

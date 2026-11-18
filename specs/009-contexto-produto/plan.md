@@ -2,9 +2,11 @@
 
 **Branch**: `feature/LLT-178-contexto-produto` | **Data**: 10/11/2026 | **Spec**: [spec.md](spec.md)
 
-**Input**: Feature specification from `/specs/004-contexto-produto/spec.md`
+**Input**: Feature specification from `/specs/009-contexto-produto/spec.md`
 
 Orientação do usuário nesta etapa: campos da tela "Contexto para IA" do Figma; versionamento no padrão do contexto da empresa (LLT-176); texto para a IA só com o produto nesta entrega. A branch parte de `feature/LLT-177-nome-unico-produto` (a 003, publicada sobre a 002 da LLT-123). Por isso `ProductService` mantém o `saveWithUniqueName` e o `normalizedName` da 003 em todas as gravações.
+
+Ajustes antes do merge (17/11/2026), pedidos na revisão do PR #9: a pasta foi renumerada de `specs/004-contexto-produto` para `specs/009-contexto-produto`, porque a 004 já é `004-convidar-usuario-empresa` na Development e a 006, a 007 e a 008 já estão em uso (LLT-177, LLT-173 e `008-login-organizacao-teste` da LLT-163); a branch recebeu a Development com a LLT-123, a LLT-177, o #13 e o #6 (LLT-163), e os endpoints e testes de contexto foram adaptados ao `sessions.current()` e ao `TestTenants` (tenantId interno); o plano foi alinhado à constituição 2.1.0 (princípio VI) e cada versão nova gera log INFO `event=product.context.revision.created`; a gravação da versão ganhou compensação: se ela falhar depois da gravação do produto, o cadastro é desfeito (produto e acesso removidos) e a edição devolve o contexto anterior, com log WARN `event=product.context.revision.failed` ou ERROR `event=product.context.revision.undo_failed`. O índice único `productId` + `revision` já existia desde a primeira versão. Tasks T019 a T024.
 
 ## Summary
 
@@ -26,7 +28,7 @@ O `Product.Context` troca os cinco campos da 001 pelos seis do Figma: `functiona
 
 **Performance Goals**: nenhuma meta numérica; uma consulta extra (última versão) só quando o contexto muda
 
-**Constraints**: constituição 2.0.0; inglês no código, português na documentação; sem chamada à LLM; sem junção com o contexto da empresa; sem migração de dados; sem mudança de ingestão; sem interface neste repositório
+**Constraints**: constituição 2.1.0 (era 2.0.0 no início da feature); inglês no código, português na documentação; sem chamada à LLM; sem junção com o contexto da empresa; sem migração de dados; sem mudança de ingestão; sem interface neste repositório
 
 **Scale/Scope**: módulo `product`: um record alterado, três arquivos novos, service e controller estendidos, um teste novo e o ajuste do campo de contexto em dois testes existentes
 
@@ -40,16 +42,17 @@ O `Product.Context` troca os cinco campos da 001 pelos seis do Figma: `functiona
 - **IV. Idioma**: identificadores em inglês (`functionalDescription`, `ProductContextRevision`, `ProductContextPrompt`); documentação em português.
 - **V. Segredos**: JWT de teste como na 001; nenhum segredo nos artefatos.
 - **Stack**: sem mudança de Java, Spring Boot ou Maven. Pacote `br.com.lhamalog.core.product`.
-- **Fluxo**: branch `feature/LLT-178-contexto-produto`; commits `LLT-178: <descricao>`.
+- **VI. Padrão de logs**: cada versão nova é evento de negócio e vai em INFO com `event=product.context.revision.created`, seguido do aviso e de `tenantId`, `productId` e `revision`. A falha ao gravar a versão, com a gravação do produto desfeita, vai em WARN com `event=product.context.revision.failed` e `operation` (`create` ou `update`); se nem o desfazer funcionar, ERROR com `event=product.context.revision.undo_failed`, porque produto e versões ficam divergentes e o time precisa saber. Nenhum log leva texto do contexto (pode ter dado sensível do cliente). Data com fuso, `cid`, thread e `classe.metodo` vêm do pattern já configurado em `application.properties`.
+- **Fluxo**: branch `feature/LLT-178-contexto-produto`; commits `LLT-178: <descricao>`. A branch publicada se chama `LLT-178-contexto-produto` (sem o prefixo `feature/`); trocar o nome exigiria um PR novo, e o padrão de branch ainda está sendo alinhado com o time.
 
-Nenhuma violação. Complexity Tracking vazio.
+Nenhuma violação. Complexity Tracking vazio. Reavaliado em 17/11/2026 contra a constituição 2.1.0: os ajustes foram o log das versões (VI) e a compensação da gravação.
 
 ## Project Structure
 
 ### Documentation (this feature)
 
 ```text
-specs/004-contexto-produto/
+specs/009-contexto-produto/
 ├── plan.md
 ├── research.md
 ├── data-model.md

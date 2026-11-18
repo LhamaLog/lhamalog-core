@@ -8,15 +8,13 @@ Java 25, Maven Wrapper, Docker e um Mongo de teste separado. JWT de teste via Mo
 
 ## Testes
 
-Use um banco de teste novo, sem reaproveitar os de outras features (os antigos têm produtos com os campos de contexto da 001):
+Desde a LLT-163 (#6), os testes de integração sobem Mongo, Redis e OpenTelemetry por Testcontainers (`@CoreIntegrationTest`); basta o Docker Desktop aberto, sem `TEST_MONGODB_URI` nem o `mongo-teste`. Na primeira execução o Docker baixa as imagens (`mongo:8.0.34`, `redis:8.2.10` e `grafana/otel-lgtm:0.37.0`).
 
 ```powershell
-docker start mongo-teste
-$env:TEST_MONGODB_URI='mongodb://127.0.0.1:27019/lhamalog_contexto_produto_test'
-.\mvnw.cmd '-Dtest=CompanyProductIntegrationTests,ProductEditArchiveIntegrationTests,ProductContextIntegrationTests' verify
+.\mvnw.cmd verify
 ```
 
-Sem `TEST_MONGODB_URI`, os testes de persistência são pulados (`EnabledIfEnvironmentVariable`) e um resultado verde não comprova nada. O `mongo-teste` é o container criado na 002 (`docker run -d --name mongo-teste -p 27019:27017 mongo:8.0.34`).
+Conferir no fim `Skipped: 0`. Só os testes desta feature: `.\mvnw.cmd '-Dtest=CompanyProductIntegrationTests,ProductEditArchiveIntegrationTests,ProductContextIntegrationTests,ProductContextRevisionCompensationTests' verify`.
 
 ## Cenários que a suíte deve comprovar
 
@@ -29,7 +27,9 @@ Sem `TEST_MONGODB_URI`, os testes de persistência são pulados (`EnabledIfEnvir
 7. Membro sem acesso e outra empresa: 404 nas versões e no texto para a IA; admin da mesma empresa: 200.
 8. Texto para a IA: contém o nome do produto, os campos preenchidos e os rótulos; quebra de linha dentro de um campo vira espaço; `executed` é `false`.
 9. Produto arquivado: versões e texto para a IA respondem 200; PUT de contexto responde 409 sem versão nova.
-10. Testes da 001, da 002 e da 003 continuam passando com `functionalDescription` no lugar de `problemSolved`.
+10. Testes da 001, da 002 e da 006 (antiga 003) continuam passando com `functionalDescription` no lugar de `problemSolved`.
+11. Cada versão nova gera uma linha INFO `event=product.context.revision.created` com `revision`, sem o texto do contexto.
+12. Falha ao gravar a versão (`ProductContextRevisionCompensationTests`, sem Mongo): o cadastro remove produto e acesso; a edição devolve o contexto anterior; a falha ao desfazer fica anexada à exceção original.
 
 ## Aceite local
 
@@ -38,6 +38,14 @@ Sem `TEST_MONGODB_URI`, os testes de persistência são pulados (`EnabledIfEnvir
 ## Aviso para o front
 
 A tela de produto do `lhamalog-web` envia e lê os campos antigos do contexto. Até ser ajustada, o formulário "Contexto para IA" não grava nada útil. Avisar o time do front antes do merge.
+
+Antes do merge, conferir em cada banco com produtos que nenhum documento usa o campo antigo (resultado esperado: `0`):
+
+```javascript
+db.Produto.countDocuments({ "context.problemSolved": { $exists: true } })
+```
+
+Documentos antigos não quebram a leitura (o campo antigo é ignorado e os novos ganham os padrões), mas o texto que estava em `problemSolved` deixa de aparecer.
 
 ## Resultados executados
 

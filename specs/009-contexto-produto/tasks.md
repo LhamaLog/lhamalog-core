@@ -1,6 +1,6 @@
 # Tasks: Manter contexto do produto
 
-**Input**: Design documents from `/specs/004-contexto-produto/`
+**Input**: Design documents from `/specs/009-contexto-produto/`
 
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
@@ -63,8 +63,19 @@
 ## Phase 6: Polish
 
 - [ ] T016 Executar o verify do `quickstart.md` com `TEST_MONGODB_URI` em banco novo, confirmar 0 pulados e registrar o resultado em "Resultados executados"
-- [ ] T017 Conferir com `git status` que só mudaram os arquivos de T001 e `specs/004-contexto-produto/`; conferir ausência de segredos e de chamada à LLM
-- [ ] T018 Avisar o time do front que o `context` do produto mudou de campos (ver `quickstart.md`)
+- [ ] T017 Conferir com `git status` que só mudaram os arquivos de T001 e `specs/009-contexto-produto/`; conferir ausência de segredos e de chamada à LLM
+- [ ] T018 Avisar o time do front que o `context` do produto mudou de campos (ver `quickstart.md`) e confirmar que nenhum ambiente tem produto gravado com `context.problemSolved`
+
+---
+
+## Phase 7: Ajustes da revisão do PR #9 (17/11/2026)
+
+- [X] T019 Mesclar a `Development` atual (com LLT-123, LLT-177, #13 e #6/LLT-163) na branch; resolver o conflito do `create` em `ProductService.java` mantendo `created = saveWithUniqueName("product.create.name_in_use", ...)` e o de `CompanyProductIntegrationTests` com a versão do #6 e `functionalDescription`; trocar `sessions.resolve(jwt)` por `sessions.current()` nos endpoints de contexto e levar `ProductContextIntegrationTests` para `@CoreIntegrationTest` e `TestTenants`
+- [X] T020 Renomear `specs/004-contexto-produto/` para `specs/009-contexto-produto/` (a 004 já é `004-convidar-usuario-empresa`; 006, 007 e 008 já estão em uso); atualizar as referências nesta pasta e os Javadocs "feature 004" do código e dos testes
+- [X] T021 Em `ProductService.java`, compensar a falha da versão: no `create`, remover produto e acesso; no `updateContext`, gravar de novo o contexto anterior; logs WARN `event=product.context.revision.failed` e ERROR `event=product.context.revision.undo_failed`
+- [X] T022 Em `ProductService.java`, log INFO `event=product.context.revision.created` com `tenantId`, `productId` e `revision`, sem texto do contexto (constituição VI)
+- [X] T023 Testes: `ProductContextRevisionCompensationTests` (unitário, sem Mongo: cadastro desfeito, contexto anterior devolvido, falha ao desfazer anexada) e `newVersionIsLoggedWithEventCodeWithoutContextText` em `ProductContextIntegrationTests`
+- [ ] T024 Registrar no card LLT-178 que a junção com o contexto da empresa (`CompanyContextPrompt`) fica para a integração com a Sugestão, ou implementá-la
 
 ---
 
@@ -77,4 +88,5 @@
 ## Notes
 
 - T001–T015 implementados pela IA em 10/11/2026, sem execução local (ambiente sem Maven); T016 confirma
+- T019–T023 implementados pela IA em 17/11/2026, também sem execução no ambiente da IA (Maven Central bloqueado); T016 confirma
 - Commits `LLT-178: <descricao>`; branch `feature/LLT-178-contexto-produto`
