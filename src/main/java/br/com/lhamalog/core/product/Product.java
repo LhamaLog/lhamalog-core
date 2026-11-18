@@ -43,7 +43,7 @@ public record Product(@Id String id, String tenantId, String name, @JsonIgnore S
 	}
 
 	/**
-	 * Context of the product for the AI (feature 004), with the fields of the "Contexto para IA" screen.
+	 * Context of the product for the AI (feature 009), with the fields of the "Contexto para IA" screen.
 	 * Every field is optional. The compact constructor trims texts, drops blank list items and applies
 	 * the defaults, both for request bodies and for documents read from MongoDB.
 	 */

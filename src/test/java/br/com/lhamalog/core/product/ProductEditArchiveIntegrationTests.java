@@ -1,40 +1,44 @@
 package br.com.lhamalog.core.product;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import br.com.lhamalog.core.support.CoreIntegrationTest;
+import br.com.lhamalog.core.support.RecordingSessionRevocation;
+import br.com.lhamalog.core.support.TestTenants;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /** Feature 002: edit general data, archive and unarchive products (LLT-123). */
-@SpringBootTest(properties = {
-		"spring.mongodb.uri=${TEST_MONGODB_URI}",
-		"management.otlp.metrics.export.enabled=false", "management.tracing.export.otlp.enabled=false"
-})
-@AutoConfigureMockMvc
-@EnabledIfEnvironmentVariable(named = "TEST_MONGODB_URI", matches = ".+")
+@CoreIntegrationTest
 class ProductEditArchiveIntegrationTests {
 	@Autowired MockMvc mvc;
 	@Autowired ObjectMapper mapper;
 	@Autowired MongoTemplate mongo;
 	@Autowired ProductRepository products;
+	@Autowired RecordingSessionRevocation revocation;
+	private TestTenants tenants;
 
 	private RequestPostProcessor session(String organization, String user, String role) {
-		return jwt().jwt(token -> token.subject(user).claim("o", Map.of("id", organization, "rol", role)));
+		return tenants().session(organization, user, role);
+	}
+
+	/** Real tokens and an ACTIVE tenant per organization (LLT-163). */
+	private TestTenants tenants() {
+		if (tenants == null) {
+			tenants = new TestTenants(mongo);
+		}
+		return tenants;
 	}
 
 	private String organization() { return "org_test_" + UUID.randomUUID(); }
@@ -179,7 +183,12 @@ class ProductEditArchiveIntegrationTests {
 		String id = created.get("id").asText();
 		long version = created.get("version").asLong();
 
-		changeArchive(creator, id, "archive", version).andExpect(status().isForbidden());
+		revocation.reset();
+		// Business 403: code and message, and no session is revoked (spec 008, FR-010).
+		changeArchive(creator, id, "archive", version).andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value("not_admin"))
+				.andExpect(jsonPath("$.message").value("Somente donos e administradores podem arquivar ou desarquivar produtos."));
+		assertTrue(revocation.revokedUsers().isEmpty());
 		changeArchive(session(tenant, "other", "member"), id, "archive", version).andExpect(status().isNotFound());
 		changeArchive(session(organization(), "admin", "admin"), id, "archive", version)
 				.andExpect(status().isNotFound());
@@ -242,7 +251,8 @@ class ProductEditArchiveIntegrationTests {
 				.andExpect(status().isOk()));
 		long version = archived.get("version").asLong();
 
-		changeArchive(creator, id, "unarchive", version).andExpect(status().isForbidden());
+		changeArchive(creator, id, "unarchive", version).andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value("not_admin"));
 		changeArchive(session(organization(), "admin", "admin"), id, "unarchive", version)
 				.andExpect(status().isNotFound());
 

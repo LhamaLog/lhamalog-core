@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Text section with the product context, ready to compose the prompt of an AI suggestion (feature 004).
+ * Text section with the product context, ready to compose the prompt of an AI suggestion (feature 009).
  * Same contract as the company context prompt (LLT-176): {@code executed} is always false because no call to
  * the LLM is made here. Customer text is marked as data and kept to one line per field, so it is not read as
  * an instruction to the model.

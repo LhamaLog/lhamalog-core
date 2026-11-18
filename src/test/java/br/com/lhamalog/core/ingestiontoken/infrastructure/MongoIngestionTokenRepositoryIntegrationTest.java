@@ -8,11 +8,10 @@ import java.util.Date;
 import java.util.UUID;
 import br.com.lhamalog.core.ingestiontoken.application.IngestionToken;
 import br.com.lhamalog.core.ingestiontoken.application.TokenSecrets;
+import br.com.lhamalog.core.support.CoreIntegrationTest;
 import org.bson.Document;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -21,20 +20,18 @@ import org.springframework.data.mongodb.core.query.Query;
 
 /**
  * Checks the raw documents of {@code product_tokens} against the contract the Collector reads
- * ({@code MongoProductTokenStore}, LLT-181): field names, types, status values and the unique hash.
+ * ({@code MongoProductTokenStore}, LLT-181): field names, types, status values and the unique hash (feature 010).
+ * MongoDB from Testcontainers, like the rest of the suite.
  */
-@SpringBootTest(properties = {
-		"spring.mongodb.uri=${TEST_MONGODB_URI}",
-		"management.otlp.metrics.export.enabled=false", "management.tracing.export.otlp.enabled=false"
-})
-@EnabledIfEnvironmentVariable(named = "TEST_MONGODB_URI", matches = ".+")
+@CoreIntegrationTest
 class MongoIngestionTokenRepositoryIntegrationTest {
 	@Autowired MongoIngestionTokenRepository repository;
 	@Autowired MongoTemplate mongo;
 	private final TokenSecrets secrets = new TokenSecrets();
 
 	private IngestionToken newToken(String secret) {
-		return IngestionToken.issue(UUID.randomUUID().toString(), "org_test_" + UUID.randomUUID(),
+		// tenantId is the internal tenant id (a UUID) since LLT-163, not the Clerk organization id.
+		return IngestionToken.issue(UUID.randomUUID().toString(), UUID.randomUUID().toString(),
 				UUID.randomUUID().toString(), "cluster", TokenSecrets.sha256Hex(secret),
 				Instant.now().truncatedTo(ChronoUnit.MILLIS), "admin_1");
 	}
@@ -102,7 +99,7 @@ class MongoIngestionTokenRepositoryIntegrationTest {
 	void listAndFindStayInsideTheTenantAndProduct() {
 		IngestionToken token = repository.insert(newToken(secrets.generate()));
 		assertTrue(repository.find(token.tenantId(), token.productId(), token.id()).isPresent());
-		assertTrue(repository.find("org_other", token.productId(), token.id()).isEmpty());
+		assertTrue(repository.find(UUID.randomUUID().toString(), token.productId(), token.id()).isEmpty());
 		assertTrue(repository.find(token.tenantId(), "other-product", token.id()).isEmpty());
 		assertEquals(1, repository.list(token.tenantId(), token.productId()).size());
 	}

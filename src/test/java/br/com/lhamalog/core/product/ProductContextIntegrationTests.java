@@ -1,36 +1,36 @@
 package br.com.lhamalog.core.product;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import java.util.Map;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import br.com.lhamalog.core.support.CoreIntegrationTest;
+import br.com.lhamalog.core.support.TestTenants;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-/** Feature 004: product context with the Figma fields, its versions and the text for the AI (LLT-178). */
-@SpringBootTest(properties = {
-		"spring.mongodb.uri=${TEST_MONGODB_URI}",
-		"management.otlp.metrics.export.enabled=false", "management.tracing.export.otlp.enabled=false"
-})
-@AutoConfigureMockMvc
-@EnabledIfEnvironmentVariable(named = "TEST_MONGODB_URI", matches = ".+")
+/** Feature 009: product context with the Figma fields, its versions and the text for the AI (LLT-178). */
+@CoreIntegrationTest
+@ExtendWith(OutputCaptureExtension.class)
 class ProductContextIntegrationTests {
 	@Autowired MockMvc mvc;
 	@Autowired ObjectMapper mapper;
 	@Autowired ProductRepository products;
 	@Autowired ProductContextRevisionRepository revisions;
+	@Autowired MongoTemplate mongo;
+	private TestTenants tenants;
 
 	private static final String FULL_CONTEXT = """
 			{"functionalDescription":"  Processa os pagamentos da plataforma.  ","personality":"DETAILED",
@@ -44,7 +44,15 @@ class ProductContextIntegrationTests {
 			""";
 
 	private RequestPostProcessor session(String organization, String user, String role) {
-		return jwt().jwt(token -> token.subject(user).claim("o", Map.of("id", organization, "rol", role)));
+		return tenants().session(organization, user, role);
+	}
+
+	/** Real tokens and an ACTIVE tenant per organization (LLT-163). */
+	private TestTenants tenants() {
+		if (tenants == null) {
+			tenants = new TestTenants(mongo);
+		}
+		return tenants;
 	}
 
 	private String organization() { return "org_test_" + UUID.randomUUID(); }
@@ -198,7 +206,7 @@ class ProductContextIntegrationTests {
 		var admin = session(tenant, "admin", "admin");
 		mvc.perform(get("/api/products/" + id + "/context/revisions").with(admin)).andExpect(status().isOk());
 		mvc.perform(get("/api/products/" + id + "/context/prompt").with(admin)).andExpect(status().isOk());
-		assertEquals(1, revisions.findByTenantIdAndProductIdOrderByRevisionDesc(tenant, id).size());
+		assertEquals(1, revisions.findByTenantIdAndProductIdOrderByRevisionDesc(tenants().tenantId(tenant), id).size());
 	}
 
 	@Test
@@ -243,5 +251,27 @@ class ProductContextIntegrationTests {
 		assertTrue(prompt.contains("\nNível de detalhe da resposta: Detalhado\n"));
 		assertTrue(prompt.endsWith("\nIdioma da resposta: pt-BR"));
 		assertEquals(8, prompt.split("\n").length);
+	}
+
+	// Constitution VI: each new version is a business event logged with ids only
+
+	@Test
+	void newVersionIsLoggedWithEventCodeWithoutContextText(CapturedOutput output) throws Exception {
+		var creator = session(organization(), "creator", "member");
+		JsonNode created = create(creator, "Produto A", FULL_CONTEXT);
+		String id = created.get("id").asText();
+		putContext(creator, id, CHANGED_CONTEXT, created.get("version").asLong()).andExpect(status().isOk());
+
+		List<String> lines = output.getAll().lines()
+				.filter(line -> line.contains("event=product.context.revision.created | ") && line.contains("productId=" + id))
+				.toList();
+		assertEquals(2, lines.size(), lines.toString());
+		assertTrue(lines.get(0).contains(" INFO "), lines.get(0));
+		assertTrue(lines.get(0).endsWith("revision=1"), lines.get(0));
+		assertTrue(lines.get(1).endsWith("revision=2"), lines.get(1));
+		lines.forEach(line -> {
+			assertFalse(line.contains("Processa"), line);
+			assertFalse(line.contains("Dados de cart"), line);
+		});
 	}
 }

@@ -1,21 +1,21 @@
 package br.com.lhamalog.core.ingestiontoken.api;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import br.com.lhamalog.core.ingestiontoken.application.TokenSecrets;
+import br.com.lhamalog.core.support.CoreIntegrationTest;
+import br.com.lhamalog.core.support.TestTenants;
 import org.bson.Document;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -26,20 +26,25 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-/** HTTP flow of the token API with MongoDB (feature 005). */
-@SpringBootTest(properties = {
-		"spring.mongodb.uri=${TEST_MONGODB_URI}",
-		"management.otlp.metrics.export.enabled=false", "management.tracing.export.otlp.enabled=false"
-})
-@AutoConfigureMockMvc
-@EnabledIfEnvironmentVariable(named = "TEST_MONGODB_URI", matches = ".+")
+/** Feature 010: HTTP flow of the token API with real Clerk tokens and tenants (LLT-163) and MongoDB. */
+@CoreIntegrationTest
+@ExtendWith(OutputCaptureExtension.class)
 class IngestionTokenControllerIntegrationTest {
 	@Autowired MockMvc mvc;
 	@Autowired ObjectMapper mapper;
 	@Autowired MongoTemplate mongo;
+	private TestTenants tenants;
 
 	private RequestPostProcessor session(String organization, String user, String role) {
-		return jwt().jwt(token -> token.subject(user).claim("o", Map.of("id", organization, "rol", role)));
+		return tenants().session(organization, user, role);
+	}
+
+	/** Real tokens and an ACTIVE tenant per organization (LLT-163). */
+	private TestTenants tenants() {
+		if (tenants == null) {
+			tenants = new TestTenants(mongo);
+		}
+		return tenants;
 	}
 
 	private String organization() { return "org_test_" + UUID.randomUUID(); }
@@ -59,9 +64,9 @@ class IngestionTokenControllerIntegrationTest {
 	}
 
 	@Test
-	void fullLifecycleShowsTheSecretOnlyOnceAndAuditsEveryOperation() throws Exception {
-		String tenant = organization();
-		var admin = session(tenant, "admin_1", "admin");
+	void fullLifecycleShowsTheSecretOnlyOnceAndAuditsEveryOperation(CapturedOutput output) throws Exception {
+		String organization = organization();
+		var admin = session(organization, "admin_1", "admin");
 		String productId = createProduct(admin).get("id").asText();
 
 		JsonNode created = json(createToken(admin, productId, "cluster-producao").andExpect(status().isCreated()));
@@ -72,15 +77,17 @@ class IngestionTokenControllerIntegrationTest {
 		assertEquals(TokenResponses.SHOWN_ONCE, created.get("notice").asText());
 
 		Document stored = mongo.findOne(Query.query(Criteria.where("_id").is(tokenId)), Document.class, "product_tokens");
-		assertEquals(TokenSecrets.sha256Hex(secret), stored.getString("tokenHash"));
+		String hash = stored.getString("tokenHash");
+		assertEquals(TokenSecrets.sha256Hex(secret), hash);
 		assertEquals(productId, stored.getString("productId"));
-		assertEquals(tenant, stored.getString("tenantId"));
+		// The internal tenant id (tenant collection), never the Clerk organization id.
+		assertEquals(tenants().tenantId(organization), stored.getString("tenantId"));
 
 		String listBody = mvc.perform(get("/api/products/" + productId + "/tokens").with(admin))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1))
 				.andReturn().getResponse().getContentAsString();
 		assertFalse(listBody.contains(secret));
-		assertFalse(listBody.contains(stored.getString("tokenHash")));
+		assertFalse(listBody.contains(hash));
 		assertFalse(listBody.contains("secret"));
 
 		JsonNode rotation = json(mvc.perform(post("/api/products/" + productId + "/tokens/" + tokenId + "/rotate")
@@ -108,24 +115,39 @@ class IngestionTokenControllerIntegrationTest {
 		assertTrue(actions.containsAll(List.of("CREATED", "ROTATED", "REVOKED")));
 		assertFalse(auditBody.contains(secret));
 		assertFalse(auditBody.contains(newSecret));
-		assertFalse(auditBody.contains(stored.getString("tokenHash")));
+		assertFalse(auditBody.contains(hash));
+
+		// Logs: one business event per operation (principle VI), never the token value or its hash.
+		String logs = output.getOut();
+		assertTrue(logs.contains("event=ingestion_token.created"));
+		assertTrue(logs.contains("event=ingestion_token.rotated"));
+		assertTrue(logs.contains("event=ingestion_token.revoked"));
+		assertTrue(logs.contains("tokenId=" + tokenId));
+		assertFalse(logs.contains(secret));
+		assertFalse(logs.contains(newSecret));
+		assertFalse(logs.contains(hash));
+		assertFalse(logs.contains(TokenSecrets.sha256Hex(newSecret)));
 	}
 
 	@Test
-	void membersAreForbiddenAndOtherCompaniesSeeNothing() throws Exception {
-		String tenant = organization();
-		var admin = session(tenant, "admin_1", "admin");
+	void membersAreForbiddenWithCodeAndOtherCompaniesSeeNothing() throws Exception {
+		String organization = organization();
+		var admin = session(organization, "admin_1", "admin");
 		String productId = createProduct(admin).get("id").asText();
 		String tokenId = json(createToken(admin, productId, "cluster").andExpect(status().isCreated()))
 				.get("token").get("id").asText();
 
-		var member = session(tenant, "member_1", "member");
+		// Business 403 carries a code, so the Web keeps the session (spec 008, FR-010).
+		var member = session(organization, "member_1", "member");
 		mvc.perform(get("/api/products/" + productId + "/tokens").with(member)).andExpect(status().isForbidden())
-				.andExpect(jsonPath("$.message").value("Somente donos e administradores podem gerenciar tokens."));
-		createToken(member, productId, "outro").andExpect(status().isForbidden());
+				.andExpect(jsonPath("$.message").value("Somente donos e administradores podem gerenciar tokens."))
+				.andExpect(jsonPath("$.code").value("not_admin"));
+		createToken(member, productId, "outro").andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value("not_admin"));
 		mvc.perform(post("/api/products/" + productId + "/tokens/" + tokenId + "/revoke").with(member))
-				.andExpect(status().isForbidden());
-		mvc.perform(get("/api/products/" + productId + "/tokens/audit").with(member)).andExpect(status().isForbidden());
+				.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("not_admin"));
+		mvc.perform(get("/api/products/" + productId + "/tokens/audit").with(member))
+				.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("not_admin"));
 
 		var otherAdmin = session(organization(), "admin_b", "admin");
 		mvc.perform(get("/api/products/" + productId + "/tokens").with(otherAdmin)).andExpect(status().isNotFound());
@@ -133,6 +155,13 @@ class IngestionTokenControllerIntegrationTest {
 				.andExpect(status().isNotFound());
 		mvc.perform(post("/api/products/" + productId + "/tokens/missing/revoke").with(admin))
 				.andExpect(status().isNotFound()).andExpect(jsonPath("$.message").value("Token não encontrado."));
+	}
+
+	@Test
+	void requestsWithoutAValidTokenAreRefusedBeforeTheService() throws Exception {
+		mvc.perform(get("/api/products/any/tokens")).andExpect(status().isUnauthorized());
+		mvc.perform(post("/api/products/any/tokens").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"name\":\"cluster\"}")).andExpect(status().isUnauthorized());
 	}
 
 	@Test

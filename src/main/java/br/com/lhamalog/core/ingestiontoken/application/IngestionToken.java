@@ -3,7 +3,7 @@ package br.com.lhamalog.core.ingestiontoken.application;
 import java.time.Instant;
 
 /**
- * Ingestion token of a product, as stored in {@code product_tokens} (feature 005). Holds only the hash of the
+ * Ingestion token of a product, as stored in {@code product_tokens} (feature 010). Holds only the hash of the
  * token. The validity rule mirrors the Collector's {@code ProductTokenValidity}: active, not revoked and not
  * expired.
  */

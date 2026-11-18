@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 import org.springframework.web.server.ResponseStatusException;
+import br.com.lhamalog.core.shared.ApiStatusException;
 
 /** Unit tests of the token rules, with in-memory repositories and a controlled clock. No database. */
 class IngestionTokenServiceTest {
@@ -110,6 +111,15 @@ class IngestionTokenServiceTest {
 		assertStatus(403, () -> service.rotate(MEMBER, PRODUCT, id, null, null));
 		assertStatus(403, () -> service.audit(MEMBER, PRODUCT));
 		assertEquals(1, tokens.all().size());
+	}
+
+	@Test
+	void forbiddenCarriesTheBusinessCodeSoTheWebKeepsTheSession() {
+		// spec 008, FR-010: a 403 without code would sign the user out in the Web.
+		ApiStatusException error = assertThrows(ApiStatusException.class, () -> service.list(MEMBER, PRODUCT));
+		assertEquals(403, error.getStatusCode().value());
+		assertEquals(IngestionTokenService.NOT_ADMIN_CODE, error.code());
+		assertEquals(IngestionTokenService.NOT_ADMIN, error.getReason());
 	}
 
 	@Test

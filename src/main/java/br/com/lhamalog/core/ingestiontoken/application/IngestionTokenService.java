@@ -8,19 +8,27 @@ import java.util.List;
 import java.util.UUID;
 import br.com.lhamalog.core.ingestiontoken.application.ProductCatalog.ProductRef;
 import br.com.lhamalog.core.ingestiontoken.application.TokenAuditEntry.Action;
+import br.com.lhamalog.core.shared.ApiStatusException;
 import br.com.lhamalog.core.shared.CompanySession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Rules for the ingestion tokens of a product (feature 005): list, create, revoke, rotate and audit. Only company
+ * Rules for the ingestion tokens of a product (feature 010): list, create, revoke, rotate and audit. Only company
  * administrators (DONO/ADMIN) may use them (ADR_109). The token value leaves this class only inside
- * {@link CreatedToken}; it is never stored, audited or logged.
+ * {@link CreatedToken}; it is never stored, audited or logged, and neither is its hash.
  */
 @Service
 public class IngestionTokenService {
+	private static final Logger log = LoggerFactory.getLogger(IngestionTokenService.class);
+
+	/** Business 403 code: the Web keeps the session for any 403 that carries a code (spec 008, FR-010). */
+	static final String NOT_ADMIN_CODE = "not_admin";
+
 	public static final int NAME_MAX = 100;
 	public static final int DEFAULT_TRANSITION_HOURS = 24;
 	public static final int MIN_TRANSITION_HOURS = 1;
@@ -78,6 +86,8 @@ public class IngestionTokenService {
 		if (product.archived()) throw conflict(ARCHIVED_PRODUCT);
 		CreatedToken created = issue(product, cleanName, session.userId(), now());
 		audit.append(entry(created.token(), Action.CREATED, session.userId(), created.token().createdAt(), null, null));
+		log.info("event=ingestion_token.created | Ingestion token created | tenantId={} productId={} tokenId={}",
+				product.tenantId(), product.id(), created.token().id());
 		return created;
 	}
 
@@ -89,6 +99,8 @@ public class IngestionTokenService {
 		Instant at = now();
 		IngestionToken revoked = tokens.update(current.revoke(at, session.userId()));
 		audit.append(entry(revoked, Action.REVOKED, session.userId(), at, null, null));
+		log.info("event=ingestion_token.revoked | Ingestion token revoked; the Collector stops accepting it within its cache time | tenantId={} productId={} tokenId={}",
+				product.tenantId(), product.id(), revoked.id());
 		return revoked;
 	}
 
@@ -112,6 +124,8 @@ public class IngestionTokenService {
 		IngestionToken previous = tokens.update(current.rotateOut(transitionEndsAt, created.token().id()));
 		audit.append(entry(previous, Action.ROTATED, session.userId(), at, created.token().id(), transitionEndsAt));
 		audit.append(entry(created.token(), Action.CREATED, session.userId(), at, null, null));
+		log.info("event=ingestion_token.rotated | Ingestion token rotated; both tokens valid until the transition ends | tenantId={} productId={} tokenId={} newTokenId={} transitionEndsAt={}",
+				product.tenantId(), product.id(), previous.id(), created.token().id(), transitionEndsAt);
 		return new Rotation(created, previous);
 	}
 
@@ -128,7 +142,7 @@ public class IngestionTokenService {
 	}
 
 	private ProductRef requireProduct(CompanySession session, String productId) {
-		if (!session.administrator()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, NOT_ADMIN);
+		if (!session.administrator()) throw new ApiStatusException(HttpStatus.FORBIDDEN, NOT_ADMIN, NOT_ADMIN_CODE);
 		return products.find(session.tenantId(), productId)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, PRODUCT_NOT_FOUND));
 	}

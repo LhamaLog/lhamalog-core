@@ -7,7 +7,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 /**
- * One saved version of a product context (feature 004). Numbered per product (1, 2, 3...) and never changed
+ * One saved version of a product context (feature 009). Numbered per product (1, 2, 3...) and never changed
  * after it is written. Same design as the company context revisions (TenantContextRevision, LLT-176).
  */
 @Document("ProductContextRevision")
