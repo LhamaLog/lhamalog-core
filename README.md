@@ -79,7 +79,7 @@ Não entra no `docker compose up` padrão. O volume `lhamalog-core-local_openobs
 docker compose -f compose.yaml -f compose.observability.yaml up -d --build
 ```
 
-Preencha `OPENOBSERVE_USERNAME` (e-mail), `OPENOBSERVE_PASSWORD` e `OPENOBSERVE_AUTH` (`Basic ` seguido do base64 de `usuario:senha`). Para a API exportar, defina `OTLP_ENABLED=true`. O mesmo `OPENOBSERVE_AUTH` autentica a leitura de logs do dashboard (`POST /api/{org}/_search`, org padrão `lhamalog`). O job SSID_011 usa `lhamalog.dashboard.aggregation.cron` (padrão `0 0 * * * *`, a cada 1 h; override por `LHAMALOG_DASHBOARD_AGGREGATION_CRON`). Nomes das variáveis estão em `.env.example` (sem valores secretos). O atalho é `make obs-up`. `make obs-down` só para o OpenObserve e mantém o volume.
+Preencha `OPENOBSERVE_USERNAME` (e-mail), `OPENOBSERVE_PASSWORD` e `OPENOBSERVE_AUTH` (`Basic ` seguido do base64 de `usuario:senha`). Para a API exportar, defina `OTLP_ENABLED=true`. O mesmo `OPENOBSERVE_AUTH` autentica a leitura de logs do dashboard (`POST /api/{org}/_search`, org padrão `lhamalog`). O prefixo de stream é `OPENOBSERVE_LOGS_STREAM` (padrão `logs`, propriedade `lhamalog.openobserve.logs-stream-prefix`); o Core resolve o nome com a mesma regra do Collector (LLT-185). Campos SQL padrão: `tenantid`, `productid`, `severitynumber`, `severitytext`, `servicename` (override por `OPENOBSERVE_*_FIELD`). O job SSID_011 usa `lhamalog.dashboard.aggregation.cron` (padrão `0 0 * * * *`, a cada 1 h; override por `LHAMALOG_DASHBOARD_AGGREGATION_CRON`). Nomes das variáveis estão em `.env.example` (sem valores secretos). O atalho é `make obs-up`. `make obs-down` só para o OpenObserve e mantém o volume.
 
 ### Ubuntu e Windows
 

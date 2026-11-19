@@ -6,12 +6,15 @@ import br.com.lhamalog.core.dashboard.application.OpenObserveLogQueryPort;
 import br.com.lhamalog.core.dashboard.application.OpenObserveProperties;
 import java.net.http.HttpClient;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -25,11 +28,15 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * OpenObserve search adapter: {@code POST /api/{org}/_search} with SQL count aggregation.
+ * Field names and stream naming match Collector → OpenObserve lowercase documents (LLT-185).
  */
 @Component
 public class OpenObserveLogQueryAdapter implements OpenObserveLogQueryPort {
 
 	private static final Logger log = LoggerFactory.getLogger(OpenObserveLogQueryAdapter.class);
+
+	/** OpenObserve / DataFusion identifiers: letters, digits, underscore. */
+	private static final Pattern SAFE_IDENTIFIER = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
 
 	private final RestClient restClient;
 	private final OpenObserveProperties properties;
@@ -58,13 +65,12 @@ public class OpenObserveLogQueryAdapter implements OpenObserveLogQueryPort {
 		Set<LogSeverity> filter = severities == null || severities.isEmpty()
 				? EnumSet.allOf(LogSeverity.class)
 				: EnumSet.copyOf(severities);
-		String stream = properties.streamForTenant(tenantId);
-		String sql = buildSql(stream, productId);
+		String sql = buildSql(properties, tenantId, productId);
 		Map<String, Object> body = Map.of(
 				"query", Map.of(
 						"sql", sql,
-						"start_time", from.toEpochMilli() * 1_000L,
-						"end_time", to.toEpochMilli() * 1_000L,
+						"start_time", toMicros(from),
+						"end_time", toMicros(to),
 						"from", 0,
 						"size", 10_000));
 		try {
@@ -90,15 +96,26 @@ public class OpenObserveLogQueryAdapter implements OpenObserveLogQueryPort {
 		}
 	}
 
-	private String buildSql(String stream, String productId) {
-		String escapedStream = stream.replace("\"", "");
-		String escapedProduct = productId.replace("'", "''");
+	/**
+	 * Builds the DataFusion SQL used for hourly counts by severity number/text and service.
+	 * Time range is applied via {@code start_time}/{@code end_time} (µs) on the search request.
+	 */
+	public static String buildSql(OpenObserveProperties properties, String tenantId, String productId) {
+		String stream = properties.streamForTenant(tenantId);
+		requireSafeIdentifier(stream, "stream");
+		String tenantField = requireSafeIdentifier(properties.tenantField(), "tenantField");
+		String productField = requireSafeIdentifier(properties.productField(), "productField");
+		String severityNumberField = requireSafeIdentifier(properties.severityNumberField(), "severityNumberField");
+		String severityTextField = requireSafeIdentifier(properties.severityTextField(), "severityTextField");
+		String serviceField = requireSafeIdentifier(properties.serviceField(), "serviceField");
 		return "SELECT histogram(_timestamp, '1 hour') AS hour_start, "
-				+ properties.severityField() + " AS severity, "
-				+ properties.serviceField() + " AS service_name, "
-				+ "count(*) AS cnt FROM \"" + escapedStream + "\" WHERE "
-				+ properties.productField() + " = '" + escapedProduct + "' "
-				+ "GROUP BY hour_start, severity, service_name ORDER BY hour_start";
+				+ severityNumberField + " AS severitynumber, "
+				+ severityTextField + " AS severitytext, "
+				+ serviceField + " AS service_name, "
+				+ "count(*) AS cnt FROM \"" + stream + "\" WHERE "
+				+ tenantField + " = '" + escapeLiteral(tenantId) + "' AND "
+				+ productField + " = '" + escapeLiteral(productId) + "' "
+				+ "GROUP BY hour_start, severitynumber, severitytext, service_name ORDER BY hour_start";
 	}
 
 	public static List<LogCountBucket> parseHits(JsonNode response, Set<LogSeverity> filter) {
@@ -112,15 +129,17 @@ public class OpenObserveLogQueryAdapter implements OpenObserveLogQueryPort {
 		}
 		for (JsonNode hit : hits) {
 			Instant hourStart = readHour(hit);
-			LogSeverity severity = LogSeverity.fromRaw(text(hit, "severity"))
-					.or(() -> LogSeverity.fromRaw(text(hit, "level")))
-					.orElse(null);
-			if (hourStart == null || severity == null || !filter.contains(severity)) {
+			if (hourStart == null) {
+				continue;
+			}
+			LogSeverity severity = LogSeverity.fromOpenObserve(
+					readSeverityNumber(hit), text(hit, "severitytext"));
+			if (!filter.contains(severity)) {
 				continue;
 			}
 			String service = text(hit, "service_name");
 			if (service == null || service.isBlank()) {
-				service = text(hit, "serviceName");
+				service = text(hit, "servicename");
 			}
 			long count = readCount(hit);
 			if (count <= 0) {
@@ -129,6 +148,22 @@ public class OpenObserveLogQueryAdapter implements OpenObserveLogQueryPort {
 			buckets.add(new LogCountBucket(hourStart, severity, service, count));
 		}
 		return buckets;
+	}
+
+	static String escapeLiteral(String value) {
+		return value == null ? "" : value.replace("'", "''");
+	}
+
+	static String requireSafeIdentifier(String value, String label) {
+		if (value == null || !SAFE_IDENTIFIER.matcher(value).matches()) {
+			throw new IllegalArgumentException("Unsafe OpenObserve SQL identifier for " + label + ": " + value);
+		}
+		return value;
+	}
+
+	/** Instant → OpenObserve epoch microseconds. */
+	public static long toMicros(Instant instant) {
+		return Math.multiplyExact(instant.toEpochMilli(), 1_000L);
 	}
 
 	private static Instant readHour(JsonNode hit) {
@@ -151,7 +186,33 @@ public class OpenObserveLogQueryAdapter implements OpenObserveLogQueryPort {
 		try {
 			return Instant.parse(text).truncatedTo(ChronoUnit.HOURS);
 		}
-		catch (RuntimeException ignored) {
+		catch (RuntimeException notIsoInstant) {
+			// OpenObserve histogram() returns UTC without offset, e.g. 2026-11-16T23:00:00.
+			try {
+				return LocalDateTime.parse(text).toInstant(ZoneOffset.UTC).truncatedTo(ChronoUnit.HOURS);
+			}
+			catch (RuntimeException ignored) {
+				return null;
+			}
+		}
+	}
+
+	private static Integer readSeverityNumber(JsonNode hit) {
+		JsonNode node = hit.get("severitynumber");
+		if (node == null || node.isNull()) {
+			return null;
+		}
+		if (node.isNumber()) {
+			return node.asInt();
+		}
+		String text = node.asString();
+		if (text == null || text.isBlank()) {
+			return null;
+		}
+		try {
+			return Integer.parseInt(text.trim());
+		}
+		catch (NumberFormatException ignored) {
 			return null;
 		}
 	}
