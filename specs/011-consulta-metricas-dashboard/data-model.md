@@ -69,6 +69,19 @@ Autorização e nomes (`productName`). MEMBRO: ids via `AcessoProduto`; DONO/ADM
 
 Enum de domínio ERROR | WARNING | INFO após mapeamento ADR_170.
 
+### Stream e campos OpenObserve (leitura — LLT-185)
+
+| Conceito | Valor real (padrão) | Notas |
+| --- | --- | --- |
+| Prefixo | `logs` (`OPENOBSERVE_LOGS_STREAM`) | Mesmo env do Collector |
+| Nome do stream | `OpenObserveStreamNames.resolve(prefix, tenantId)` | Ex.: `llt187-dash-tenant` → `logs_llt187_dash_tenant_94439d83`; `acme` → `logs_acme` |
+| Tenant | `tenantid` | Filtro SQL além do stream |
+| Produto | `productid` | Filtro SQL |
+| Severidade numérica | `severitynumber` | OTel 1–24 → ERROR/WARNING/INFO |
+| Severidade texto | `severitytext` | Fallback se número 0/ausente |
+| Serviço | `servicename` | Ausente → `unknown` no agregado |
+| Tempo | `_timestamp` | Microssegundos; `_search` usa `start_time`/`end_time` em µs |
+
 ## Regras de validação (consulta)
 
 - `from` / `to` obrigatórios, ISO-8601 instant, `to` > `from`

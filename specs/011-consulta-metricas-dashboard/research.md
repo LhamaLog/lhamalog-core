@@ -12,11 +12,17 @@
 - **Rationale**: Constituições V e stack; OTLP já aponta para OpenObserve no perfil local, mas consulta de logs ainda não existe no Core — precisa de cliente HTTP de leitura. Search SQL evita varrer documentos um a um e alinha job + intervalo aberto da consulta híbrida.
 - **Alternatives considered**: SDK oficial OpenObserve (dependência nova); Mongo como fonte de logs (contradiz ADR_168); API de listagem sem agregação SQL (custo alto em períodos longos).
 
+## Nomes reais OpenObserve (Collector + OO v1.1.2 — confirmado Michel 18/11)
+
+- **Decision**: Prefixo `lhamalog.openobserve.logs-stream-prefix` = env `OPENOBSERVE_LOGS_STREAM` (padrão `logs`), mesma regra `TenantStreamNames` / `OpenObserveStreamNames` (LLT-185). OO normaliza campos para minúsculas: `tenantid`, `productid`, `severitynumber`, `severitytext`, `servicename`, `_timestamp` (µs). SQL filtra `tenantid` + `productid` no stream do tenant; `start_time`/`end_time` do `_search` em microssegundos. Ex.: `llt187-dash-tenant` → stream `logs_llt187_dash_tenant_94439d83`.
+- **Rationale**: Consulta real ao OO local e código do Collector (`OpenObserveLogsSink`); padrões antigos (`product_id`/`level`/`service_name`/template `{tenantId}`) não batem com o que é gravado.
+- **Alternatives considered**: Manter template `{tenantId}` (só se produzir exatamente os nomes LLT-185); CASE de severidade no SQL (mapeamento no Core é mais simples de testar).
+
 ## Severidade (ADR_170)
 
-- **Decision**: Normalizar no Core: erro/error/fatal → `ERROR`; alerta/warn/warning → `WARNING`; info/debug/trace → `INFO`. Filtro de query só aceita esses três enums; desconhecido → 400 `invalid_filter`.
-- **Rationale**: FR-007; contrato Web consome só enums normalizados.
-- **Alternatives considered**: Devolver texto bruto; normalizar no Web (rejeitado — contrato exige Core).
+- **Decision**: Preferir `severitynumber` OTel: 17–24 → `ERROR` (inclui FATAL), 13–16 → `WARNING`, 1–12 → `INFO`; 0/ausente → `severitytext` se houver, senão `INFO`. Texto livre (`severitytext` / level) permanece como fallback (`error`/`warn`/`info`…). Filtro de query só aceita os três enums; desconhecido → 400 `invalid_filter`.
+- **Rationale**: FR-007; Collector grava número sempre (1–24); contrato Web consome só enums normalizados.
+- **Alternatives considered**: Devolver texto bruto; normalizar no Web (rejeitado — contrato exige Core); só texto (ignora o campo canônico do Collector).
 
 ## Job SSID_011 e consulta híbrida (confirmado Michel 18/11)
 

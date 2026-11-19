@@ -11,9 +11,21 @@ Java 25, Maven Wrapper, Docker ligado (Testcontainers). Tokens Clerk de teste vi
 | Propriedade / env | Padrão | Uso |
 | --- | --- | --- |
 | `lhamalog.dashboard.aggregation.cron` | `0 0 * * * *` | Frequência do job SSID_011 (a cada 1 h) |
-| `OPENOBSERVE_*` / `OPENOBSERVE_AUTH` | (local) | Leitura de logs (`POST /api/{org}/_search`); segredo nunca versionado |
+| `OPENOBSERVE_AUTH` | (vazio) | Auth Basic da leitura; segredo nunca versionado |
+| `OPENOBSERVE_LOGS_STREAM` / `lhamalog.openobserve.logs-stream-prefix` | `logs` | Prefixo de stream (mesmo do Collector; LLT-185) |
+| `OPENOBSERVE_TENANT_FIELD` etc. | `tenantid` / `productid` / `severitynumber` / `severitytext` / `servicename` | Campos SQL (OO minúsculas) |
 
-Documentar o cron e o override no `.env.example` (comentário) e no README na seção de configuração do Core, no padrão das demais propriedades.
+Documentar o cron, o prefixo de stream e os campos no `.env.example` (comentário) e no README na seção de configuração do Core, no padrão das demais propriedades.
+
+### Conferência manual SQL (exemplo LLT-187)
+
+Tenant `llt187-dash-tenant`, produto `llt187-dash-product`, de `2026-11-16T00:00:00Z` a `2026-11-18T00:00:00Z` — o adapter gera um único SQL de contagem por hora × severidade × serviço (ranking de serviços deriva dos mesmos buckets):
+
+```sql
+SELECT histogram(_timestamp, '1 hour') AS hour_start, severitynumber AS severitynumber, severitytext AS severitytext, servicename AS service_name, count(*) AS cnt FROM "logs_llt187_dash_tenant_94439d83" WHERE tenantid = 'llt187-dash-tenant' AND productid = 'llt187-dash-product' GROUP BY hour_start, severitynumber, severitytext, service_name ORDER BY hour_start
+```
+
+`start_time` / `end_time` do body `_search`: microssegundos dos instantes acima. Teste que imprime: `OpenObserveLogQueryAdapterParseTest.printsConferenceSqlForLlt187Sample`.
 
 ## Testes
 
@@ -48,9 +60,8 @@ Suíte completa antes do merge:
 
 ## Resultados executados
 
-- **Data**: 18/11/2026
+- **Data**: 18/11/2026 (T010a — alinhamento Collector/OO)
 - **Comando**: `.\mvnw.cmd -B clean verify`
 - **Resultado**: BUILD SUCCESS
-- **Surefire**: Tests run: 375, Failures: 0, Errors: 0, Skipped: 0
-- **Dashboard**: unitários (`LogSeverityTest`, `DashboardMetricsServiceTest`, `DashboardAggregationJobTest`, `DashboardAggregationPropertiesTest`, `OpenObserveLogQueryAdapterParseTest`) + integração `DashboardMetricsControllerIntegrationTest` (OpenObserve via `@MockitoBean`, sem instância real)
+- **Dashboard**: unitários (`LogSeverityTest`, `OpenObserveStreamNamesTest`, `OpenObservePropertiesTest`, `OpenObserveLogQueryAdapterParseTest`, …) + integração `DashboardMetricsControllerIntegrationTest` (OpenObserve via `@MockitoBean`, sem instância real)
 - **T029**: portão Felipe ainda pendente (revisão Clerk/papéis)
