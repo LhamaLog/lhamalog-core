@@ -42,10 +42,18 @@ public class MongoGatewayEventRepository implements GatewayEventRepository {
 	}
 
 	@Override
-	public boolean claimRetry(String eventId, Instant now) {
-		Query query = Query.query(
-				Criteria.where("_id").is(eventId).and(GatewayEventDocument.STATUS).is(GatewayEventStatus.FAILED.name()));
+	public boolean claimRetry(String eventId, Instant now, Instant staleBefore) {
+		Criteria failed = Criteria.where(GatewayEventDocument.STATUS).is(GatewayEventStatus.FAILED.name());
+		// RECEIVED for longer than the lease: the delivery that took it died before recording the result.
+		Criteria stale = new Criteria().andOperator(
+				Criteria.where(GatewayEventDocument.STATUS).is(GatewayEventStatus.RECEIVED.name()),
+				new Criteria().orOperator(Criteria.where(GatewayEventDocument.CLAIMED_AT).lt(staleBefore),
+						new Criteria().andOperator(Criteria.where(GatewayEventDocument.CLAIMED_AT).exists(false),
+								Criteria.where(GatewayEventDocument.RECEIVED_AT).lt(staleBefore))));
+		Query query = Query.query(new Criteria().andOperator(Criteria.where("_id").is(eventId),
+				new Criteria().orOperator(failed, stale)));
 		Update update = new Update().set(GatewayEventDocument.STATUS, GatewayEventStatus.RECEIVED.name())
+			.set(GatewayEventDocument.CLAIMED_AT, now)
 			.inc("attempts", 1);
 		return mongoTemplate.updateFirst(query, update, GatewayEventDocument.class).getModifiedCount() == 1;
 	}
@@ -62,7 +70,7 @@ public class MongoGatewayEventRepository implements GatewayEventRepository {
 	private static GatewayEventDocument toDocument(GatewayEvent event) {
 		return new GatewayEventDocument(event.eventId(), event.gateway(), event.type(), event.orderId(),
 				event.chargeId(), event.status().name(), event.reason(), event.tenantId(), event.attempts(),
-				event.receivedAt(), event.processedAt());
+				event.receivedAt(), event.processedAt(), event.receivedAt());
 	}
 
 	private static GatewayEvent toDomain(GatewayEventDocument document) {

@@ -1,6 +1,8 @@
 package br.com.lhamalog.core.billing.application;
 
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 
 import org.slf4j.Logger;
@@ -20,6 +22,12 @@ public class GatewayEventProcessor {
 
 	static final String EVENT_NOT_HANDLED = "event_not_handled";
 
+	/**
+	 * How long a delivery holds an event. Processing takes milliseconds; an event still RECEIVED after this was left
+	 * by a delivery that stopped (crash, deploy, database down) and is taken by the next resend.
+	 */
+	static final Duration DEFAULT_LEASE = Duration.ofMinutes(2);
+
 	private static final Logger log = LoggerFactory.getLogger(GatewayEventProcessor.class);
 
 	private final GatewayEventRepository events;
@@ -28,11 +36,19 @@ public class GatewayEventProcessor {
 
 	private final Clock clock;
 
+	private final Duration lease;
+
 	public GatewayEventProcessor(GatewayEventRepository events, SubscriptionActivationService activation,
 			Clock clock) {
+		this(events, activation, clock, DEFAULT_LEASE);
+	}
+
+	GatewayEventProcessor(GatewayEventRepository events, SubscriptionActivationService activation, Clock clock,
+			Duration lease) {
 		this.events = events;
 		this.activation = activation;
 		this.clock = clock;
+		this.lease = lease;
 	}
 
 	/**
@@ -49,8 +65,14 @@ public class GatewayEventProcessor {
 			outcome = handle(notification);
 		}
 		catch (RuntimeException ex) {
-			events.complete(notification.eventId(), GatewayEventStatus.FAILED, ex.getClass().getSimpleName(), null,
-					clock.instant());
+			try {
+				events.complete(notification.eventId(), GatewayEventStatus.FAILED, ex.getClass().getSimpleName(), null,
+						clock.instant());
+			}
+			catch (RuntimeException recordFailure) {
+				// The event stays RECEIVED; the lease lets a resend take it later.
+				ex.addSuppressed(recordFailure);
+			}
 			log.error("event=billing.activation.failed | Gateway event processing failed; waiting for a resend"
 					+ " | eventId={} type={} orderId={} error={}", notification.eventId(), notification.type(),
 					notification.orderId(), ex.getClass().getSimpleName());
@@ -76,7 +98,8 @@ public class GatewayEventProcessor {
 					notification.eventId(), status);
 			return Optional.of(Result.DUPLICATE);
 		}
-		if (status == GatewayEventStatus.FAILED && events.claimRetry(notification.eventId(), clock.instant())) {
+		Instant now = clock.instant();
+		if (events.claimRetry(notification.eventId(), now, now.minus(lease))) {
 			return Optional.empty();
 		}
 		log.info("event=billing.webhook.in_progress | Gateway event is being processed by another delivery"

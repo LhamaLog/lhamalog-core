@@ -15,10 +15,11 @@ public interface GatewayEventRepository {
 	boolean insertReceived(GatewayEvent event);
 
 	/**
-	 * Takes a FAILED event back to RECEIVED and counts one more attempt.
-	 * @return {@code false} when the event is not FAILED anymore (another delivery took it)
+	 * Takes the event back to RECEIVED and counts one more attempt, when it is FAILED or when it has been RECEIVED
+	 * since before {@code staleBefore} (the delivery that took it stopped without recording the result).
+	 * @return {@code false} when another delivery holds the event or it is final
 	 */
-	boolean claimRetry(String eventId, Instant now);
+	boolean claimRetry(String eventId, Instant now, Instant staleBefore);
 
 	/** Records the result of the processing. */
 	void complete(String eventId, GatewayEventStatus status, String reason, String tenantId, Instant now);

@@ -97,6 +97,37 @@ class SubscriptionActivationServiceTest {
 		assertThat(processor.process(confirmation("evt_3", "o"))).isEqualTo(Result.IN_PROGRESS);
 	}
 
+	@Test
+	void eventLeftReceivedByAStoppedDeliveryIsTakenAfterTheLease() {
+		SubscriptionOrder order = order("org_c", "user_c");
+		Instant abandonedAt = CLOCK.instant().minus(GatewayEventProcessor.DEFAULT_LEASE).minusSeconds(1);
+		events.byId.put("evt_4", new GatewayEvent("evt_4", "ASAAS", "PAYMENT_RECEIVED", order.orderId(), null,
+				GatewayEventStatus.RECEIVED, null, null, 1, abandonedAt, null));
+
+		assertThat(processor.process(confirmation("evt_4", order.orderId()))).isEqualTo(Result.PROCESSED);
+		assertThat(events.byId.get("evt_4").status()).isEqualTo(GatewayEventStatus.EXECUTED);
+		assertThat(events.byId.get("evt_4").attempts()).isEqualTo(2);
+		assertThat(orders.byId.get(order.orderId()).status()).isEqualTo(OrderStatus.PAID);
+	}
+
+	@Test
+	void failureToRecordTheFailureKeepsTheOriginalErrorAndTheLeaseFreesTheEvent() {
+		SubscriptionOrder order = order("org_d", "user_d");
+		subscriptions.failNext.set(1);
+		events.failNextFailedRecord = true;
+
+		assertThatThrownBy(() -> processor.process(confirmation("evt_5", order.orderId())))
+			.isInstanceOf(IllegalStateException.class)
+			.satisfies((ex) -> assertThat(ex.getSuppressed()).hasSize(1));
+		assertThat(events.byId.get("evt_5").status()).isEqualTo(GatewayEventStatus.RECEIVED);
+		assertThat(processor.process(confirmation("evt_5", order.orderId()))).isEqualTo(Result.IN_PROGRESS);
+
+		GatewayEventProcessor later = new GatewayEventProcessor(events, activation,
+				Clock.offset(CLOCK, GatewayEventProcessor.DEFAULT_LEASE.plusSeconds(1)));
+		assertThat(later.process(confirmation("evt_5", order.orderId()))).isEqualTo(Result.PROCESSED);
+		assertThat(events.byId.get("evt_5").status()).isEqualTo(GatewayEventStatus.EXECUTED);
+	}
+
 	private SubscriptionOrder order(String org, String user) {
 		SubscriptionOrder order = SubscriptionOrder.pending(UUID.randomUUID().toString(), org, user, "Empresa",
 				new Plan(PlanTier.STARTER, "Starter", new BigDecimal("49.90")), CLOCK.instant());
@@ -222,6 +253,10 @@ class SubscriptionActivationServiceTest {
 
 		final Map<String, GatewayEvent> byId = new ConcurrentHashMap<>();
 
+		final Map<String, Instant> claimedAt = new ConcurrentHashMap<>();
+
+		boolean failNextFailedRecord;
+
 		@Override
 		public Optional<GatewayEvent> findById(String eventId) {
 			return Optional.ofNullable(byId.get(eventId));
@@ -233,11 +268,17 @@ class SubscriptionActivationServiceTest {
 		}
 
 		@Override
-		public boolean claimRetry(String eventId, Instant now) {
+		public boolean claimRetry(String eventId, Instant now, Instant staleBefore) {
 			GatewayEvent e = byId.get(eventId);
-			if (e == null || e.status() != GatewayEventStatus.FAILED) {
+			if (e == null) {
 				return false;
 			}
+			boolean stale = e.status() == GatewayEventStatus.RECEIVED
+					&& claimedAt.getOrDefault(eventId, e.receivedAt()).isBefore(staleBefore);
+			if (e.status() != GatewayEventStatus.FAILED && !stale) {
+				return false;
+			}
+			claimedAt.put(eventId, now);
 			byId.put(eventId, new GatewayEvent(e.eventId(), e.gateway(), e.type(), e.orderId(), e.chargeId(),
 					GatewayEventStatus.RECEIVED, e.reason(), e.tenantId(), e.attempts() + 1, e.receivedAt(),
 					e.processedAt()));
@@ -246,6 +287,10 @@ class SubscriptionActivationServiceTest {
 
 		@Override
 		public void complete(String eventId, GatewayEventStatus status, String reason, String tenantId, Instant now) {
+			if (status == GatewayEventStatus.FAILED && failNextFailedRecord) {
+				failNextFailedRecord = false;
+				throw new IllegalStateException("database down");
+			}
 			GatewayEvent e = byId.get(eventId);
 			byId.put(eventId, new GatewayEvent(e.eventId(), e.gateway(), e.type(), e.orderId(), e.chargeId(), status,
 					reason, tenantId, e.attempts(), e.receivedAt(), now));
