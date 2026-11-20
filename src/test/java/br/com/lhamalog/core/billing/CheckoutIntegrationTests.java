@@ -4,11 +4,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -110,6 +118,31 @@ class CheckoutIntegrationTests {
 			.andExpect(jsonPath("$.plan").value("PRO"))
 			.andExpect(jsonPath("$.status").value("PENDING"))
 			.andExpect(jsonPath("$.subscriptionActive").value(false));
+	}
+
+	@Test
+	void concurrentPurchasesLeaveOnlyOnePendingOrder() throws Exception {
+		String org = BillingFixtures.newOrg();
+		String admin = BillingFixtures.bearer(org, "user_admin", "admin");
+		int purchases = 6;
+		ExecutorService pool = Executors.newFixedThreadPool(purchases);
+		try {
+			List<Future<JsonNode>> results = new ArrayList<>();
+			for (int i = 0; i < purchases; i++) {
+				Callable<JsonNode> purchase = () -> fixtures.order(admin, "STARTER");
+				results.add(pool.submit(purchase));
+			}
+			for (Future<JsonNode> result : results) {
+				result.get();
+			}
+		}
+		finally {
+			pool.shutdown();
+		}
+		Query pending = Query.query(Criteria.where("clerkOrgId").is(org).and("status").is("PENDING"));
+		assertThat(mongo.count(pending, SubscriptionOrderDocument.class)).isEqualTo(1);
+		assertThat(mongo.count(Query.query(Criteria.where("clerkOrgId").is(org)), SubscriptionOrderDocument.class))
+			.isEqualTo(purchases);
 	}
 
 	@Test

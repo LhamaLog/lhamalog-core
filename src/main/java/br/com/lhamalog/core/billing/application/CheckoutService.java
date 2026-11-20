@@ -91,8 +91,7 @@ public class CheckoutService {
 		// The charge comes first: if the gateway is unavailable, no order is left behind and no pending one is lost.
 		GatewayCharge charge = gateway.createCharge(order);
 		SubscriptionOrder charged = order.withCharge(charge);
-		orders.cancelPending(session.clerkOrgId(), now);
-		orders.insert(charged);
+		orders.replacePending(charged, now);
 		log.info("event=billing.checkout.created | Subscription order created | orderId={} clerkOrgId={} plan={}",
 				charged.orderId(), charged.clerkOrgId(), charged.planTier());
 		return charged;

@@ -4,9 +4,11 @@ import java.time.Instant;
 import java.util.Optional;
 
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.Index;
+import org.springframework.data.mongodb.core.index.PartialIndexFilter;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -25,6 +27,11 @@ public class MongoSubscriptionOrderRepository implements SubscriptionOrderReposi
 
 	static final String CHARGE_INDEX = "subscription_order_charge";
 
+	static final String ONE_PENDING_INDEX = "subscription_order_one_pending";
+
+	/** Attempts of {@link #replacePending} when concurrent purchases of the same organization collide. */
+	static final int REPLACE_ATTEMPTS = 3;
+
 	private final MongoTemplate mongoTemplate;
 
 	public MongoSubscriptionOrderRepository(MongoTemplate mongoTemplate) {
@@ -39,6 +46,29 @@ public class MongoSubscriptionOrderRepository implements SubscriptionOrderReposi
 			.named(ORG_CREATED_INDEX));
 		indexes.createIndex(new Index().on(SubscriptionOrderDocument.GATEWAY_CHARGE_ID, Sort.Direction.ASC)
 			.named(CHARGE_INDEX));
+		// At most one PENDING order per organization (FR-004), even with concurrent purchases.
+		indexes.createIndex(new Index().on(SubscriptionOrderDocument.CLERK_ORG_ID, Sort.Direction.ASC)
+			.unique()
+			.partial(PartialIndexFilter
+				.of(Criteria.where(SubscriptionOrderDocument.STATUS).is(OrderStatus.PENDING.name())))
+			.named(ONE_PENDING_INDEX));
+	}
+
+	/** Cancels the pending order and inserts the new one; a concurrent purchase that won is canceled in turn. */
+	@Override
+	public void replacePending(SubscriptionOrder order, Instant now) {
+		for (int attempt = 1;; attempt++) {
+			cancelPending(order.clerkOrgId(), now);
+			try {
+				insert(order);
+				return;
+			}
+			catch (DuplicateKeyException ex) {
+				if (attempt >= REPLACE_ATTEMPTS) {
+					throw ex;
+				}
+			}
+		}
 	}
 
 	@Override
