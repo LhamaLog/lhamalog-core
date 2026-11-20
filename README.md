@@ -1,6 +1,6 @@
 # lhamalog-core
 
-Empresa e Produtos: endpoints e persistência Mongo. O arranque Docker independente deste repositório está na branch `dev/developer`, criada a partir de `dev/empresa-produtos`. [Especificação](specs/001-empresa-produtos/spec.md), [contrato](specs/001-empresa-produtos/contracts/api.md) e [execução/testes](specs/001-empresa-produtos/quickstart.md). A segurança e o Tenant usados por eles são os da LLT-163 (ver "Segurança").
+Empresa e Produtos: endpoints e persistência Mongo. O desenvolvimento integra na branch `Development`. [Especificação](specs/001-empresa-produtos/spec.md), [contrato](specs/001-empresa-produtos/contracts/api.md) e [execução/testes](specs/001-empresa-produtos/quickstart.md). A segurança e o Tenant usados por eles são os da LLT-163 (ver "Segurança").
 
 API pública do LhamaLog: assinatura, multi-tenant (Clerk Organizations), papéis e matriz de alertas, WebSocket e único ponto de contato do front.
 
@@ -11,7 +11,7 @@ Parte da plataforma LhamaLog (SaaS multi-tenant de análise de logs com IA). Pac
 ```bash
 git clone https://github.com/LhamaLog/lhamalog-core.git
 cd lhamalog-core
-git checkout dev/developer
+git checkout Development
 ```
 
 ## Pré-requisitos
@@ -101,7 +101,7 @@ No Web, com Node.js 26.12.1: `npm ci`, crie `.env.local` com a chave **publicáv
 
 `CLERK_AUTHORIZED_PARTIES` define, ao mesmo tempo, as origens CORS de `/api/**` e o claim `azp` aceito no JWT. O padrão do compose de desenvolvimento é `http://localhost:5173`. Várias origens: separe por vírgula, sem espaço. A origem tem de ser exatamente a que o navegador usa; `localhost` e `127.0.0.1` são origens diferentes.
 
-Sem `CLERK_ISSUER` a API não sobe (o `compose.yaml` para com erro). Preencha também `DEV_TENANT_CLERK_ORG_ID` com o `org_id` da sua organização: sem Tenant, toda chamada responde 403 e o Web desloga o usuário (ver "Segurança"). `/actuator/health` e `/actuator/info` continuam públicos. Login e telas autenticadas dependem da chave publicável no Web e da mesma instância Clerk. Não há autenticação alternativa.
+Sem `CLERK_ISSUER` a API não sobe (o `compose.yaml` para com erro). Uma organização sem Tenant recebe 403 `subscription_required`, sem logout, e o Web leva a pessoa à tela de planos: contrate pelo simulador (ver "Contratar um plano") ou, como atalho, preencha `DEV_TENANT_CLERK_ORG_ID` com o `org_id` da sua organização. `/actuator/health` e `/actuator/info` continuam públicos. Login e telas autenticadas dependem da chave publicável no Web e da mesma instância Clerk. Não há autenticação alternativa.
 
 O compose do Web na branch `dev/empresa-produtos` daquele repositório ainda não repassa `VITE_CLERK_PUBLISHABLE_KEY` ao contêiner; nesse modo a página fica em branco. Para a interface com login, use `npm run dev` e o `.env.local`.
 
@@ -126,7 +126,7 @@ docker run --rm -v lhamalog-core-local_mongo-data:/data:ro -v "$PWD/backup":/bac
 
 Repita com `lhamalog-core-local_redis-data` e, se usar o OpenObserve, `lhamalog-core-local_openobserve-data`. Copie também o `.env` por um canal privado. O Git não leva senhas nem esses volumes.
 
-Em uma máquina nova: instale Docker Compose v2, clone `dev/developer`, restaure o `.env` e extraia o arquivo em um volume vazio:
+Em uma máquina nova: instale Docker Compose v2, clone a branch `Development`, restaure o `.env` e extraia o arquivo em um volume vazio:
 
 ```bash
 docker volume create lhamalog-core-local_mongo-data
@@ -170,13 +170,13 @@ Toda rota exige o session token da Clerk no header `Authorization: Bearer <token
 O `CLERK_ISSUER` é a Frontend API URL da instância (Dashboard da Clerk > API keys). Também é possível obtê-lo da publishable key do front (`pk_test_...`): o trecho depois de `pk_test_` é o Base64 do host seguido de `$`. Os segredos ficam só no ambiente, nunca no repositório.
 
 ### Testar manualmente
-Passo a passo em `specs/002-validacao-token-clerk/quickstart.md`. Como o fluxo de compra (que cria o Tenant) ainda não existe, sem Tenant toda chamada responde 403 e desloga o usuário. No perfil local, defina `DEV_TENANT_CLERK_ORG_ID` com o `org_id` da organização usada no lhamalog-web: ao subir, o Core cria um Tenant `ACTIVE` para ela (e não altera um Tenant que já exista). Também é possível inserir à mão no Mongo local:
+Passo a passo em `specs/002-validacao-token-clerk/quickstart.md`. Sem Tenant, as rotas respondem 403 `subscription_required` (sem logout) até a organização contratar um plano (ver "Contratar um plano"). Como atalho, no perfil local, defina `DEV_TENANT_CLERK_ORG_ID` com o `org_id` da organização usada no lhamalog-web: ao subir, o Core cria um Tenant `ACTIVE` para ela (e não altera um Tenant que já exista). Também é possível inserir à mão no Mongo local:
 
 ```javascript
 db.tenant.insertOne({ _id: "<um UUID>", clerkOrgId: "<org_id da organizacao>", name: "Teste local", status: "ACTIVE" })
 ```
 
-### Login e organização de teste (enquanto não há fluxo de compra)
+### Login e organização de teste
 Continua valendo junto com o fluxo de compra simulado (seção "Contratar um plano"): é o caminho mais curto para ter uma organização com Tenant. Cada desenvolvedor usa o próprio login e a própria organização na instância de **desenvolvimento** da Clerk, a mesma da chave `pk_test_` do Web. Nunca use a instância de produção.
 
 1. **Criar o login.** Com o Web rodando, abra `http://localhost:5173/sign-up` e cadastre-se. Também é possível criar pelo Dashboard da Clerk > **Users** > **Create user**. Na instância de desenvolvimento, um e-mail com `+clerk_test` (ex.: `fulano+clerk_test@exemplo.com`) aceita o código de verificação `424242` sem enviar e-mail. Se a instância exigir segundo fator, configure um app autenticador na etapa "configurar MFA" e guarde os códigos de recuperação.
@@ -188,7 +188,7 @@ Continua valendo junto com o fluxo de compra simulado (seção "Contratar um pla
 Se não funcionar:
 - **Toda chamada responde 401**: o Web e o Core apontam para instâncias diferentes da Clerk (confira se o host do `CLERK_ISSUER` é o mesmo da `pk_test_` do Web), ou o relógio da máquina está fora da tolerância de 5 s (`exp`/`nbf`).
 - **403 e logout com a organização certa**: o log mostra `event=dev_tenant.seed.inactive`. O Tenant existe, mas não está `ACTIVE`, e o Core nunca o altera. Corrija o `status` para `ACTIVE` no Mongo local (coleção `tenant`) ou apague o documento e reinicie a API.
-- **403 e logout com outra organização**: ela não está em `DEV_TENANT_CLERK_ORG_ID`. Acrescente o `org_id` e reinicie.
+- **Web leva a `/plano` com outra organização** (403 `subscription_required`, sem logout): ela não tem Tenant. Contrate um plano pelo simulador ou acrescente o `org_id` em `DEV_TENANT_CLERK_ORG_ID` e reinicie.
 
 Roteiro completo de validação com a Clerk real: `specs/008-login-organizacao-teste/quickstart.md`.
 
