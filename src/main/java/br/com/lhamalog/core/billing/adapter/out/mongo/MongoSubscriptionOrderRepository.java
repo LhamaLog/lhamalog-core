@@ -29,8 +29,11 @@ public class MongoSubscriptionOrderRepository implements SubscriptionOrderReposi
 
 	static final String ONE_PENDING_INDEX = "subscription_order_one_pending";
 
-	/** Attempts of {@link #replacePending} when concurrent purchases of the same organization collide. */
-	static final int REPLACE_ATTEMPTS = 3;
+	/**
+	 * Attempts of {@link #replacePending} when concurrent purchases of the same organization collide. Every round has
+	 * one winner, so this covers that many simultaneous purchases of one organization.
+	 */
+	static final int REPLACE_ATTEMPTS = 10;
 
 	private final MongoTemplate mongoTemplate;
 
