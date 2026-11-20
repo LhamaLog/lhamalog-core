@@ -30,6 +30,23 @@ public record Member(String memberId, String tenantId, String clerkUserId, Strin
 	}
 
 	/**
+	 * Owner created by the purchase flow (spec 010). Starts at membership version 0 with no profile, so the next Clerk
+	 * events fill name, email and membership id; {@link MemberRole#syncedTo} keeps the DONO role.
+	 */
+	public static Member owner(String memberId, String tenantId, String clerkUserId) {
+		return new Member(memberId, tenantId, clerkUserId, null, MemberRole.DONO, null, null, 0, 0, null, null);
+	}
+
+	/** Same member as DONO; the purchaser of the tenant becomes its owner even if Clerk sync created it first. */
+	public Member promotedToOwner() {
+		if (role == MemberRole.DONO) {
+			return this;
+		}
+		return new Member(memberId, tenantId, clerkUserId, clerkMembershipId, MemberRole.DONO, name, email,
+				membershipVersion, userVersion, removedAt, deletedAt);
+	}
+
+	/**
 	 * Member first seen through a removal (out-of-order delivery): stored as removed so a late, older creation does not
 	 * activate it.
 	 */

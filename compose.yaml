@@ -39,6 +39,10 @@ services:
       CLERK_WEBHOOK_SIGNING_SECRET: ${CLERK_WEBHOOK_SIGNING_SECRET:-}
       # Cria um Tenant ACTIVE para esta organizacao ao subir (sem Tenant, toda chamada responde 403 e desloga).
       DEV_TENANT_CLERK_ORG_ID: ${DEV_TENANT_CLERK_ORG_ID:-}
+      # Contratacao com o Asaas simulado (LLT-289). Sem token, o Core gera um ao subir.
+      ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN:-}
+      BILLING_RETURN_URL: ${BILLING_RETURN_URL:-http://localhost:5173/empresa}
+      BILLING_FAKE_CHECKOUT_BASE_URL: http://localhost:${API_PORT:-8080}
     ports:
       - "127.0.0.1:${API_PORT:-8080}:8080"
     depends_on:

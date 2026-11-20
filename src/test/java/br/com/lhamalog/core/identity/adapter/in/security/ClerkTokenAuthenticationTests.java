@@ -181,10 +181,14 @@ class ClerkTokenAuthenticationTests {
 		expectForbiddenAndRevoked(validToken().without("o").subject("user_no_org").bearer(), "user_no_org");
 	}
 
+	/** Spec 010 (LLT-289): no tenant yet is a business refusal that keeps the session, so the Web can show the plans. */
 	@Test
-	void organizationWithoutTenantIsForbiddenAndRevokesSessions() throws Exception {
-		expectForbiddenAndRevoked(TestJwks.token().organization("org_unknown", "admin").subject("user_x").bearer(),
-				"user_x");
+	void organizationWithoutTenantIsForbiddenWithSubscriptionRequiredAndKeepsSessions() throws Exception {
+		call(TestJwks.token().organization("org_unknown", "admin").subject("user_x").bearer())
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("subscription_required"))
+			.andExpect(jsonPath("$.message").isNotEmpty());
+		assertThat(revocation.revokedUsers()).isEmpty();
 	}
 
 	@Test
@@ -205,7 +209,7 @@ class ClerkTokenAuthenticationTests {
 	@Test
 	void revocationFailureKeepsForbidden() throws Exception {
 		revocation.failNextCalls();
-		expectForbiddenAndRevoked(TestJwks.token().organization("org_unknown", "admin").bearer(), "user_test");
+		expectForbiddenAndRevoked(TestJwks.token().organization(SUSPENDED_ORG, "admin").bearer(), "user_test");
 	}
 
 	private TestJwks.Token validToken() {
