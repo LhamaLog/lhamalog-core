@@ -15,7 +15,8 @@ permissions:
 jobs:
   validar:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    # ubuntu-22.04: o kernel do ubuntu-latest faz o mongo:8.0.34 recusar a subida (SERVER-121912).
+    runs-on: ubuntu-22.04
     env:
       CI_COMMAND: ./mvnw -B -DskipTests compile
       TEST_COMMAND: ./mvnw -B test
@@ -204,7 +205,8 @@ jobs:
       && github.event.comment.user.login != 'github-actions[bot]'
       && (github.event.comment.author_association == 'OWNER' || github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'COLLABORATOR')
       && contains(github.event.comment.body, 'test')
-    runs-on: ubuntu-latest
+    # ubuntu-22.04: o kernel do ubuntu-latest faz o mongo:8.0.34 recusar a subida (SERVER-121912).
+    runs-on: ubuntu-22.04
     permissions:
       contents: read
       issues: write
