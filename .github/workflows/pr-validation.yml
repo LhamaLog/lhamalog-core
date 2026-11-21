@@ -10,6 +10,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  actions: write
 
 jobs:
   validar:
@@ -82,14 +83,15 @@ jobs:
         continue-on-error: true
         run: |
           set +e
+          set -o pipefail
           if [ -f mvnw ]; then chmod +x mvnw; fi
-          $CI_COMMAND > "$RUNNER_TEMP/ci.out" 2>&1
-          ci=$?
+          $CI_COMMAND 2>&1 | tee "$RUNNER_TEMP/ci.out"
+          ci=${PIPESTATUS[0]}
           if [ "$ci" -eq 0 ]; then
-            $TEST_COMMAND > "$RUNNER_TEMP/test.out" 2>&1
-            test_code=$?
-            $BUILD_COMMAND > "$RUNNER_TEMP/build.out" 2>&1
-            build_code=$?
+            $TEST_COMMAND 2>&1 | tee "$RUNNER_TEMP/test.out"
+            test_code=${PIPESTATUS[0]}
+            $BUILD_COMMAND 2>&1 | tee "$RUNNER_TEMP/build.out"
+            build_code=${PIPESTATUS[0]}
             test_ran=1
             build_ran=1
           else
@@ -105,7 +107,40 @@ jobs:
             echo "test_ran=$test_ran"
             echo "build_ran=$build_ran"
           } >> "$GITHUB_OUTPUT"
+          python3 - <<'PY'
+          import pathlib
+          root = pathlib.Path("target/surefire-reports")
+          lines = []
+          found = False
+          if root.is_dir():
+              for path in sorted(root.glob("TEST-*.xml")):
+                  text = path.read_text(errors="replace")
+                  positions = [i for i in (text.find("<error"), text.find("<failure")) if i != -1]
+                  if not positions:
+                      continue
+                  lines.append("LLT-285 PRIMEIRA CAUSA")
+                  lines.append(str(path))
+                  lines.append(text[min(positions):min(positions) + 8000])
+                  found = True
+                  break
+          if not found:
+              lines.append("LLT-285 sem erro nos relatorios do Surefire")
+          message = "\n".join(lines) + "\n"
+          print(message, end="")
+          root.mkdir(parents=True, exist_ok=True)
+          (root / "primeira-causa.txt").write_text(message)
+          PY
           exit 0
+
+      - name: Publicar relatórios do Surefire
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports/
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Montar o comentário
         if: always()
@@ -174,6 +209,7 @@ jobs:
       contents: read
       issues: write
       pull-requests: write
+      actions: write
     env:
       CI_COMMAND: ./mvnw -B -DskipTests compile
       TEST_COMMAND: ./mvnw -B test
@@ -290,14 +326,15 @@ jobs:
         continue-on-error: true
         run: |
           set +e
+          set -o pipefail
           if [ -f mvnw ]; then chmod +x mvnw; fi
-          $CI_COMMAND > "$RUNNER_TEMP/ci.out" 2>&1
-          ci=$?
+          $CI_COMMAND 2>&1 | tee "$RUNNER_TEMP/ci.out"
+          ci=${PIPESTATUS[0]}
           if [ "$ci" -eq 0 ]; then
-            $TEST_COMMAND > "$RUNNER_TEMP/test.out" 2>&1
-            test_code=$?
-            $BUILD_COMMAND > "$RUNNER_TEMP/build.out" 2>&1
-            build_code=$?
+            $TEST_COMMAND 2>&1 | tee "$RUNNER_TEMP/test.out"
+            test_code=${PIPESTATUS[0]}
+            $BUILD_COMMAND 2>&1 | tee "$RUNNER_TEMP/build.out"
+            build_code=${PIPESTATUS[0]}
             test_ran=1
             build_ran=1
           else
@@ -313,7 +350,40 @@ jobs:
             echo "test_ran=$test_ran"
             echo "build_ran=$build_ran"
           } >> "$GITHUB_OUTPUT"
+          python3 - <<'PY'
+          import pathlib
+          root = pathlib.Path("target/surefire-reports")
+          lines = []
+          found = False
+          if root.is_dir():
+              for path in sorted(root.glob("TEST-*.xml")):
+                  text = path.read_text(errors="replace")
+                  positions = [i for i in (text.find("<error"), text.find("<failure")) if i != -1]
+                  if not positions:
+                      continue
+                  lines.append("LLT-285 PRIMEIRA CAUSA")
+                  lines.append(str(path))
+                  lines.append(text[min(positions):min(positions) + 8000])
+                  found = True
+                  break
+          if not found:
+              lines.append("LLT-285 sem erro nos relatorios do Surefire")
+          message = "\n".join(lines) + "\n"
+          print(message, end="")
+          root.mkdir(parents=True, exist_ok=True)
+          (root / "primeira-causa.txt").write_text(message)
+          PY
           exit 0
+
+      - name: Publicar relatórios do Surefire
+        if: always() && steps.maven.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports/
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Montar o comentário
         if: steps.head.outcome == 'success'
