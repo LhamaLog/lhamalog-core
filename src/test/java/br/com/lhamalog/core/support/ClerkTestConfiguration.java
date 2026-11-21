@@ -38,4 +38,11 @@ public class ClerkTestConfiguration {
 		return new RecordingAsaasWebhookSender();
 	}
 
+	/** Manual upload talks to this recorder in tests (spec 011 / LLT-292). */
+	@Bean
+	@Primary
+	RecordingCollectorManualUploadClient recordingCollectorManualUploadClient() {
+		return new RecordingCollectorManualUploadClient();
+	}
+
 }

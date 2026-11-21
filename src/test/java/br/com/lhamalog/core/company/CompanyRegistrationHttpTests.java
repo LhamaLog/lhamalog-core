@@ -197,6 +197,24 @@ class CompanyRegistrationHttpTests {
 		}
 	}
 
+	@Test
+	void rejectsLogoOverTwoMegabytesWithoutReadingALargeBody() throws Exception {
+		String tenant = organization();
+		RequestPostProcessor admin = session(tenant, "admin_logo", "admin");
+		MvcResult created = mvc.perform(put("/api/company").with(admin).contentType(MediaType.APPLICATION_JSON)
+				.content(registration("Empresa Logo", "Logo", null, "Contexto"))).andExpect(status().isOk()).andReturn();
+		long current = version(created);
+		ReportedSizeLogo justOverTwoMb = new ReportedSizeLogo(PNG, LogoFiles.MAX_BYTES + 1);
+		mvc.perform(multipart("/api/company/logo").file(justOverTwoMb).param("version", Long.toString(current)).with(admin))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.fieldErrors.logo").value(LogoFiles.EXCEEDS_MAX));
+
+		ReportedSizeLogo underServletCap = new ReportedSizeLogo(PNG, 50L * 1024 * 1024);
+		mvc.perform(multipart("/api/company/logo").file(underServletCap).param("version", Long.toString(current)).with(admin))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.fieldErrors.logo").value(LogoFiles.EXCEEDS_MAX));
+	}
+
 	private void assertForbidden(org.springframework.test.web.servlet.RequestBuilder request) throws Exception {
 		mvc.perform(request).andExpect(status().isForbidden()).andExpect(jsonPath("$.message").value(ADMIN_ONLY));
 	}
@@ -240,4 +258,29 @@ class CompanyRegistrationHttpTests {
 	private String organization() {
 		return "org_reg_" + UUID.randomUUID();
 	}
+
+	/**
+	 * Reports a large {@code getSize()} while keeping only a tiny PNG on the heap, so the test can cover the
+	 * former 100 MB servlet window without allocating that many bytes.
+	 */
+	private static final class ReportedSizeLogo extends MockMultipartFile {
+
+		private final long reportedSize;
+
+		private ReportedSizeLogo(byte[] content, long reportedSize) {
+			super("file", "logo.png", "image/png", content);
+			this.reportedSize = reportedSize;
+		}
+
+		@Override
+		public long getSize() {
+			return reportedSize;
+		}
+
+		@Override
+		public boolean isEmpty() {
+			return reportedSize <= 0;
+		}
+	}
+
 }

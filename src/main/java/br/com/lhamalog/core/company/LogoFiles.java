@@ -23,6 +23,16 @@ import br.com.lhamalog.core.shared.FieldValidationException;
 
 final class LogoFiles {
 	static final int MAX_BYTES = 2 * 1024 * 1024;
+
+	static final String EXCEEDS_MAX = "O logotipo excede 2 MB.";
+
+	/** Refuses an oversized logo before the caller reads {@code MultipartFile.getBytes()}. */
+	static void rejectIfTooLarge(long size) {
+		if (size > MAX_BYTES) {
+			throw new FieldValidationException(java.util.Map.of("logo", EXCEEDS_MAX));
+		}
+	}
+
 	private static final Set<String> BLOCKED = Set.of("script", "foreignobject", "iframe", "embed", "object", "audio",
 			"video", "animate", "set", "handler", "image", "style", "link", "meta", "canvas");
 
@@ -33,7 +43,7 @@ final class LogoFiles {
 	static void verifyAccepted(byte[] content, String mediaType) {
 		if (content == null || content.length == 0 || content.length > MAX_BYTES) {
 			throw new FieldValidationException(java.util.Map.of("settings.data.logo",
-					content != null && content.length > MAX_BYTES ? "O logotipo excede 2 MB."
+					content != null && content.length > MAX_BYTES ? EXCEEDS_MAX
 							: "Envie um arquivo PNG, JPG ou SVG de até 2 MB."));
 		}
 		boolean png = isPng(content);
@@ -101,7 +111,7 @@ final class LogoFiles {
 			throw new FieldValidationException(java.util.Map.of("logo", "Envie um arquivo PNG, JPG ou SVG de até 2 MB."));
 		}
 		if (content.length > MAX_BYTES) {
-			throw new FieldValidationException(java.util.Map.of("logo", "O logotipo excede 2 MB."));
+			throw new FieldValidationException(java.util.Map.of("logo", EXCEEDS_MAX));
 		}
 		if (isPng(content)) {
 			return new Stored(name(originalName, "png"), "image/png", content);
@@ -112,7 +122,7 @@ final class LogoFiles {
 		if (looksLikeSvg(content)) {
 			byte[] sanitized = sanitizeSvg(content);
 			if (sanitized.length > MAX_BYTES) {
-				throw new FieldValidationException(java.util.Map.of("logo", "O logotipo excede 2 MB."));
+				throw new FieldValidationException(java.util.Map.of("logo", EXCEEDS_MAX));
 			}
 			return new Stored(name(originalName, "svg"), "image/svg+xml", sanitized);
 		}
