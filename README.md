@@ -239,6 +239,29 @@ A Clerk precisa alcançar o Core pela internet, então em desenvolvimento é pre
 
 Mais detalhes em `specs/003-webhooks-clerk/quickstart.md`.
 
+## Upload manual (LLT-292)
+
+`POST /api/manual/upload` recebe um ou mais arquivos (`.txt`, `.json`, `.csv`, `.log`) de até 100 MB por arquivo e por requisição. Esses limites ficam só em `application.properties` (e no perfil, se houver), nunca no `.env`. A autenticação é o session token da Clerk.
+
+O Core encaminha o lote ao Collector em `POST /internal/manual/upload` com o header `X-LhamaLog-Service-Token`. O segredo sai somente da variável de ambiente `LHAMALOG_CORE_COLLECTOR_TOKEN`. A URL do Collector sai de `LHAMALOG_MANUAL_UPLOAD_COLLECTOR_URL` (ou da propriedade `lhamalog.manual-upload.collector-url`).
+
+**URL vazia no Compose:** `compose.yaml`, `compose.prod.yaml` e `.env.example` declaram `LHAMALOG_MANUAL_UPLOAD_COLLECTOR_URL` (sem valor). A variável chega **definida e vazia**, o default do Spring (`http://localhost:8080`) **não** entra, e o Core trata a URL como ausente: WARN na subida (`collector_url_missing`) e um upload autenticado responde **503**, não 500. Preencha a URL com o hostname do Collector, começando com `http://` ou `https://`. Um valor como `lhamalog-collector:8080` (sem esquema) também é inválido: WARN (`collector_url_invalid`) e o upload responde **503**, não 500.
+
+**Armadilha do padrão `http://localhost:8080`:** esse default só vale quando a variável **não está definida** (por exemplo `java -jar` sem ela no ambiente). É também o `server.port` do Core, então o encaminhamento iria para o próprio Core. Na subida, o Core registra um WARN quando a URL parece ser a própria porta. No `compose.yaml`, não use `localhost`.
+
+O endpoint interno do Collector ainda não existe (bloqueado pelos commits da LLT-290): até lá, um upload autenticado e válido responde **503**. As decisões que divergem de ADRs aceitas estão rascunhadas em `planejamento/LLT-292-manual-upload/` no `lhamalog-docs`, junto com os rascunhos de ADR nova (sem numeração neste repositório).
+
+Produto inexistente, de outro tenant, sem acesso ou arquivado responde **403** (não 404). Isso é proposital e diverge de `GET /api/products/{id}`, que continua respondendo 404 e permitindo a leitura de produto arquivado. Produto em `CONFIGURING` pode receber upload.
+
+O Tomcat limita a 50 partes (`productId` + no máximo 49 arquivos) e 512 B por cabeçalho de parte; um arquivo de exatamente 100 MB é recusado porque o envelope multipart conta no `max-request-size`. Esses 413 do contêiner vêm como `ApiError`, sem `files[]`.
+
+| Variável | Obrigatória | Padrão |
+|---|---|---|
+| `LHAMALOG_MANUAL_UPLOAD_COLLECTOR_URL` | no Compose, sim (vazia ou sem `http(s)://` = 503) | `http://localhost:8080` só se a variável não existir; se estiver definida em branco ou sem esquema, não há default |
+| `LHAMALOG_CORE_COLLECTOR_TOKEN` | em perfis que não sejam `local` (sem ela o upload responde 503) | vazia |
+
+As duas variáveis estão declaradas como placeholders em `compose.yaml`, `compose.prod.yaml` e `.env.example`. Não coloque o valor do token em arquivo versionado.
+
 ## Dependências
 Antes de adicionar qualquer biblioteca, ver Drive da equipe > Arquitetura > Dependências específicas dos módulos (evita bibliotecas com a mesma função).
 

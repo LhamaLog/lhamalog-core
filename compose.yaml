@@ -43,6 +43,12 @@ services:
       ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN:-}
       BILLING_RETURN_URL: ${BILLING_RETURN_URL:-http://localhost:5173/empresa}
       BILLING_FAKE_CHECKOUT_BASE_URL: http://localhost:${API_PORT:-8080}
+      # Upload manual (LLT-292). Placeholders: preencha no .env, sem valor neste arquivo.
+      # Variável definida e vazia NÃO usa o default localhost:8080: o Core registra WARN e o upload responde 503.
+      # A URL deve começar com http:// ou https://; sem esquema (ex.: lhamalog-collector:8080) também dá WARN + 503.
+      # Aponte a URL para o hostname do Collector (não para localhost). Sem o token, o upload também responde 503.
+      LHAMALOG_MANUAL_UPLOAD_COLLECTOR_URL: ${LHAMALOG_MANUAL_UPLOAD_COLLECTOR_URL:-}
+      LHAMALOG_CORE_COLLECTOR_TOKEN: ${LHAMALOG_CORE_COLLECTOR_TOKEN:-}
     ports:
       - "127.0.0.1:${API_PORT:-8080}:8080"
     depends_on:
