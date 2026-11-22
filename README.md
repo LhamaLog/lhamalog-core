@@ -244,7 +244,15 @@ Antes de adicionar qualquer biblioteca, ver Drive da equipe > Arquitetura > Depe
 
 Dependências a adicionar manualmente (fora do Initializr): nenhuma obrigatória. A validação do token da Clerk usa o resource server já presente, e a assinatura do Svix é verificada com o JDK (LLT-163/164), por isso o SDK da Clerk e o `com.svix:svix` não são usados. Gateway de pagamento [PENDENTE].
 
-Sem GitHub Actions: rode `make verify` localmente antes de cada push.
+O workflow [`.github/workflows/pr-validation.yml`](.github/workflows/pr-validation.yml) comenta o resultado da compilação, dos testes e do build em cada pull request e não bloqueia o merge. Rode `make verify` localmente antes de cada push. Detalhes em [Validação de pull requests](#validação-de-pull-requests).
+
+## Validação de pull requests
+
+O workflow `.github/workflows/pr-validation.yml` comenta em pull requests para `Development` e `main`. O comentário é único, reconhecido pelo marcador `<!-- llt-285-validacao-prs -->`, e a verificação não bloqueia o merge. As checagens de código são `./mvnw -B -DskipTests compile`, `./mvnw -B test` e `./mvnw -B -DskipTests verify`. Se a compilação falha, testes e build não rodam. Os testes usam Testcontainers (Mongo, Redis e `grafana/otel-lgtm`); o runner `ubuntu-latest` já tem Docker, e o workflow não sobe um serviço de Mongo. Em pull request para `main`, o comentário só mostra essas três checagens, com a nota `PR de release (Development → main): só testes e build são verificados`. Pull request de fork não roda. Rascunho também é validado.
+
+Para repetir essa validação, uma pessoa com associação `OWNER`, `MEMBER` ou `COLLABORATOR` comenta `test` ou `/test` na conversa do pull request. Espaços e quebras só nas pontas não mudam o comando. `test por favor`, um comentário em issue, um comentário editado, um bot e um fork não disparam a reexecução. O comentário `test` recebe 👀 quando a rodada começa. No fim, recebe o foguete se todos os itens passaram ou o polegar para baixo se algum falhou. O comentário de validação é atualizado no lugar; não surge um segundo.
+
+Limitação: um workflow disparado por comentário (`issue_comment`) usa a versão do arquivo que está na branch padrão (`main`). O comando `test` só funciona de verdade depois que esta alteração chega em `main`. Enquanto o arquivo novo existir só na branch do pull request ou em `Development`, comentar `test` não reexecuta a validação.
 
 ## Padrão de commit
 
