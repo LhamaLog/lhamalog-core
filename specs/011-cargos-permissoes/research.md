@@ -35,6 +35,8 @@ Levantamento feito em 17/11/2026: ADRs no Drive (só leitura), planilha "LhamaLo
   - para testar à mão, o Dono é marcado no banco local (`quickstart.md`);
   - enquanto não houver compra, empresas reais ficam sem Dono, e as permissões exclusivas do Dono (`MEMBERS_INVITE_ADMIN`, `SUBSCRIPTION_MANAGE`, `PENDING_ACCESS_APPROVE`) não aparecem para ninguém.
 - **Alternativa, se o Pedro preferir:** promover o primeiro administrador a `DONO` na própria coleção `member`. Exige mudar a regra da spec 003 com o Felipe.
+- **Nota de 22/11/2026 (LLT-289):** o fluxo de compra existe. A LLT-289 (Felipe, spec `010-criar-tenant-pagamento`, FR-009) entrou na `Development` e, na confirmação do pagamento, grava o `member` DONO de quem comprou (`Member.owner(...)`, ou `promotedToOwner()` se um evento da Clerk criou o `member` antes). O Pedro confirmou a C1 em 22/11. Esta feature continua só lendo, e nenhum código dela mudou com o merge. A consequência "empresas reais ficam sem Dono" vale agora só para a organização de desenvolvimento (`DEV_TENANT_CLERK_ORG_ID`), que nasce com Tenant e sem compra. O `MongoMemberRoleDirectory` continua sendo o único ponto a trocar quando o time unificar `member` e `CompanyMember` (D1). Prova: `AccessPurchaseOwnerIntegrationTests` (T040).
+- **Também da LLT-289:** organização sem Tenant passou a receber 403 `subscription_required`, sem revogar a sessão (spec 010, FR-006). As rotas desta feature seguem essa regra sem mudança, porque não entraram nas rotas liberadas sem Tenant (`/api/billing/**`).
 ## R3. Dono rebaixado fora do sistema
 
 - **Caso:** se alguém troca o Dono para `member` direto no dashboard da Clerk, o token dele chega como membro.

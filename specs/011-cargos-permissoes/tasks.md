@@ -102,7 +102,38 @@
 - [X] T032 Conferir que não há segredo (`sk_`, `CLERK_SECRET_KEY`, JWT) em nenhum arquivo novo.
 - [X] T033 Rodar `speckit-analyze` e resolver as inconsistências entre spec, plan, tasks e código.
 - [X] T034 Rodar `.\mvnw.cmd verify` final (com Docker aberto) e registrar o resumo no `quickstart.md`.
-- [ ] T035 Checklist de merge da constituição: Spec Kit completo, revisão do Pedro (ele precisa conseguir explicar cada classe), verde local, branch e commits no padrão, nenhum segredo. PR só com a confirmação do Pedro. **Em 18/11: verde local, branch e commits no padrão do time e nenhum segredo conferidos; faltam a revisão do Pedro, a confirmação das decisões do clarify (C1) e a emenda da constituição sobre o nome da branch (analyze A1).**
+- [ ] T035 Checklist de merge da constituição: Spec Kit completo, revisão do Pedro (ele precisa conseguir explicar cada classe), verde local, branch e commits no padrão, nenhum segredo. PR só com a confirmação do Pedro. **Em 18/11: verde local, branch e commits no padrão do time e nenhum segredo conferidos; faltam a revisão do Pedro, a confirmação das decisões do clarify (C1) e a emenda da constituição sobre o nome da branch (analyze A1).** **Em 22/11 (T048):** Spec Kit completo (spec, plan, research, data-model, contrato, tasks, quickstart e analyze de 22/11); C1 a C7 confirmadas pelo Pedro (Session 2026-11-22); `verify` final verde depois do merge da `Development` (T047); commits `LLT-120: ...`; nenhum segredo (T046); roteiro de revisão em `revisao.md`. Fica com o Pedro: ler o `revisao.md` antes de abrir o PR (é a "revisão do desenvolvedor" da constituição). Fica com o time: a emenda da constituição sobre o nome da branch (`feature/` × `LLT-XXX-slug`, que a validação de PR da LLT-285 já usa).
+
+## Fase 7: mesclar a Development e integrar com a LLT-289 (22/11/2026)
+
+- [X] T036 Mostrar ao Pedro as decisões C1 a C7 (Session 2026-11-18) com a recomendação de cada uma e registrar a resposta dele numa "Session 2026-11-22" da `spec.md`. Na C1, apresentar o fato novo: a LLT-289 grava o Membro DONO na confirmação do pagamento (spec `010-criar-tenant-pagamento`, FR-009), que é o caminho que a C1 previa ("quem atribui DONO é o fluxo de compra"). Se alguma resposta divergir, ajustar `data-model.md`, `contracts/api.md` e as tasks antes de seguir.
+- [X] T037 Linha de base antes do merge: `.\mvnw.cmd -B clean verify` em `e071623`. Registrar no `quickstart.md`.
+- [X] T038 O Pedro mescla a `Development` (GitHub Desktop). Se houver conflito, resolver os marcadores mantendo os dois lados e explicar cada arquivo.
+- [X] T039 `.\mvnw.cmd -B clean verify` depois do merge. Corrigir só o que a `Development` quebrou nesta feature (construtores, campos, imports). Não mudar código da LLT-289. Registrar no `quickstart.md`.
+- [X] T040 [P] Criar `src/test/java/br/com/lhamalog/core/access/AccessPurchaseOwnerIntegrationTests.java`, reaproveitando o arranque e os helpers dos testes de billing (`BillingFixtures`, `AsaasWebhookIntegrationTests`, `TestTenants`). Cobrir:
+  - a confirmação do pagamento cria o Membro DONO; o `GET /api/company/access/me` de quem comprou (token admin) traz `role` `OWNER`, e o `GET /api/company/access` traz `ownerUserId` igual a ele;
+  - outro admin tenta desativar quem comprou: 403 `owner_protected`;
+  - `PUT /api/company/members/{donoId}/products`: 409 `full_access`;
+  - organização sem Tenant chamando `GET /api/company/access/me`, `GET /api/company/notification-roles` e `GET /api/company/members/{id}/products`: 403 `subscription_required`, sem revogar a sessão;
+  - se os helpers permitirem sem esforço grande: um `member` ADMIN que compra vira DONO (`promotedToOwner`) e passa a ser `OWNER`.
+- [X] T041 Rodar a T040 e ver passar. Se algum cenário falhar por comportamento da LLT-289 (e não desta feature), parar e perguntar ao Pedro em vez de mudar o código do billing.
+- [X] T042 `quickstart.md`: trocar a seção "Marcar o Dono à mão" por "Criar o Dono pelo simulador de pagamento (LLT-289)": organização nova na Clerk, que **não** esteja em `DEV_TENANT_CLERK_ORG_ID`; o Web mostra a tela de planos; escolher um plano; "Simular pagamento"; quem comprou vira o Dono. Manter o comando do `mongosh` só como alternativa para a organização de desenvolvimento, que nasce com Tenant e **sem** Dono.
+- [X] T043 `research.md` (R2b) e `data-model.md`: nota de 22/11 dizendo que o Dono agora nasce pela LLT-289 e que esta feature continua só lendo. O `MongoMemberRoleDirectory` continua sendo o único ponto a trocar quando o time unificar `member` e `CompanyMember` (D1).
+- [X] T044 `.\mvnw.cmd -B clean verify`. Parar para revisão.
+
+## Fase 8: fechamento (22/11/2026)
+
+- [X] T045 `speckit-analyze` em spec, plan, tasks e código. O ponto A1 (constituição × nome da branch) vai para "pendências do time" no rascunho do PR: o time usa `LLT-XXX-slug`, e a validação de PR da LLT-285 já confere esse formato.
+- [X] T046 [P] Conferir os arquivos novos contra a constituição VI (logs `event=`, sem `userId` em claro) e procurar `sk_`, `CLERK_SECRET_KEY` com valor e `eyJ`.
+- [X] T047 `.\mvnw.cmd -B clean verify` final. Registrar o resumo no `quickstart.md`.
+- [X] T048 Roteiro de revisão para o Pedro (constituição: ele precisa conseguir explicar cada classe): uma tabela com cada classe nova ou alterada, o que ela faz em uma ou duas frases e o teste que a prova. Salvar em `specs/011-cargos-permissoes/revisao.md`. Marcar a T035 com o que foi conferido.
+- [X] T049 Rascunho da descrição do PR (título `LLT-120: cargos e permissoes`): o que entrega, rotas, decisões C1 a C7, resultado do `verify` e avisos:
+  - Vinicius: o `CompanyMemberController` (LLT-168) passou a recusar o Dono com 403 `owner_protected` (C6);
+  - Felipe: o acesso lê o Membro DONO gravado pela LLT-289; e, até a unificação da D1, o papel de quem não é a sessão vem da `member` e, na falta dela, da `CompanyMember`;
+  - quem cuida de Notificação: os cargos ficam no documento `NotificationRole`, com as listas dentro dele (C5);
+  - pendências do time: ADR da D1, unificação `member`/`CompanyMember` e a emenda da constituição sobre o nome da branch.
+
+  Entregar ao Pedro a mensagem de commit: `LLT-120: integra o dono da compra e fecha a validacao`.
 
 ## Dependências
 

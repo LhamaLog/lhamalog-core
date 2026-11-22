@@ -65,6 +65,7 @@ Ajuste do clarify de 18/11 (C1): a coleção `CompanyOwner` do pacote foi descar
 
 - **Leitura isolada:** só o componente `MemberRoleDirectory` (porta em `access/application`, adaptador Mongo em `access/infrastructure`) lê essas duas coleções. Ele consulta a coleção `member` por `MongoTemplate`, sem mudar o módulo `member` da LLT-163. Quando o time unificar `member` e `CompanyMember` (pendência da D1), só esse adaptador muda.
 - **Escrita:** nenhuma. O papel `DONO` só é gravado pelo fluxo de compra (ADR_121, spec 003).
+- **Nota de 22/11/2026:** o Dono agora nasce pela LLT-289. A confirmação do pagamento grava o `member` DONO de quem comprou (spec `010-criar-tenant-pagamento`, FR-009). Esta feature continua só lendo, sem mudança de formato. O `MongoMemberRoleDirectory` continua sendo o único ponto a trocar na unificação de `member` e `CompanyMember` (D1).
 ## NotificationRole (novo)
 
 | Campo | Regra |

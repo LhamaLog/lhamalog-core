@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-17
 
-**Status**: Draft (pré-preenchida no claude.ai; passa por clarify e analyze no Claude Code antes do implement)
+**Status**: Implementada (18/11/2026); clarify confirmado pelo Pedro e integrada com a LLT-289 em 22/11/2026. Aguarda revisão e PR.
 
 **Input**: "LLT-120 Cargos e permissões (épico Usuários, cargos e configurações do usuário; item E03.F2 do backlog de 14/10/2026; fonte: Dono + Drive). Itens: definir o catálogo de cargos e a matriz de permissões (LLT-169); atribuir cargo a um usuário (LLT-170); restringir o acesso de usuários por produto (LLT-171)."
 
@@ -67,6 +67,14 @@ Clarify feito sem o Pedro presente, a pedido dele ("prossiga, deixe só as decis
 - Q: Pode mudar o `CompanyMemberController` (LLT-168) para proteger o Dono? (C6) → A: Sim, a mudança mínima na branch do Pedro, avisando o Vinicius no PR.
 - Q: Um Membro continua podendo criar produto? (C7) → A: Sim, é o comportamento atual e fica registrado na matriz. Mudar exige decisão do time.
 
+### Session 2026-11-22
+
+Confirmação do Pedro, com ele presente: **C1 a C7 confirmadas como estão na Session 2026-11-18**, sem mudança. Por isso, `data-model.md`, `contracts/api.md` e as tasks não mudam (T036).
+
+**Fato novo apresentado na C1:** a LLT-289 (Felipe, spec `010-criar-tenant-pagamento`, FR-009) entrou na `Development` e grava o Membro DONO de quem comprou quando o pagamento é confirmado (`Member.owner(...)` e `Member.promotedToOwner()`). É o caminho que a C1 previa ("quem atribui DONO é o fluxo de compra"). Esta feature continua só lendo o papel `DONO`. A organização de desenvolvimento (`DEV_TENANT_CLERK_ORG_ID`) nasce com Tenant e sem Dono, então marcar o Dono à mão no banco local continua sendo a alternativa para ela.
+
+- Q: Confirma C1 a C7, com o fato novo da LLT-289 na C1? → A: Sim ("pode seguir").
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Saber o papel de acesso e o que ele permite (Priority: P1)
@@ -78,7 +86,7 @@ Como pessoa da empresa, quero que o sistema saiba se eu sou Dono, Administrador 
 **Independent Test**:
 - `GET /api/company/access/me` devolve o papel e as permissões de quem chamou.
 - `GET /api/company/access` devolve, só para o Dono ou um Administrador, o catálogo dos três papéis, a matriz completa e o `ownerUserId`.
-- O Dono é quem tem o papel `DONO` na coleção `member` (C1). Nos testes, ele é gravado direto no banco.
+- O Dono é quem tem o papel `DONO` na coleção `member` (C1). Nos testes desta história, ele é gravado direto no banco; o `AccessPurchaseOwnerIntegrationTests` (22/11) cria o Dono pela compra da LLT-289.
 
 **Acceptance Scenarios**:
 
@@ -175,7 +183,7 @@ Como Dono, quero que ninguém me desative pelo sistema, para que a empresa nunca
 
 ### Edge Cases
 
-- **Sessão e empresa:** sem sessão, 401. Sem empresa ativa, a camada de segurança da LLT-163 responde 403 `{"error":"forbidden"}`. Identificador de outra empresa no corpo é ignorado e vale sempre a empresa da sessão.
+- **Sessão e empresa:** sem sessão, 401. Sem empresa ativa, a camada de segurança da LLT-163 responde 403 `{"error":"forbidden"}`. Organização sem Tenant (ainda não contratou plano) recebe 403 `subscription_required`, sem revogar a sessão (LLT-289, spec 010, FR-006; nota de 22/11). Identificador de outra empresa no corpo é ignorado e vale sempre a empresa da sessão.
 - **Pessoa desativada (LLT-168):** recebe 403 `user_deactivated` antes de qualquer regra desta feature. O interceptor já faz isso.
 - **Promoção e rebaixamento:**
   - os registros de AcessoProduto de um Membro promovido a Administrador continuam guardados, mas são ignorados enquanto ele for Administrador;
@@ -290,8 +298,8 @@ Como Dono, quero que ninguém me desative pelo sistema, para que a empresa nunca
 
 ## Assumptions
 
-- **Branch:** `LLT-120-cargos-permissoes`, criada a partir da `Development` atualizada (que já tem LLT-167, 168 e 177). Commits no formato `LLT-120: descricao`.
+- **Branch:** `LLT-120-cargos-permissoes`, criada a partir da `Development` atualizada (que já tem LLT-167, 168 e 177). Em 22/11, a `Development` foi mesclada de novo (merge `a374f64`, com a LLT-289 e a LLT-285). Commits no formato `LLT-120: descricao`.
 - **Pasta da spec:** `specs/011-cargos-permissoes`. O pacote sugeria a 009, mas em 18/11/2026 a `Development` já ia até a 009 (007 LLT-173, 008 LLT-163, 009 LLT-178) e a 010 é da LLT-179 (PR #8). A LLT-119 ainda usa `007-validar-gestao-usuarios` na branch dela e vai precisar de outro número.
 - **Cargo vs. permissão:** "cargo" no card significa cargo de notificação (USID_052: "os cargos não dão permissão de acesso"). A permissão vem do papel de acesso.
-- **Telas:** as telas desta feature estão na spec do Web (`lhamalog-web/specs/005-cargos-permissoes`).
+- **Telas:** as telas desta feature estão na spec do Web (`lhamalog-web/specs/012-cargos-permissoes`; até 22/11 era a `005`).
 - **Notificação:** o módulo Notificação, de outra pessoa, vai ler a coleção `NotificationRole` e o `AcessoProduto` para entregar os alertas (ADR_165).

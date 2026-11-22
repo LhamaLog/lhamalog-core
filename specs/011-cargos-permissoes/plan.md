@@ -39,7 +39,7 @@ Também há uma checagem nova na desativação da LLT-168, para proteger o Dono.
 |---|---|
 | I. Spec Kit | spec, plan e tasks nesta pasta antes do código. Clarify e analyze no Claude Code |
 | II. IA com revisão | o Claude Code explica cada fase ao Pedro e para para revisão. As decisões ficam em `research.md` |
-| III. Testes antes do merge | 4 classes HTTP novas e 1 unitária. `CompanyMemberHttpTests` continua verde sem mudança (T029). `.\mvnw.cmd verify` verde |
+| III. Testes antes do merge | 5 classes de integração novas (4 HTTP desta feature e, desde 22/11, a `AccessPurchaseOwnerIntegrationTests` com a compra da LLT-289) e 1 unitária. `CompanyMemberHttpTests` continua verde sem mudança (T029). `.\mvnw.cmd verify` verde |
 | IV. Inglês no código | pacotes `access` e `notificationrole`, rotas `/api/company/access`, `/api/company/notification-roles` e `/api/company/members/{userId}/products`. Docs em português |
 | V. Segredos | sem `CLERK_SECRET_KEY` e sem token em arquivo ou log |
 | VI. Logs | eventos `access.owner.not_admin` e `access.owner.duplicated` (WARN), `product_access.updated`, `notification_role.*`. Sem `userId` em claro |
@@ -107,7 +107,8 @@ src/test/java/br/com/lhamalog/core/
 ├── access/MemberProductAccessHttpTests.java      # US2
 ├── access/application/AccessPolicyTest.java      # matriz (unitário, sem Spring)
 ├── notificationrole/NotificationRoleHttpTests.java        # US3
-└── notificationrole/NotificationRoleMembersHttpTests.java # US4
+├── notificationrole/NotificationRoleMembersHttpTests.java # US4
+└── access/AccessPurchaseOwnerIntegrationTests.java       # Dono criado pela compra da LLT-289 (T040, 22/11)
 ```
 
 **Structure Decision:** dois módulos novos no padrão do `usage` (api, application, infrastructure). O `AcessoProduto` continua no pacote `product`, e o `access` o usa pelo repositório. Só uma linha muda no `member`.
@@ -125,7 +126,7 @@ src/test/java/br/com/lhamalog/core/
 
 | Risco | Mitigação |
 |---|---|
-| Sem fluxo de compra, nenhuma empresa real tem Dono | o quickstart mostra como marcar o `member` DONO no banco local. Decisão C1 (18/11) aguarda o Pedro |
+| ~~Sem fluxo de compra, nenhuma empresa real tem Dono~~ | resolvido em 22/11: a LLT-289 cria o `member` DONO de quem compra, e o Pedro confirmou a C1. Só a organização de desenvolvimento (`DEV_TENANT_CLERK_ORG_ID`) fica sem Dono; o quickstart mostra como marcar um à mão nela |
 | Testes da LLT-168 desativam alguém que é Dono | nenhum teste antigo grava `member` DONO; só os testes novos gravam. Conferir no `verify` |
 | A unificação de `member` e `CompanyMember` (D1) muda as fontes | só o `MongoMemberRoleDirectory` lê as duas coleções |
 | `@CompoundIndex` sem `partialFilter` | resolvido: `Index.partial(PartialIndexFilter)` no `afterPropertiesSet` do repositório, como no `MongoMemberRepository`; um teste confere os índices |
