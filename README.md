@@ -1,6 +1,6 @@
 # lhamalog-core
 
-Empresa e Produtos: endpoints e persistência Mongo. O arranque Docker independente deste repositório está na branch `dev/developer`, criada a partir de `dev/empresa-produtos`. [Especificação](specs/001-empresa-produtos/spec.md), [contrato](specs/001-empresa-produtos/contracts/api.md) e [execução/testes](specs/001-empresa-produtos/quickstart.md). A segurança e o Tenant usados por eles são os da LLT-163 (ver "Segurança").
+Empresa e Produtos: endpoints e persistência Mongo. O desenvolvimento integra na branch `Development`. [Especificação](specs/001-empresa-produtos/spec.md), [contrato](specs/001-empresa-produtos/contracts/api.md) e [execução/testes](specs/001-empresa-produtos/quickstart.md). A segurança e o Tenant usados por eles são os da LLT-163 (ver "Segurança").
 
 API pública do LhamaLog: assinatura, multi-tenant (Clerk Organizations), papéis e matriz de alertas, WebSocket e único ponto de contato do front.
 
@@ -11,7 +11,7 @@ Parte da plataforma LhamaLog (SaaS multi-tenant de análise de logs com IA). Pac
 ```bash
 git clone https://github.com/LhamaLog/lhamalog-core.git
 cd lhamalog-core
-git checkout dev/developer
+git checkout Development
 ```
 
 ## Pré-requisitos
@@ -101,7 +101,7 @@ No Web, com Node.js 26.12.1: `npm ci`, crie `.env.local` com a chave **publicáv
 
 `CLERK_AUTHORIZED_PARTIES` define, ao mesmo tempo, as origens CORS de `/api/**` e o claim `azp` aceito no JWT. O padrão do compose de desenvolvimento é `http://localhost:5173`. Várias origens: separe por vírgula, sem espaço. A origem tem de ser exatamente a que o navegador usa; `localhost` e `127.0.0.1` são origens diferentes.
 
-Sem `CLERK_ISSUER` a API não sobe (o `compose.yaml` para com erro). Preencha também `DEV_TENANT_CLERK_ORG_ID` com o `org_id` da sua organização: sem Tenant, toda chamada responde 403 e o Web desloga o usuário (ver "Segurança"). `/actuator/health` e `/actuator/info` continuam públicos. Login e telas autenticadas dependem da chave publicável no Web e da mesma instância Clerk. Não há autenticação alternativa.
+Sem `CLERK_ISSUER` a API não sobe (o `compose.yaml` para com erro). Uma organização sem Tenant recebe 403 `subscription_required`, sem logout, e o Web leva a pessoa à tela de planos: contrate pelo simulador (ver "Contratar um plano") ou, como atalho, preencha `DEV_TENANT_CLERK_ORG_ID` com o `org_id` da sua organização. `/actuator/health` e `/actuator/info` continuam públicos. Login e telas autenticadas dependem da chave publicável no Web e da mesma instância Clerk. Não há autenticação alternativa.
 
 O compose do Web na branch `dev/empresa-produtos` daquele repositório ainda não repassa `VITE_CLERK_PUBLISHABLE_KEY` ao contêiner; nesse modo a página fica em branco. Para a interface com login, use `npm run dev` e o `.env.local`.
 
@@ -126,7 +126,7 @@ docker run --rm -v lhamalog-core-local_mongo-data:/data:ro -v "$PWD/backup":/bac
 
 Repita com `lhamalog-core-local_redis-data` e, se usar o OpenObserve, `lhamalog-core-local_openobserve-data`. Copie também o `.env` por um canal privado. O Git não leva senhas nem esses volumes.
 
-Em uma máquina nova: instale Docker Compose v2, clone `dev/developer`, restaure o `.env` e extraia o arquivo em um volume vazio:
+Em uma máquina nova: instale Docker Compose v2, clone a branch `Development`, restaure o `.env` e extraia o arquivo em um volume vazio:
 
 ```bash
 docker volume create lhamalog-core-local_mongo-data
@@ -148,10 +148,11 @@ Não extraia por cima de um volume que você não tenha acabado de conferir. Nã
 - Os testes com Testcontainers sobem imagens próprias e não usam estes volumes.
 
 ## Segurança (LLT-163)
-Toda rota exige o session token da Clerk no header `Authorization: Bearer <token>`, exceto `/actuator/health`, `/actuator/info` e `POST /webhooks/clerk` (que tem autenticação própria por assinatura). A configuração fica em `config.SecurityConfig`. Decisões em `specs/002-validacao-token-clerk/`.
+Toda rota exige o session token da Clerk no header `Authorization: Bearer <token>`, exceto `/actuator/health`, `/actuator/info`, `POST /webhooks/clerk` e `POST /webhooks/asaas` (que têm autenticação própria) e o simulador `/dev/fake-asaas/**` (só no perfil local). A configuração fica em `config.SecurityConfig`. Decisões em `specs/002-validacao-token-clerk/`.
 
 - **401** `{"error":"unauthorized"}`: token ausente ou inválido (assinatura RS256 pelo JWKS da Clerk, `exp`/`nbf` com 5 s de tolerância, `iss`, `azp` fora da lista de origens, `sts` diferente de `active`). O motivo não é informado (ADR_032).
-- **403** `{"error":"forbidden"}`: token válido, mas sem organização ativa (claim `o`), sem Tenant para a organização, com Tenant não ativo ou com papel desconhecido. No 403 o Core revoga todas as sessões ativas do usuário na Clerk (Backend API). Se a Clerk falhar, o 403 se mantém e o erro vai para o log.
+- **403** `{"error":"forbidden"}`: token válido, mas sem organização ativa (claim `o`), com Tenant não ativo ou com papel desconhecido. No 403 o Core revoga todas as sessões ativas do usuário na Clerk (Backend API). Se a Clerk falhar, o 403 se mantém e o erro vai para o log.
+- **403** `{"message":"...","code":"subscription_required"}`: a organização ainda não tem Tenant (não contratou um plano). As sessões **não** são revogadas, e as rotas `/api/billing/**` continuam abertas para a contratação (spec 010, ver "Contratar um plano").
 - O restante do código lê a identidade da requisição pela porta `identity.application.port.CurrentRequestContext` (clerkUserId, sessionId, clerkOrgId, role, tenantId). Empresa e Produtos usam essa porta por meio do `shared.CompanySessionResolver`: o `tenantId` é o id interno do Tenant (não o `org_id` da Clerk) e o administrador é o papel `admin` da organização.
 - A Empresa fica no próprio documento do Tenant (coleção `tenant`): `/api/company` grava só os dados da Empresa, sem alterar nome e status do Tenant. Produto inacessível ou de outro Tenant responde 404, e não 403, para não deslogar o usuário.
 - CORS liberado só para as origens de `CLERK_AUTHORIZED_PARTIES`.
@@ -169,14 +170,14 @@ Toda rota exige o session token da Clerk no header `Authorization: Bearer <token
 O `CLERK_ISSUER` é a Frontend API URL da instância (Dashboard da Clerk > API keys). Também é possível obtê-lo da publishable key do front (`pk_test_...`): o trecho depois de `pk_test_` é o Base64 do host seguido de `$`. Os segredos ficam só no ambiente, nunca no repositório.
 
 ### Testar manualmente
-Passo a passo em `specs/002-validacao-token-clerk/quickstart.md`. Como o fluxo de compra (que cria o Tenant) ainda não existe, sem Tenant toda chamada responde 403 e desloga o usuário. No perfil local, defina `DEV_TENANT_CLERK_ORG_ID` com o `org_id` da organização usada no lhamalog-web: ao subir, o Core cria um Tenant `ACTIVE` para ela (e não altera um Tenant que já exista). Também é possível inserir à mão no Mongo local:
+Passo a passo em `specs/002-validacao-token-clerk/quickstart.md`. Sem Tenant, as rotas respondem 403 `subscription_required` (sem logout) até a organização contratar um plano (ver "Contratar um plano"). Como atalho, no perfil local, defina `DEV_TENANT_CLERK_ORG_ID` com o `org_id` da organização usada no lhamalog-web: ao subir, o Core cria um Tenant `ACTIVE` para ela (e não altera um Tenant que já exista). Também é possível inserir à mão no Mongo local:
 
 ```javascript
 db.tenant.insertOne({ _id: "<um UUID>", clerkOrgId: "<org_id da organizacao>", name: "Teste local", status: "ACTIVE" })
 ```
 
-### Login e organização de teste (enquanto não há fluxo de compra)
-Provisório, até existir o fluxo de compra que cria o Tenant (LLT-157, ADR_121). Cada desenvolvedor usa o próprio login e a própria organização na instância de **desenvolvimento** da Clerk, a mesma da chave `pk_test_` do Web. Nunca use a instância de produção.
+### Login e organização de teste
+Continua valendo junto com o fluxo de compra simulado (seção "Contratar um plano"): é o caminho mais curto para ter uma organização com Tenant. Cada desenvolvedor usa o próprio login e a própria organização na instância de **desenvolvimento** da Clerk, a mesma da chave `pk_test_` do Web. Nunca use a instância de produção.
 
 1. **Criar o login.** Com o Web rodando, abra `http://localhost:5173/sign-up` e cadastre-se. Também é possível criar pelo Dashboard da Clerk > **Users** > **Create user**. Na instância de desenvolvimento, um e-mail com `+clerk_test` (ex.: `fulano+clerk_test@exemplo.com`) aceita o código de verificação `424242` sem enviar e-mail. Se a instância exigir segundo fator, configure um app autenticador na etapa "configurar MFA" e guarde os códigos de recuperação.
 2. **Criar a organização.** Depois do login, o Web abre a etapa "escolher ou criar organização": crie uma (ex.: "Teste - <seu nome>"). Quem cria fica com o papel `admin`. Pelo Dashboard: **Organizations** > **Create organization** e adicione o seu usuário como `admin`.
@@ -187,13 +188,31 @@ Provisório, até existir o fluxo de compra que cria o Tenant (LLT-157, ADR_121)
 Se não funcionar:
 - **Toda chamada responde 401**: o Web e o Core apontam para instâncias diferentes da Clerk (confira se o host do `CLERK_ISSUER` é o mesmo da `pk_test_` do Web), ou o relógio da máquina está fora da tolerância de 5 s (`exp`/`nbf`).
 - **403 e logout com a organização certa**: o log mostra `event=dev_tenant.seed.inactive`. O Tenant existe, mas não está `ACTIVE`, e o Core nunca o altera. Corrija o `status` para `ACTIVE` no Mongo local (coleção `tenant`) ou apague o documento e reinicie a API.
-- **403 e logout com outra organização**: ela não está em `DEV_TENANT_CLERK_ORG_ID`. Acrescente o `org_id` e reinicie.
+- **Web leva a `/plano` com outra organização** (403 `subscription_required`, sem logout): ela não tem Tenant. Contrate um plano pelo simulador ou acrescente o `org_id` em `DEV_TENANT_CLERK_ORG_ID` e reinicie.
 
 Roteiro completo de validação com a Clerk real: `specs/008-login-organizacao-teste/quickstart.md`.
 
 Limitações enquanto isso:
-- Qualquer organização sem Tenant, inclusive uma criada agora pela tela "Cadastrar empresa", recebe 403 e o usuário é deslogado. Isso é o esperado (ADR_032), não um defeito.
+- Qualquer organização sem Tenant, inclusive uma criada agora pela tela "Cadastrar empresa", recebe 403 `subscription_required` (sem logout) até contratar um plano pelo simulador (seção "Contratar um plano") ou entrar em `DEV_TENANT_CLERK_ORG_ID`.
 - Login, senha e `org_id` de teste não entram no repositório nem em issue; os segredos ficam só no `.env` (ignorado pelo Git).
+
+## Contratar um plano (LLT-289, Asaas simulado)
+O Tenant nasce na compra (ADR_121). Um administrador de organização sem Tenant escolhe um plano, paga na página do gateway e, quando o gateway confirma pelo webhook, o Core cria o Tenant `ACTIVE`, a Assinatura (coleção `tenant_subscription`) e o Membro DONO. O gateway escolhido é o Asaas; por enquanto existe só o **simulador local**, que envia a confirmação no formato do Asaas para o endpoint real `POST /webhooks/asaas`. Decisões em `specs/010-criar-tenant-pagamento/`.
+
+- `GET /api/billing/plans`, `POST /api/billing/checkout` (`{"plan":"STARTER","companyName":"..."}`) e `GET /api/billing/order` aceitam organização sem Tenant. Só o `admin` contrata. Contrato completo em `specs/010-criar-tenant-pagamento/contracts/api.md`.
+- O `paymentUrl` do checkout abre a página do simulador (`/dev/fake-asaas/checkouts/<id>`). O botão **Simular pagamento** envia um `PAYMENT_RECEIVED` ao webhook, e a página mostra o link de volta ao Web (`BILLING_RETURN_URL`).
+- Todo plano, inclusive o FREE, só ativa depois da confirmação. Os preços em `application.properties` são provisórios.
+- Cada evento do gateway é registrado uma vez (coleção `gateway_event`, pelo `id` do evento do Asaas). Reenvio não duplica nada; falha na ativação responde 500 e o reenvio retoma.
+- Fora do perfil local não há simulador: a contratação responde 503 `payment_unavailable` até o adaptador real do Asaas existir.
+
+| Variável | Obrigatória | Padrão |
+|---|---|---|
+| `ASAAS_WEBHOOK_TOKEN` | em prod (32 a 255 caracteres; sem ele a API não sobe) | local: gerado ao subir e usado pelo simulador |
+| `BILLING_RETURN_URL` | em prod | `http://localhost:5173/empresa` |
+| `BILLING_FAKE_CHECKOUT_BASE_URL` | não | `http://localhost:8080` (no compose, segue `API_PORT`) |
+| `BILLING_FAKE_WEBHOOK_URL` | não | `http://localhost:${SERVER_PORT}/webhooks/asaas` |
+
+Roteiro manual: `specs/010-criar-tenant-pagamento/quickstart.md`.
 
 ## Webhooks da Clerk (LLT-164)
 `POST /webhooks/clerk` é público em relação à sessão e protegido pela assinatura do Svix (headers `svix-id`, `svix-timestamp`, `svix-signature`), verificada sobre o corpo bruto com `CLERK_WEBHOOK_SIGNING_SECRET` e tolerância de 5 min. Decisões em `specs/003-webhooks-clerk/`.
@@ -225,7 +244,15 @@ Antes de adicionar qualquer biblioteca, ver Drive da equipe > Arquitetura > Depe
 
 Dependências a adicionar manualmente (fora do Initializr): nenhuma obrigatória. A validação do token da Clerk usa o resource server já presente, e a assinatura do Svix é verificada com o JDK (LLT-163/164), por isso o SDK da Clerk e o `com.svix:svix` não são usados. Gateway de pagamento [PENDENTE].
 
-Sem GitHub Actions: rode `make verify` localmente antes de cada push.
+O workflow [`.github/workflows/pr-validation.yml`](.github/workflows/pr-validation.yml) comenta o resultado da compilação, dos testes e do build em cada pull request e não bloqueia o merge. Rode `make verify` localmente antes de cada push. Detalhes em [Validação de pull requests](#validação-de-pull-requests).
+
+## Validação de pull requests
+
+O workflow `.github/workflows/pr-validation.yml` comenta em pull requests para `Development` e `main`. O comentário é único, reconhecido pelo marcador `<!-- llt-285-validacao-prs -->`, e a verificação não bloqueia o merge. As checagens de código são `./mvnw -B -DskipTests compile`, `./mvnw -B test` e `./mvnw -B -DskipTests verify`. Se a compilação falha, testes e build não rodam. Os testes usam Testcontainers (Mongo, Redis e `grafana/otel-lgtm`); o runner `ubuntu-latest` já tem Docker, e o workflow não sobe um serviço de Mongo. Em pull request para `main`, o comentário só mostra essas três checagens, com a nota `PR de release (Development → main): só testes e build são verificados`. Pull request de fork não roda. Rascunho também é validado.
+
+Para repetir essa validação, uma pessoa com associação `OWNER`, `MEMBER` ou `COLLABORATOR` comenta `test` ou `/test` na conversa do pull request. Espaços e quebras só nas pontas não mudam o comando. `test por favor`, um comentário em issue, um comentário editado, um bot e um fork não disparam a reexecução. O comentário `test` recebe 👀 quando a rodada começa. No fim, recebe o foguete se todos os itens passaram ou o polegar para baixo se algum falhou. O comentário de validação é atualizado no lugar; não surge um segundo.
+
+Limitação: um workflow disparado por comentário (`issue_comment`) usa a versão do arquivo que está na branch padrão (`main`). O comando `test` só funciona de verdade depois que esta alteração chega em `main`. Enquanto o arquivo novo existir só na branch do pull request ou em `Development`, comentar `test` não reexecuta a validação.
 
 ## Padrão de commit
 

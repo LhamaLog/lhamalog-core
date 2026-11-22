@@ -7,8 +7,8 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.DynamicPropertyRegistrar;
 
 /**
- * Shared test wiring for the Clerk integration: JWKS of {@link TestJwks}, the revocation fake and the protected test
- * route. Every Spring test imports it so that they all share one application context (and one set of containers).
+ * Shared test wiring for the Clerk integration: JWKS of {@link TestJwks}, the revocation fake, the Asaas simulator's
+ * sender fake and the protected test route. Every Spring test imports it so that they all share one application context (and one set of containers).
  */
 @TestConfiguration(proxyBeanMethods = false)
 @Import(ProtectedTestController.class)
@@ -29,6 +29,13 @@ public class ClerkTestConfiguration {
 	@Primary
 	RecordingSessionRevocation recordingSessionRevocation() {
 		return new RecordingSessionRevocation();
+	}
+
+	/** The Asaas simulator delivers through this recorder in tests (spec 010). */
+	@Bean
+	@Primary
+	RecordingAsaasWebhookSender recordingAsaasWebhookSender() {
+		return new RecordingAsaasWebhookSender();
 	}
 
 }

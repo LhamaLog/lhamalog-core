@@ -6,9 +6,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
 
 import br.com.lhamalog.core.identity.adapter.in.security.ClerkAuthenticationConverter;
+import br.com.lhamalog.core.identity.adapter.in.security.SecurityContextCurrentOrganizationSession;
 import br.com.lhamalog.core.identity.adapter.in.security.SecurityContextCurrentRequestContext;
 import br.com.lhamalog.core.identity.adapter.out.clerk.ClerkBackendSessionRevocation;
 import br.com.lhamalog.core.identity.application.AccessResolver;
+import br.com.lhamalog.core.identity.application.port.CurrentOrganizationSession;
 import br.com.lhamalog.core.identity.application.port.CurrentRequestContext;
 import br.com.lhamalog.core.identity.application.port.out.SessionRevocation;
 import br.com.lhamalog.core.tenant.application.port.out.TenantRepository;
@@ -31,6 +33,11 @@ public class IdentityConfig {
 	@Bean
 	CurrentRequestContext currentRequestContext() {
 		return new SecurityContextCurrentRequestContext();
+	}
+
+	@Bean
+	CurrentOrganizationSession currentOrganizationSession() {
+		return new SecurityContextCurrentOrganizationSession();
 	}
 
 	/**
