@@ -20,5 +20,5 @@ git commit -m "LLT-259: ajusta healthcheck"
 - Referência: ADR_148 — Padrão de mensagem de commit (ver Drive da equipe > ADRs).
 
 ## Antes de enviar
-- Rode os testes localmente (`make test`). O workflow `.github/workflows/pr-validation.yml` também comenta, no pull request, o resultado de `./mvnw -B -DskipTests compile`, `./mvnw -B test` e `./mvnw -B -DskipTests verify`, sem bloquear o merge. O comando `test` nesse comentário só reexecuta a validação depois que o workflow chega em `main`. Detalhes no README, na seção "Validação de pull requests".
+- Rode os testes localmente (`make test`). O workflow `.github/workflows/pr-validation.yml` também comenta, no pull request, o resultado de `./mvnw -B -DskipTests compile`, `./mvnw -B test` e `./mvnw -B -DskipTests verify`, sem bloquear o merge. O comando `test` nesse comentário só reexecuta a validação depois que `.github/workflows/pr-rerun.yml` chega em `main`. Detalhes no README, na seção "Validação de pull requests".
 - Antes de adicionar qualquer dependência, ver Drive da equipe > Arquitetura > Dependências específicas dos módulos.

@@ -49,7 +49,7 @@ A constituição permanece na versão 2.1.0. O racional do princípio III ("sem 
 4. **Java e Docker.** `setup-java` usa Temurin 25 e cache Maven a partir do `pom.xml`. Não há `services:`. Testcontainers sobe `mongo:8.0.34`, `redis:8.2.10` e `grafana/otel-lgtm:0.37.0` com o Docker do `ubuntu-latest`.
 5. **`mvnw` sem bit de execução.** O índice guarda `mvnw` como `100644`. O passo do Maven faz `chmod +x mvnw` quando o arquivo existe e em seguida executa `./mvnw`. O nome da checagem continua `./mvnw ...`.
 6. **Job sempre verde.** Cada passo tem `continue-on-error` ou termina com `exit 0`. Falha de checagem aparece só no comentário.
-7. **Comentário e reexecução.** Mesmo marcador, mesmas reações e as mesmas regras de `test` / `/test` do Web. O gatilho `issue_comment` lê o workflow da branch padrão (`main`); o README diz isso.
+7. **Comentário e reexecução.** Mesmo marcador, mesmas reações e as mesmas regras de `test` / `/test` do Web. O gatilho `issue_comment` lê o workflow da branch padrão (`main`); o README diz isso. A LLT-294 separou esse gatilho para `.github/workflows/pr-rerun.yml`. `.github/workflows/pr-validation.yml` ficou só com `pull_request`.
 8. **Branch e commit desta tarefa.** A branch pedida é `LLT-XXX-slug`, que é o formato que o próprio workflow confere. A mensagem principal do commit não leva dois-pontos (`LLT-285` seguido de espaço), formato que a checagem de commit aceita. O CONTRIBUTING segue descrevendo o padrão da ADR_148, com dois-pontos.
 
 ## Project Structure
@@ -67,6 +67,7 @@ specs/285-validacao-de-prs/
 
 ```text
 .github/workflows/pr-validation.yml
+.github/workflows/pr-rerun.yml
 scripts/pr-validation.mjs
 tests/pr-validation.test.mjs
 README.md
