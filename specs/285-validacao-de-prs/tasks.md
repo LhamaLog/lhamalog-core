@@ -20,7 +20,7 @@
 ## Phase 3: Workflow (US1, US3, US4)
 
 - [x] T006 Criar `.github/workflows/pr-validation.yml` com os gatilhos do Web, `setup-java` Temurin 25 com cache Maven, `setup-node` sem cache e os três comandos `./mvnw`.
-- [x] T007 No mesmo workflow, pular testes e build quando a compilação falha, publicar ou atualizar o comentário `<!-- llt-285-validacao-prs -->` e reexecutar por `test` ou `/test`.
+- [x] T007 No mesmo workflow, pular testes e build quando a compilação falha, publicar ou atualizar o comentário `<!-- llt-285-validacao-prs -->` e reexecutar por `test` ou `/test`. A LLT-294 moveu essa reexecução para `.github/workflows/pr-rerun.yml`.
 
 ## Phase 4: Documentação
 
