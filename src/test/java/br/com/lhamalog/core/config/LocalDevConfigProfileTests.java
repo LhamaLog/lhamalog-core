@@ -8,15 +8,17 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.data.mongodb.core.MongoTemplate;
 
+import br.com.lhamalog.core.occurrence.infrastructure.LocalOccurrenceSampleSeeder;
 import br.com.lhamalog.core.tenant.adapter.out.mongo.LocalDevTenantSeeder;
 
-/** Development tenants are provisioned only in the local profile (spec 008, US4). */
+/** Development tenants (spec 008, US4) and sample occurrences (spec 012, US4) exist only in the local profile. */
 class LocalDevConfigProfileTests {
 
 	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
 		.withBean(MongoTemplate.class, () -> mock(MongoTemplate.class))
 		.withUserConfiguration(LocalDevConfig.class)
-		.withPropertyValues("lhamalog.dev-tenant.clerk-org-id=org_exemplo1");
+		.withPropertyValues("lhamalog.dev-tenant.clerk-org-id=org_exemplo1",
+				"lhamalog.occurrences.sample-data.enabled=true");
 
 	@Test
 	void localProfileRegistersTheSeederAndTheRunner() {
@@ -24,6 +26,8 @@ class LocalDevConfigProfileTests {
 			assertThat(context).hasSingleBean(LocalDevTenantSeeder.class);
 			assertThat(context).hasBean("localDevTenantRunner");
 			assertThat(context.getBean("localDevTenantRunner")).isInstanceOf(ApplicationRunner.class);
+			assertThat(context).hasSingleBean(LocalOccurrenceSampleSeeder.class);
+			assertThat(context).hasBean("localOccurrenceSampleRunner");
 		});
 	}
 
@@ -32,6 +36,8 @@ class LocalDevConfigProfileTests {
 		contextRunner.withPropertyValues("spring.profiles.active=prod").run((context) -> {
 			assertThat(context).doesNotHaveBean(LocalDevTenantSeeder.class);
 			assertThat(context).doesNotHaveBean("localDevTenantRunner");
+			assertThat(context).doesNotHaveBean(LocalOccurrenceSampleSeeder.class);
+			assertThat(context).doesNotHaveBean("localOccurrenceSampleRunner");
 		});
 	}
 
