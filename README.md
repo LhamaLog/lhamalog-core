@@ -214,6 +214,16 @@ O Tenant nasce na compra (ADR_121). Um administrador de organização sem Tenant
 
 Roteiro manual: `specs/010-criar-tenant-pagamento/quickstart.md`.
 
+## Ocorrências (LLT-135)
+O Core só **lê** as ocorrências que o Módulo Ocorrência grava na coleção `Ocorrencia` (a gravação a partir do resumo do Finder é a LLT-293). Quem vê o quê segue a regra de produto: dono e administrador veem todos os produtos, inclusive arquivados; membro, só os produtos a que tem acesso. Decisões em `specs/012-consultar-ocorrencias/`.
+
+- `GET /api/occurrences`: lista paginada, da última vez mais recente para a mais antiga. Parâmetros: `page` (padrão 1), `size` (10, 20 ou 50; padrão 20), `type` e `status` repetíveis, `productId` repetível, `from` e `to` (ISO-8601 com fuso; entra o que aconteceu no período) e `q` (até 200 caracteres, em título, resumo e assinatura, ou o id exato).
+- `GET /api/occurrences/{id}`: detalhe com resumo, os 5 exemplos de log mais recentes (já mascarados, cortados em 512 caracteres), atributos técnicos e histórico de status. Outra empresa, produto sem acesso ou id inexistente respondem o mesmo 404.
+- Sem título gravado, o título é a mensagem normalizada da assinatura do Finder. Documento fora do formato fica fora da lista e gera `WARN event=occurrence.read.invalid` no detalhe.
+- **Dados de exemplo (perfil local):** com `OCCURRENCE_SAMPLE_DATA=true`, o Core grava 12 ocorrências de exemplo para cada produto existente ao subir, sem duplicar nem alterar as que já existem. Produto criado depois só ganha exemplos na próxima subida.
+
+Contrato completo em `specs/012-consultar-ocorrencias/contracts/api.md`; roteiro em `quickstart.md`.
+
 ## Webhooks da Clerk (LLT-164)
 `POST /webhooks/clerk` é público em relação à sessão e protegido pela assinatura do Svix (headers `svix-id`, `svix-timestamp`, `svix-signature`), verificada sobre o corpo bruto com `CLERK_WEBHOOK_SIGNING_SECRET` e tolerância de 5 min. Decisões em `specs/003-webhooks-clerk/`.
 
