@@ -4,6 +4,8 @@
 
 O Core lê a coleção `Ocorrencia` para a lista e o detalhe da LLT-135. O Módulo grava a partir do `ResumoAnalise`; o Core nunca grava fora da carga local de exemplo.
 
+**Implementação (25/11/2026)**: o Módulo Ocorrência mora no próprio Core e grava este formato desde a spec 013 (`specs/013-gravar-ocorrencias`, LLT-293). Nomes com ponto em `extractedFields` (`http.route`) são gravados como vêm, pelo driver do MongoDB, porque o `insert` mapeado do Spring Data os recusa.
+
 ## Formato
 
 Ver a tabela de campos e a coluna "Origem" em [../data-model.md](../data-model.md). Regras que o Módulo MUST garantir ao gravar:
