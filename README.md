@@ -224,6 +224,32 @@ O Core só **lê** as ocorrências que o Módulo Ocorrência grava na coleção 
 
 Contrato completo em `specs/012-consultar-ocorrencias/contracts/api.md`; roteiro em `quickstart.md`.
 
+## Módulo Ocorrência (LLT-293)
+
+O Finder grava as ocorrências pelo Módulo Ocorrência, que mora neste Core. [Especificação](specs/013-gravar-ocorrencias/spec.md), [contrato das rotas](specs/013-gravar-ocorrencias/contracts/internal-api.md) e [roteiro](specs/013-gravar-ocorrencias/quickstart.md).
+
+- `POST /internal/v1/ocorrencias/consultas`: estado da ocorrência de um achado (contagem, datas, status e revisão) ou `estado: null`.
+- `POST /internal/v1/resumos-analise`: grava os achados de um lote, tudo ou nada, e devolve um recibo; reenviar a mesma chave (`batchId` + `execId`) devolve o mesmo recibo sem gravar de novo. Revisão desatualizada responde `409 REVISAO_DESATUALIZADA`.
+- As rotas exigem `Authorization: Bearer <JWT interno>` HS256, com `iss`, `aud` e `sub` da configuração. O token da Clerk não serve aqui, e o JWT interno não serve nas rotas de usuário.
+
+Variáveis (no `.env` local, nunca no Git):
+
+| Variável | Padrão | Uso |
+|---|---|---|
+| `OCCURRENCE_INTERNAL_JWT_SECRETS` | vazio | segredo atual e, na rotação, o anterior, separados por vírgula; mínimo de 32 bytes cada. Vazio: as rotas recusam tudo com 401 |
+| `OCCURRENCE_INTERNAL_JWT_ISSUER` | `lhamalog-internal` | `iss` exigido |
+| `OCCURRENCE_INTERNAL_JWT_AUDIENCE` | `lhamalog-modulo-ocorrencia` | valor exigido em `aud` |
+| `OCCURRENCE_INTERNAL_JWT_SUBJECTS` | `lhamalog-finder` | serviços (`sub`) autorizados |
+
+Token do Finder (vai em `FINDER_MODULO_OCORRENCIA_JWT`), com o mesmo segredo do Core:
+
+```powershell
+$env:OCCURRENCE_INTERNAL_JWT_SECRET = "<segredo>"
+java scripts/InternalJwt.java --sub lhamalog-finder --days 90
+```
+
+Rotação: ponha o segredo novo na frente da lista (`novo,antigo`), gere o token novo, troque no Finder e depois tire o antigo. Os recibos ficam 30 dias na coleção `ReciboResumoAnalise` e somem sozinhos (índice TTL).
+
 ## Webhooks da Clerk (LLT-164)
 `POST /webhooks/clerk` é público em relação à sessão e protegido pela assinatura do Svix (headers `svix-id`, `svix-timestamp`, `svix-signature`), verificada sobre o corpo bruto com `CLERK_WEBHOOK_SIGNING_SECRET` e tolerância de 5 min. Decisões em `specs/003-webhooks-clerk/`.
 
