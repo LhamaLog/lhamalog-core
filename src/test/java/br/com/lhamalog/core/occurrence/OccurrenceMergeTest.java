@@ -136,4 +136,39 @@ class OccurrenceMergeTest {
 		assertThat(before.getString("revision")).isEqualTo("rev-old");
 	}
 
+
+	// Spec 014, research R5: a finding of an archived occurrence unarchives and reopens it
+
+	private static Document archived(String status) {
+		return stored(status).append("archivedAt", Date.from(Instant.parse("2026-11-24T00:00:00Z")))
+			.append("archivedBy", new Document("type", "USER").append("id", "user_1"));
+	}
+
+	@Test
+	void archivedInAnalysisIsUnarchivedAndReopened() {
+		Document after = merge(archived("EM_ANALISE"), finding(List.of(), null, null, null));
+		assertThat(after.containsKey("archivedAt")).isFalse();
+		assertThat(after.containsKey("archivedBy")).isFalse();
+		assertThat(after.getString("status")).isEqualTo("ABERTA");
+		List<Document> history = after.getList("statusHistory", Document.class);
+		assertThat(history).hasSize(2);
+		assertThat(history.getLast().getString("from")).isEqualTo("EM_ANALISE");
+		assertThat(history.getLast().get("changedBy", Document.class)).containsEntry("type", "SYSTEM");
+	}
+
+	@Test
+	void archivedClosedGetsASingleReopening() {
+		Document after = merge(archived("FECHADA"), finding(List.of(), null, null, null));
+		assertThat(after.getString("status")).isEqualTo("ABERTA");
+		assertThat(after.getList("statusHistory", Document.class)).hasSize(2);
+		assertThat(after.containsKey("archivedAt")).isFalse();
+	}
+
+	@Test
+	void archivedOpenIsUnarchivedWithoutHistory() {
+		Document after = merge(archived("ABERTA"), finding(List.of(), null, null, null));
+		assertThat(after.containsKey("archivedAt")).isFalse();
+		assertThat(after.getList("statusHistory", Document.class)).hasSize(1);
+	}
+
 }
