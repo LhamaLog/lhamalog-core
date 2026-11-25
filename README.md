@@ -231,6 +231,8 @@ Contrato completo em `specs/012-consultar-ocorrencias/contracts/api.md`; roteiro
 - `revision` é a que o detalhe devolveu; se a ocorrência mudou depois (outra pessoa ou o Finder), a resposta é 409 `occurrence_changed`.
 - Um achado novo do Finder desarquiva e reabre a ocorrência como ABERTA.
 
+**Aviso em tempo real (LLT-137, `specs/015-tempo-real-ocorrencias/`):** a tela abre `ws://…/ws/occurrences` e, em até 10 s, manda `{"type":"auth","token":"<token da Clerk>"}` (o token nunca vai na URL; ele é validado como nas rotas `/api` e renovado pela tela antes de vencer). O Core avisa `{"type":"occurrence","change":"CREATED"|"REOPENED",…}` quando o Finder cria ou reabre uma ocorrência de um produto que a pessoa vê; os avisos passam entre instâncias pelo Redis (canal `lhamalog:occurrence-events`). Fechamentos: 4401 (sem autenticação válida ou token vencido) e 4403 (acesso negado). Contrato em `specs/015-tempo-real-ocorrencias/contracts/websocket.md`.
+
 ## Módulo Ocorrência (LLT-293)
 
 O Finder grava as ocorrências pelo Módulo Ocorrência, que mora neste Core. [Especificação](specs/013-gravar-ocorrencias/spec.md), [contrato das rotas](specs/013-gravar-ocorrencias/contracts/internal-api.md) e [roteiro](specs/013-gravar-ocorrencias/quickstart.md).

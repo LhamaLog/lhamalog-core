@@ -26,6 +26,7 @@ import br.com.lhamalog.core.occurrence.application.AnalysisSummary.OccurrenceKey
 import br.com.lhamalog.core.occurrence.application.AnalysisSummaryDeliveryService;
 import br.com.lhamalog.core.occurrence.application.DeliveryReceiptRepository;
 import br.com.lhamalog.core.occurrence.application.InternalApiException;
+import br.com.lhamalog.core.occurrence.application.OccurrenceEvent;
 import br.com.lhamalog.core.occurrence.application.OccurrenceModuleProperties;
 import br.com.lhamalog.core.occurrence.application.OccurrenceWriteRepository;
 
@@ -43,8 +44,10 @@ class AnalysisSummaryDeliveryServiceTest {
 
 	private final MemoryReceipts receipts = new MemoryReceipts();
 
+	private final List<OccurrenceEvent> published = new ArrayList<>();
+
 	private final AnalysisSummaryDeliveryService service = new AnalysisSummaryDeliveryService(occurrences, receipts,
-			new OccurrenceModuleProperties(null, null), clock);
+			new OccurrenceModuleProperties(null, null), clock, published::addAll);
 
 	private static Finding finding(String signature, long count, String consultedRevision) {
 		return new Finding(new OccurrenceKey(signature, "ERROR"), "host-1", count, Instant.parse("2026-11-20T10:00:00Z"),
@@ -195,6 +198,45 @@ class AnalysisSummaryDeliveryServiceTest {
 	void lostReservationBeforeConfirmationIsAnInternalError() {
 		receipts.loseOnConfirm = true;
 		assertCode(() -> service.deliver(summary(finding("a", 1, null))), InternalApiException.INTERNAL_ERROR);
+	}
+
+	// Spec 015: notices only after an accepted delivery
+
+	@Test
+	void acceptedDeliveryPublishesCreatedAndReopenedOnly() {
+		store("a", 10);
+		occurrences.data.get("occ-a").put("status", "FECHADA");
+		store("b", 5);
+		service.deliver(summary(finding("a", 13, "rev-a"), finding("b", 6, "rev-b"), finding("c", 1, null)));
+		assertThat(published).extracting(OccurrenceEvent::occurrenceId, OccurrenceEvent::change)
+			.containsExactlyInAnyOrder(org.assertj.core.groups.Tuple.tuple("occ-a", OccurrenceEvent.Change.REOPENED),
+					org.assertj.core.groups.Tuple.tuple(occurrences.data.values().stream()
+						.filter(d -> d.getString("signature").equals("c")).findFirst().orElseThrow().getString("_id"),
+							OccurrenceEvent.Change.CREATED));
+	}
+
+	@Test
+	void refusedRepeatedAndUndoneDeliveriesPublishNothing() {
+		store("a", 10);
+		assertCode(() -> service.deliver(summary(finding("a", 13, "outra"))), InternalApiException.STALE_REVISION);
+		occurrences.failOnWrite = 2;
+		assertThatThrownBy(() -> service.deliver(summary(finding("x", 1, null), finding("y", 1, null))))
+			.isInstanceOf(IllegalStateException.class);
+		occurrences.failOnWrite = 0;
+		assertThat(published).isEmpty();
+		service.deliver(summary(finding("z", 1, null)));
+		published.clear();
+		service.deliver(summary(finding("z", 1, null)));
+		assertThat(published).isEmpty();
+	}
+
+	@Test
+	void aFailingPublisherDoesNotFailTheDelivery() {
+		AnalysisSummaryDeliveryService failing = new AnalysisSummaryDeliveryService(occurrences, receipts,
+				new OccurrenceModuleProperties(null, null), clock, events -> {
+					throw new IllegalStateException("redis fora");
+				});
+		assertThat(failing.deliver(summary(finding("n", 1, null))).repeated()).isFalse();
 	}
 
 	private static void assertCode(Runnable call, String code) {

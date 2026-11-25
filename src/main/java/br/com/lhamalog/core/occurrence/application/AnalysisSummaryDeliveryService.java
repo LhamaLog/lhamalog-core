@@ -40,12 +40,15 @@ public class AnalysisSummaryDeliveryService {
 
 	private final Clock clock;
 
+	private final OccurrenceEventPublisher events;
+
 	public AnalysisSummaryDeliveryService(OccurrenceWriteRepository occurrences, DeliveryReceiptRepository receipts,
-			OccurrenceModuleProperties properties, Clock clock) {
+			OccurrenceModuleProperties properties, Clock clock, OccurrenceEventPublisher events) {
 		this.occurrences = occurrences;
 		this.receipts = receipts;
 		this.settings = properties.delivery();
 		this.clock = clock;
+		this.events = events;
 	}
 
 	public Result deliver(AnalysisSummary summary) {
@@ -87,6 +90,7 @@ public class AnalysisSummaryDeliveryService {
 			}
 			log.info("event=occurrence.delivery.accepted | Analysis summary written | {} findings={}", describe(key),
 					journal.size());
+			notifyScreens(key, journal, confirmedAt);
 			return new Result(receiptId, false);
 		}
 		catch (InternalApiException refused) {
@@ -104,6 +108,18 @@ public class AnalysisSummaryDeliveryService {
 						describe(key));
 			}
 			throw failure;
+		}
+	}
+
+	/** Spec 015: news for the screens, only after the receipt; a failure here never fails the delivery. */
+	private void notifyScreens(DeliveryKey key, List<JournalEntry> journal, Instant at) {
+		try {
+			List<OccurrenceEvent> news = OccurrenceChangeDetector.detect(key.tenantId(), key.productId(), journal, at);
+			if (!news.isEmpty()) events.publish(news);
+		}
+		catch (RuntimeException failure) {
+			log.warn("event=occurrence.stream.publish_failed | Notices of an accepted delivery were not published | {} error={}",
+					describe(key), failure.getClass().getSimpleName());
 		}
 	}
 

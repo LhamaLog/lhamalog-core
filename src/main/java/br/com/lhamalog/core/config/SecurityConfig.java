@@ -73,6 +73,10 @@ public class SecurityConfig {
 			// Asaas simulator: its controller only exists in the local profile, elsewhere the path is a 404.
 			.requestMatchers(FAKE_ASAAS_PATHS)
 			.permitAll()
+			// Occurrence WebSocket (spec 015): the handshake is open; the connection authenticates with its first
+			// message, validated like /api by the StreamAuthenticator, and gets nothing before that.
+			.requestMatchers("/ws/occurrences")
+			.permitAll()
 			// Purchase routes also serve organizations that have no tenant yet (spec 010).
 			.requestMatchers(BILLING_PATHS)
 			.access(new BillingAccessAuthorizationManager())
