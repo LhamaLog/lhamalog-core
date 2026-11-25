@@ -10,6 +10,9 @@ public interface ProductRepository extends MongoRepository<Product, String> {
 	List<Product> findByTenantIdAndIdInOrderByNameAscIdAsc(String tenantId, Collection<String> ids);
 	Optional<Product> findByIdAndTenantId(String id, String tenantId);
 
+	/** How many of the ids are products of the company, archived ones included (feature 011, US2). */
+	long countByTenantIdAndIdIn(String tenantId, Collection<String> ids);
+
 	// Active products: archivedAt null or missing (documents created before the field existed).
 	List<Product> findByTenantIdAndArchivedAtIsNullOrderByNameAscIdAsc(String tenantId);
 	List<Product> findByTenantIdAndIdInAndArchivedAtIsNullOrderByNameAscIdAsc(String tenantId,
