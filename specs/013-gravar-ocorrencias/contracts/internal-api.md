@@ -20,8 +20,8 @@ Corpo `ConsultaAchado`: `{tenantId, productId, assinatura, tipo}`, sem campos a 
 |---|---|---|
 | Sem ocorrência na chave | 200 | `{"estado": null}` |
 | Ocorrência encontrada | 200 | `{"estado": {"contagemAcumulada": 13, "primeiraOcorrencia": "…Z", "ultimaOcorrencia": "…Z", "status": "ABERTA", "revisao": "…"}}` |
-| JSON ilegível ou tipo JSON errado | 400 | `{"codigo":"REQUISICAO_INVALIDA"}` |
-| Campo a mais, obrigatório vazio, tipo fora da classe | 422 | `{"codigo":"DADOS_INVALIDOS"}` |
+| JSON ilegível ou raiz que não é objeto | 400 | `{"codigo":"REQUISICAO_INVALIDA"}` |
+| Campo a mais ou ausente, tipo JSON errado, obrigatório vazio, tipo fora da classe | 422 | `{"codigo":"DADOS_INVALIDOS"}` |
 | Mais de uma ocorrência na chave, ou ocorrência sem contagem, datas ou status válidos | 500 | `{"codigo":"OCORRENCIA_INVALIDA"}` |
 
 ## POST /internal/v1/resumos-analise
@@ -34,8 +34,8 @@ Corpo `ResumoAnalise` do contrato.
 | Chave já confirmada (qualquer corpo válido) | 200 | `Confirmacao` original com `repeticao: true` |
 | Revisão consultada desatualizada em algum achado | 409 | `{"codigo":"REVISAO_DESATUALIZADA"}` |
 | Outra entrega da mesma chave em processamento | 409 | `{"codigo":"ENTREGA_EM_ANDAMENTO"}` |
-| JSON ilegível ou tipo JSON errado | 400 | `{"codigo":"REQUISICAO_INVALIDA"}` |
-| Regra do contrato violada (ver research R5) | 422 | `{"codigo":"DADOS_INVALIDOS"}` |
+| JSON ilegível ou raiz que não é objeto | 400 | `{"codigo":"REQUISICAO_INVALIDA"}` |
+| Campo a mais ou ausente, tipo JSON errado ou regra do contrato violada (research R5) | 422 | `{"codigo":"DADOS_INVALIDOS"}` |
 | Mais de 1.000 achados | 422 | `{"codigo":"RESUMO_GRANDE_DEMAIS"}` |
 | Duplicidade na coleção para uma chave | 500 | `{"codigo":"OCORRENCIA_INVALIDA"}` |
 | Reserva perdida antes da confirmação | 500 | `{"codigo":"ERRO_INTERNO"}` |

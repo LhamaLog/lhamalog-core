@@ -74,33 +74,37 @@ src/main/java/br/com/lhamalog/core/
 └── occurrence/
     ├── api/
     │   ├── InternalOccurrenceController.java        # /internal/v1/ocorrencias/consultas e /internal/v1/resumos-analise
-    │   ├── InternalOccurrenceRequests.java          # corpos do contrato (nomes JSON em português, campos String)
-    │   ├── InternalOccurrenceResponses.java         # ResultadoConsulta e Confirmacao
+    │   ├── InternalOccurrenceRequests.java          # leitura estrita dos corpos (JsonNode) e regras do contrato → 400/422
+    │   ├── InternalOccurrenceResponses.java         # ResultadoConsulta, EstadoOcorrencia, Confirmacao e Erro
     │   └── InternalOccurrenceErrors.java            # {"codigo"} para 400/403/409/422/500
     ├── application/
-    │   ├── AnalysisSummary.java                     # resumo validado (records de domínio)
-    │   ├── AnalysisSummaryValidator.java            # regras do contrato → 422/400
+    │   ├── OccurrenceModuleProperties.java          # lhamalog.occurrence.internal-auth.* e .delivery.*
+    │   ├── AnalysisSummary.java                     # resumo validado (DeliveryKey, OccurrenceKey, Finding)
+    │   ├── InternalApiException.java                # recusa com status e código do contrato
     │   ├── OccurrenceLookupService.java             # US1
     │   ├── AnalysisSummaryDeliveryService.java      # US2/US3: reserva, conferência, diário, aplicação, desfazer, confirmação
     │   ├── OccurrenceMerge.java                     # antes + achado → depois (regras 1 a 9 do contrato 012)
-    │   ├── DeliveryKey.java                         # tenant, produto, batchId, execId
     │   ├── OccurrenceWriteRepository.java           # porta de escrita condicional
     │   └── DeliveryReceiptRepository.java           # porta dos recibos
     └── infrastructure/
         ├── MongoOccurrenceWriteRepository.java      # leitura em lote, replace/insert condicionais, desfazer
-        ├── DeliveryReceiptDocument.java             # coleção ReciboResumoAnalise
-        └── MongoDeliveryReceiptRepository.java      # reserva, diário, confirmação, TTL
+        └── MongoDeliveryReceiptRepository.java      # ReciboResumoAnalise: reserva, diário, confirmação, índices e TTL
 
 scripts/
 └── InternalJwt.java                                 # java scripts/InternalJwt.java → imprime o JWT do Finder
 
-src/test/java/br/com/lhamalog/core/occurrence/
-├── InternalTokens.java                              # gera tokens de teste (segredo fictício)
-├── OccurrenceLookupIntegrationTests.java
-├── AnalysisSummaryDeliveryIntegrationTests.java
-├── InternalAuthIntegrationTests.java
-├── AnalysisSummaryValidatorTest.java
-└── OccurrenceMergeTest.java
+src/test/java/br/com/lhamalog/core/
+├── config/InternalServiceSecurityConfigurationAccess.java
+└── occurrence/
+    ├── InternalTokens.java                          # tokens de teste (segredos fictícios)
+    ├── InternalModuleWorld.java                     # empresa, produto e corpos do contrato
+    ├── InternalAuthIntegrationTests.java
+    ├── OccurrenceLookupIntegrationTests.java
+    ├── AnalysisSummaryDeliveryIntegrationTests.java
+    ├── AnalysisSummaryDeliveryServiceTest.java      # queda, corrida e recuperação com repositórios em memória
+    ├── InternalOccurrenceRequestsTest.java
+    ├── OccurrenceMergeTest.java
+    └── OccurrenceModulePerformanceTests.java        # SC-004, sob demanda
 ```
 
 **Structure Decision**: tudo do Módulo fica no pacote `occurrence` já criado pela LLT-135, separado da leitura da tela por classes próprias (`Internal*`, `*Delivery*`). A segurança interna é uma `SecurityFilterChain` com `@Order` acima da chain da Clerk e restrita a `/internal/v1/**`, como a `UsageFactsSecurityConfiguration` faz para `/internal/usage-*` (que não muda). O `ApiExceptionHandler` geral não muda: o formato `{"codigo"}` fica num `@RestControllerAdvice` limitado ao controller interno. O `OccurrenceDocument` da LLT-135 continua o mesmo; a escrita usa `MongoTemplate` com `Document` para gravar `extractedFields` com ponto nas chaves.
