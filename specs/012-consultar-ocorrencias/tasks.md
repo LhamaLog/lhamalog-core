@@ -122,7 +122,7 @@
 
 - [X] T032 [P] Documentar no `README.md` a seção "Ocorrências": rotas, parâmetros e a carga local (`OCCURRENCE_SAMPLE_DATA`)
 - [X] T033 Rodar `.\mvnw.cmd verify` com o Docker ligado (Testcontainers) e registrar o resultado no fim deste arquivo
-- [ ] T034 Executar o roteiro do [quickstart.md](quickstart.md) (Q1 a Q14) contra o Core local e registrar o resultado
+- [X] T034 Executar o roteiro do [quickstart.md](quickstart.md) (Q1 a Q14) contra o Core local e registrar o resultado
 - [X] T035 [P] Medir o SC-004: gravar 10.000 ocorrências pela `OccurrenceFixtures` num tenant de teste e cronometrar a primeira página sem filtros, com filtros e com busca; registrar os tempos no fim deste arquivo
 - [ ] T036 Revisão do Felipe: conferir cada arquivo contra a spec e o research (constituição II) e combinar o contrato `ocorrencia-documento.md` com quem for implementar o Módulo Ocorrência e com o João (finder)
 
@@ -169,3 +169,24 @@ Na primeira rodada, dois testes de integração falharam e foram corrigidos:
 | Com busca | `q=timeout` | 200 | 86, 55, 55, 51, 47 | 55 ms | 86 ms |
 
 Todos bem abaixo de 1 s. A busca é a mais cara porque o regex sem âncora percorre os documentos do tenant; com volumes muito maiores, o caminho é um índice de texto, fora desta entrega.
+
+### T034 — roteiro do quickstart (25/11/2026)
+
+Rodado por HTTP contra um Core de teste na porta 8081 (o jar desta branch, perfil `local`, mesmo Mongo e Redis do compose, `OCCURRENCE_SAMPLE_DATA=true`), com `CLERK_ISSUER` apontando para um emissor de tokens local que assina tokens no formato v2 da Clerk. Só para teste: o agente não entra na Clerk. Tenant da organização de desenvolvimento `org_3MFF…sgq7`, com 2 produtos e 24 ocorrências de exemplo.
+
+| # | Resultado |
+|---|---|
+| Q1 | OK: 200, 20 itens, `lastSeenAt` decrescente, `totalItems` 24 (12 × 2 produtos) |
+| Q2 | OK: `page=2&size=10` traz os itens 11 a 20 da mesma ordem |
+| Q3 | OK: `size=15` → 400 `fieldErrors.size` "Use 10, 20 ou 50." |
+| Q4 | OK: ERROR + ABERTA + 1 produto → 2 itens, todos coerentes |
+| Q5 | OK: `q=TIMEOUT` → 2 itens (pelo resumo "Timeout na conexão…") |
+| Q6 | OK: `q=(` → 200, sem erro de regex |
+| Q7 | OK: `from` = hoje 00:00 → 16 itens, todos com `lastSeenAt` de hoje |
+| Q8 | OK: `from` amanhã e `to` hoje → 400 `fieldErrors.to` |
+| Q9 | OK: produto da empresa A pedido pela outra empresa → 404 "Produto não encontrado ou sem acesso." |
+| Q10 | OK: os 24 detalhes com até 5 `samples`, `host.name` e `service.name` nos atributos e histórico; sem título → mensagem da assinatura |
+| Q11 | OK: detalhe pedido pela outra empresa → 404 "Ocorrência não encontrada ou sem acesso." |
+| Q12 | OK, por equivalência: empresa sem produtos visíveis → 200 com 0 itens; o membro com 1 produto vê só os 12 dele e recebe 404 no detalhe do outro produto. Não havia membro sem nenhum produto na base local |
+| Q13 | OK: duas novas subidas com a carga ligada registraram `inserted=0` |
+| Q14 | OK: sem `status`, a ocorrência some da lista (total 23) e o detalhe dá 404 com WARN `event=occurrence.read.invalid`; o `status` foi devolvido depois (total 24) |
