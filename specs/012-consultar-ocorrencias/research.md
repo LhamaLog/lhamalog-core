@@ -23,6 +23,7 @@ Fontes lidas: Jira LLT-135, LLT-203, LLT-204 e LLT-205; casos de uso USID_001, U
 - **Decisão**: o conjunto de produtos visíveis vem do `ProductService.list(session, false)` somado ao `list(session, true)`: dono e administrador veem todos os produtos do tenant; membro, só os de `AcessoProduto`. A consulta de ocorrências filtra `tenantId` e `productId ∈ visíveis`. Os mesmos produtos dão os nomes para a resposta.
 - **Motivo**: reusa a regra da 001 e a matriz da LLT-169 ("consultar dados, logs e ocorrências: Produto" para membro) sem duplicar a lógica de acesso. Produto arquivado entra, como o Felipe confirmou.
 - **Alternativas**: ler `AcessoProduto` direto no módulo de ocorrências, descartado por duplicar a regra de administrador.
+- **Conferência com a LLT-120 (feature 011, merge da `Development` em 25/11)**: a regra continua a mesma. A 011 não mexe no `ProductService` nem no `CompanySession`; a matriz dela dá `PRODUCTS_VIEW_ALL` ao Dono e ao Administrador, que são exatamente as sessões com token de administrador (`AccessService.resolve`), e o Membro segue limitado ao `AcessoProduto`. O que muda é que o Dono ou um Administrador agora edita o `AcessoProduto` de cada membro (`PUT /api/company/members/{userId}/products`); como os produtos visíveis são lidos a cada requisição, liberar ou retirar um produto vale na consulta seguinte de ocorrências. O Dono rebaixado a `member` na Clerk vira MEMBER na 011 e aqui também, porque as duas regras partem do token.
 
 ## R4. Paginação
 

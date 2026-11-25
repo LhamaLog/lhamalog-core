@@ -36,9 +36,10 @@ Roteiro de validação da feature 012. Use o ambiente local do README (MongoDB, 
 
 ## Testes automatizados
 
+Com o Docker ligado (os testes sobem o Mongo e o Redis pelo Testcontainers):
+
 ```powershell
-$env:TEST_MONGODB_URI = "<uri do Mongo de teste>"
 .\mvnw.cmd verify
 ```
 
-A classe `OccurrenceQueryIntegrationTests` cobre Q1 a Q14 com documentos gravados pelo próprio teste.
+A classe `OccurrenceQueryIntegrationTests` cobre Q1 a Q14 com documentos gravados pelo próprio teste; `OccurrenceFilterTest` e `OccurrenceSignatureTest` cobrem a validação dos parâmetros e a assinatura.

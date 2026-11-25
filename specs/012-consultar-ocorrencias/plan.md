@@ -20,7 +20,7 @@ Módulo novo `occurrence` com duas rotas de leitura: `GET /api/occurrences` (lis
 
 **Storage**: MongoDB, coleção nova `Ocorrencia` (leitura; escrita só da carga local), com os índices `occurrence_tenant_product_last_seen` e `occurrence_unique_key` criados pelo `auto-index-creation`
 
-**Testing**: JUnit 5, MockMvc, `@CoreIntegrationTest` com `TEST_MONGODB_URI` e `TestTenants` (tokens reais e Tenant ACTIVE), como nas specs 008 e 009
+**Testing**: JUnit 5, MockMvc, `@CoreIntegrationTest` (Testcontainers com tags fixas, Docker ligado) e `TestTenants` (tokens reais e Tenant ACTIVE), como nas specs 008 e 009
 
 **Target Platform**: API HTTP do LhamaLog Core (porta 8080)
 
@@ -38,7 +38,7 @@ Módulo novo `occurrence` com duas rotas de leitura: `GET /api/occurrences` (lis
 
 - **I. Spec Kit**: spec, clarify, plano, research, data-model, contratos, quickstart e tasks nesta pasta antes do código.
 - **II. IA e revisão**: o código será escrito pela IA; as decisões estão em `research.md`; o Felipe revisa cada arquivo antes do merge.
-- **III. Testes**: `OccurrenceQueryIntegrationTests` (lista, filtros, acesso, detalhe, documento inválido, carga sem duplicar) e `OccurrenceFilterTest` (validação dos parâmetros). Suíte local `.\mvnw.cmd verify` com `TEST_MONGODB_URI`.
+- **III. Testes**: `OccurrenceQueryIntegrationTests` (lista, filtros, acesso, detalhe, documento inválido, carga sem duplicar) e `OccurrenceFilterTest` (validação dos parâmetros). Suíte local `.\mvnw.cmd verify` com o Docker ligado (Testcontainers) e a validação de PR do GitHub Actions (LLT-285).
 - **IV. Idioma**: identificadores em inglês (`Occurrence*`, `lastSeenAt`, `statusHistory`); a coleção segue o padrão de nome em português do Core (`Produto`, `AcessoProduto`) → `Ocorrencia`; documentação em português.
 - **V. Segredos**: nada novo; a carga de exemplo usa só textos fictícios e já mascarados (`<EMAIL>`, `<TOKEN>`).
 - **VI. Padrão de logs**: documento inválido no detalhe → `WARN event=occurrence.read.invalid | Stored occurrence is invalid; hidden from the user | tenantId= occurrenceId= reason=`, sem conteúdo de log. Carga local → `INFO event=occurrence.sample.seeded | Sample occurrences ready | productId= inserted=`. Consultas comuns não geram log de negócio. Nenhum log com título, mensagem ou linha de exemplo.

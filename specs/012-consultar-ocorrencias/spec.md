@@ -130,7 +130,7 @@ No perfil local, a pessoa desenvolvedora carrega ocorrências de exemplo nos pro
 - **FR-002**: Cada item da lista MUST trazer identificador, tipo, título, produto (identificador e nome), contagem, status, recorrente, primeira vez e última vez.
 - **FR-003**: A página MUST trazer os itens, o número da página, o tamanho e o total de itens que satisfazem a consulta.
 - **FR-004**: O tamanho da página MUST ser 10, 20 ou 50, com 20 como padrão; a página MUST começar em 1. Valores fora disso MUST responder 400 com o parâmetro inválido.
-- **FR-005**: Dono e administrador MUST ver as ocorrências de todos os produtos da empresa, inclusive arquivados; os demais membros MUST ver só as dos produtos a que têm acesso (matriz de permissões da LLT-169 e regra de acesso da 001).
+- **FR-005**: Dono e administrador MUST ver as ocorrências de todos os produtos da empresa, inclusive arquivados; os demais membros MUST ver só as dos produtos a que têm acesso (matriz de permissões da LLT-169, `PRODUCTS_VIEW_ALL` da feature 011/LLT-120, e regra de acesso da 001).
 - **FR-006**: A lista MUST aceitar, combinados, os filtros: período (início e fim, cada um opcional), tipos (um ou mais), status (um ou mais), produtos (um ou mais) e texto. Sem filtro, o resultado MUST ser o da lista padrão.
 - **FR-007**: O período MUST selecionar as ocorrências com primeira vez até o fim e última vez a partir do início; início depois do fim MUST responder 400.
 - **FR-008**: Um produto no filtro que não existe, é de outra empresa ou não é acessível ao usuário MUST fazer a consulta responder 404, com a mesma resposta nos três casos.
