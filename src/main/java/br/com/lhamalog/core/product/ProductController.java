@@ -7,8 +7,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -29,37 +27,45 @@ public class ProductController {
 	public record ChangeArchive(@NotNull Long version) {}
 
 	@GetMapping
-	public List<Product> list(@AuthenticationPrincipal Jwt jwt,
-			@RequestParam(defaultValue = "false") boolean archived) {
-		return service.list(sessions.resolve(jwt), archived);
+	public List<Product> list(@RequestParam(defaultValue = "false") boolean archived) {
+		return service.list(sessions.current(), archived);
 	}
 	@GetMapping("/{id}")
-	public Product get(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
-		return service.get(sessions.resolve(jwt), id);
+	public Product get(@PathVariable String id) {
+		return service.get(sessions.current(), id);
 	}
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
-	public Product create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CreateProduct request) {
-		return service.create(sessions.resolve(jwt), request);
+	public Product create(@Valid @RequestBody CreateProduct request) {
+		return service.create(sessions.current(), request);
 	}
 	@PutMapping("/{id}")
-	public Product update(@AuthenticationPrincipal Jwt jwt, @PathVariable String id,
-			@Valid @RequestBody UpdateProduct request) {
-		return service.update(sessions.resolve(jwt), id, request);
+	public Product update(@PathVariable String id, @Valid @RequestBody UpdateProduct request) {
+		return service.update(sessions.current(), id, request);
 	}
 	@PutMapping("/{id}/context")
-	public Product updateContext(@AuthenticationPrincipal Jwt jwt, @PathVariable String id,
-			@Valid @RequestBody UpdateContext request) {
-		return service.updateContext(sessions.resolve(jwt), id, request);
+	public Product updateContext(@PathVariable String id, @Valid @RequestBody UpdateContext request) {
+		return service.updateContext(sessions.current(), id, request);
+	}
+	@GetMapping("/{id}/context/revisions")
+	public ProductContextRevision.ViewList contextRevisions(@PathVariable String id) {
+		return ProductContextRevision.ViewList.from(service.contextRevisions(sessions.current(), id));
+	}
+	@GetMapping("/{id}/context/revisions/{revision}")
+	public ProductContextRevision.View contextRevision(@PathVariable String id,
+			@PathVariable long revision) {
+		return ProductContextRevision.View.from(service.contextRevision(sessions.current(), id, revision));
+	}
+	@GetMapping("/{id}/context/prompt")
+	public ProductContextPrompt contextPrompt(@PathVariable String id) {
+		return service.contextPrompt(sessions.current(), id);
 	}
 	@PostMapping("/{id}/archive")
-	public Product archive(@AuthenticationPrincipal Jwt jwt, @PathVariable String id,
-			@Valid @RequestBody ChangeArchive request) {
-		return service.archive(sessions.resolve(jwt), id, request.version());
+	public Product archive(@PathVariable String id, @Valid @RequestBody ChangeArchive request) {
+		return service.archive(sessions.current(), id, request.version());
 	}
 	@PostMapping("/{id}/unarchive")
-	public Product unarchive(@AuthenticationPrincipal Jwt jwt, @PathVariable String id,
-			@Valid @RequestBody ChangeArchive request) {
-		return service.unarchive(sessions.resolve(jwt), id, request.version());
+	public Product unarchive(@PathVariable String id, @Valid @RequestBody ChangeArchive request) {
+		return service.unarchive(sessions.current(), id, request.version());
 	}
 }

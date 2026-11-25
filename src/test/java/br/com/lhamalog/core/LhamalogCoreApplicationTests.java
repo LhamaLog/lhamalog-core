@@ -1,11 +1,10 @@
 package br.com.lhamalog.core;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 
-@Import(TestcontainersConfiguration.class)
-@SpringBootTest
+import br.com.lhamalog.core.support.CoreIntegrationTest;
+
+@CoreIntegrationTest
 class LhamalogCoreApplicationTests {
 
 	@Test

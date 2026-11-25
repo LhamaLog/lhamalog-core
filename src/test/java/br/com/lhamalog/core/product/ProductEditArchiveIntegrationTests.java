@@ -1,40 +1,44 @@
 package br.com.lhamalog.core.product;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import br.com.lhamalog.core.support.CoreIntegrationTest;
+import br.com.lhamalog.core.support.RecordingSessionRevocation;
+import br.com.lhamalog.core.support.TestTenants;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /** Feature 002: edit general data, archive and unarchive products (LLT-123). */
-@SpringBootTest(properties = {
-		"spring.mongodb.uri=${TEST_MONGODB_URI}",
-		"management.otlp.metrics.export.enabled=false", "management.tracing.export.otlp.enabled=false"
-})
-@AutoConfigureMockMvc
-@EnabledIfEnvironmentVariable(named = "TEST_MONGODB_URI", matches = ".+")
+@CoreIntegrationTest
 class ProductEditArchiveIntegrationTests {
 	@Autowired MockMvc mvc;
 	@Autowired ObjectMapper mapper;
 	@Autowired MongoTemplate mongo;
 	@Autowired ProductRepository products;
+	@Autowired RecordingSessionRevocation revocation;
+	private TestTenants tenants;
 
 	private RequestPostProcessor session(String organization, String user, String role) {
-		return jwt().jwt(token -> token.subject(user).claim("o", Map.of("id", organization, "rol", role)));
+		return tenants().session(organization, user, role);
+	}
+
+	/** Real tokens and an ACTIVE tenant per organization (LLT-163). */
+	private TestTenants tenants() {
+		if (tenants == null) {
+			tenants = new TestTenants(mongo);
+		}
+		return tenants;
 	}
 
 	private String organization() { return "org_test_" + UUID.randomUUID(); }
@@ -45,7 +49,7 @@ class ProductEditArchiveIntegrationTests {
 
 	private JsonNode create(RequestPostProcessor actor, String name) throws Exception {
 		return json(mvc.perform(post("/api/products").with(actor).contentType(MediaType.APPLICATION_JSON)
-				.content("{\"name\":\"" + name + "\",\"context\":{\"problemSolved\":\"Contexto original\"}}"))
+				.content("{\"name\":\"" + name + "\",\"context\":{\"functionalDescription\":\"Contexto original\"}}"))
 				.andExpect(status().isCreated()));
 	}
 
@@ -86,7 +90,7 @@ class ProductEditArchiveIntegrationTests {
 				.andExpect(jsonPath("$.description").value("Nova descrição"))
 				.andExpect(jsonPath("$.category").value("Pagamentos"))
 				.andExpect(jsonPath("$.productVersion").value("2.0"))
-				.andExpect(jsonPath("$.context.problemSolved").value("Contexto original"))
+				.andExpect(jsonPath("$.context.functionalDescription").value("Contexto original"))
 				.andExpect(jsonPath("$.status").value("CONFIGURING"));
 		assertEquals("Produto B", products.findById(id).orElseThrow().name());
 	}
@@ -158,17 +162,17 @@ class ProductEditArchiveIntegrationTests {
 		mvc.perform(get("/api/products").with(creator)).andExpect(jsonPath("$.length()").value(0));
 		mvc.perform(get("/api/products").with(admin)).andExpect(jsonPath("$.length()").value(0));
 		mvc.perform(get("/api/products/" + id).with(creator)).andExpect(status().isOk())
-				.andExpect(jsonPath("$.context.problemSolved").value("Contexto original"));
+				.andExpect(jsonPath("$.context.functionalDescription").value("Contexto original"));
 
 		long version = archived.get("version").asLong();
 		edit(creator, id, general("Mudou", "", version)).andExpect(status().isConflict())
 				.andExpect(jsonPath("$.message").value("Produto arquivado não pode ser editado."));
 		mvc.perform(put("/api/products/" + id + "/context").with(creator).contentType(MediaType.APPLICATION_JSON)
-				.content("{\"context\":{\"problemSolved\":\"Mudou\"},\"version\":" + version + "}"))
+				.content("{\"context\":{\"functionalDescription\":\"Mudou\"},\"version\":" + version + "}"))
 				.andExpect(status().isConflict());
 		Product stored = products.findById(id).orElseThrow();
 		assertEquals("Produto A", stored.name());
-		assertEquals("Contexto original", stored.context().problemSolved());
+		assertEquals("Contexto original", stored.context().functionalDescription());
 	}
 
 	@Test
@@ -179,7 +183,12 @@ class ProductEditArchiveIntegrationTests {
 		String id = created.get("id").asText();
 		long version = created.get("version").asLong();
 
-		changeArchive(creator, id, "archive", version).andExpect(status().isForbidden());
+		revocation.reset();
+		// Business 403: code and message, and no session is revoked (spec 008, FR-010).
+		changeArchive(creator, id, "archive", version).andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value("not_admin"))
+				.andExpect(jsonPath("$.message").value("Somente donos e administradores podem arquivar ou desarquivar produtos."));
+		assertTrue(revocation.revokedUsers().isEmpty());
 		changeArchive(session(tenant, "other", "member"), id, "archive", version).andExpect(status().isNotFound());
 		changeArchive(session(organization(), "admin", "admin"), id, "archive", version)
 				.andExpect(status().isNotFound());
@@ -242,7 +251,8 @@ class ProductEditArchiveIntegrationTests {
 				.andExpect(status().isOk()));
 		long version = archived.get("version").asLong();
 
-		changeArchive(creator, id, "unarchive", version).andExpect(status().isForbidden());
+		changeArchive(creator, id, "unarchive", version).andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value("not_admin"));
 		changeArchive(session(organization(), "admin", "admin"), id, "unarchive", version)
 				.andExpect(status().isNotFound());
 
@@ -250,7 +260,7 @@ class ProductEditArchiveIntegrationTests {
 		assertTrue(nullOrMissing(restored, "archivedAt"));
 		mvc.perform(get("/api/products").with(creator)).andExpect(jsonPath("$[0].id").value(id));
 		mvc.perform(get("/api/products/" + id).with(creator))
-				.andExpect(jsonPath("$.context.problemSolved").value("Contexto original"));
+				.andExpect(jsonPath("$.context.functionalDescription").value("Contexto original"));
 
 		JsonNode again = json(changeArchive(admin, id, "unarchive", restored.get("version").asLong())
 				.andExpect(status().isOk()));

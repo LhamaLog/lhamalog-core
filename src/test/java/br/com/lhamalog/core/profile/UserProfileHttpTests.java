@@ -3,38 +3,30 @@ package br.com.lhamalog.core.profile;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Import;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-import br.com.lhamalog.core.TestcontainersConfiguration;
+import br.com.lhamalog.core.support.CoreIntegrationTest;
+import br.com.lhamalog.core.support.TestTenants;
 import tools.jackson.databind.ObjectMapper;
 
-@Import(TestcontainersConfiguration.class)
-@SpringBootTest(properties = {
-		"management.otlp.metrics.export.enabled=false",
-		"management.tracing.export.otlp.enabled=false"
-})
-@AutoConfigureMockMvc
+/** Perfil over HTTP with real tokens (TestJwks) and real tenants (LLT-174). */
+@CoreIntegrationTest
 class UserProfileHttpTests {
-	private static final String SELECT_COMPANY = "Selecione uma empresa para continuar.";
 	private static final String CONFLICT = "Os dados foram alterados. Recarregue antes de salvar novamente.";
 	private static final String CHECK_FIELDS = "Confira os campos informados.";
 
@@ -42,6 +34,8 @@ class UserProfileHttpTests {
 	@Autowired ObjectMapper mapper;
 	@Autowired UserProfileRepository profiles;
 	@Autowired ApplicationContext context;
+	@Autowired MongoTemplate mongo;
+	private TestTenants tenants;
 
 	@Test
 	void savesAndReadsOwnProfile() throws Exception {
@@ -192,13 +186,14 @@ class UserProfileHttpTests {
 		mvc.perform(get("/api/user/profile")).andExpect(status().isUnauthorized());
 		mvc.perform(put("/api/user/profile").contentType(MediaType.APPLICATION_JSON)
 				.content(profile("Invasao", "en", "UTC", null))).andExpect(status().isUnauthorized());
-		RequestPostProcessor noCompany = jwt().jwt(token -> token.subject(user));
+		// No active organization: the security layer denies with the basic 403 body (ADR_032).
+		RequestPostProcessor noCompany = TestTenants.withoutOrganization(user);
 		mvc.perform(put("/api/user/profile").with(noCompany).contentType(MediaType.APPLICATION_JSON)
 				.content(profile("Sem empresa", "en", "UTC", 0L)))
 				.andExpect(status().isForbidden())
-				.andExpect(jsonPath("$.message").value(SELECT_COMPANY));
+				.andExpect(jsonPath("$.error").value("forbidden"));
 		mvc.perform(get("/api/user/profile").with(noCompany)).andExpect(status().isForbidden())
-				.andExpect(jsonPath("$.message").value(SELECT_COMPANY));
+				.andExpect(jsonPath("$.error").value("forbidden"));
 		mvc.perform(get("/api/user/profile").with(session))
 				.andExpect(jsonPath("$.displayName").value("Sessao"))
 				.andExpect(jsonPath("$.language").value("pt-BR"))
@@ -258,7 +253,8 @@ class UserProfileHttpTests {
 		}
 		for (String bean : context.getBeanDefinitionNames()) {
 			Class<?> type = context.getType(bean);
-			if (type == null) {
+			// The security layer revokes Clerk sessions on 403 (LLT-163); the profile never reaches it.
+			if (type == null || type.getPackageName().startsWith("br.com.lhamalog.core.identity.adapter.out.clerk")) {
 				continue;
 			}
 			String name = type.getName().toLowerCase();
@@ -284,7 +280,14 @@ class UserProfileHttpTests {
 	}
 
 	private RequestPostProcessor session(String organization, String user, String role) {
-		return jwt().jwt(token -> token.subject(user).claim("o", Map.of("id", organization, "rol", role)));
+		return tenants().session(organization, user, role);
+	}
+
+	private TestTenants tenants() {
+		if (tenants == null) {
+			tenants = new TestTenants(mongo);
+		}
+		return tenants;
 	}
 
 	private static String organization() {

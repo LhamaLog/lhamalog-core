@@ -1,0 +1,195 @@
+name: Validação de PRs
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+    branches: [Development, main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: write
+
+jobs:
+  validar:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    # ubuntu-22.04: o kernel do ubuntu-latest faz o mongo:8.0.34 recusar a subida (SERVER-121912).
+    runs-on: ubuntu-22.04
+    env:
+      CI_COMMAND: ./mvnw -B -DskipTests compile
+      TEST_COMMAND: ./mvnw -B test
+      BUILD_COMMAND: ./mvnw -B -DskipTests verify
+    steps:
+      - name: Obter o código
+        uses: actions/checkout@v4
+        continue-on-error: true
+
+      - name: Usar Java 25
+        if: always()
+        uses: actions/setup-java@v4
+        continue-on-error: true
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Usar Node para o script
+        if: always()
+        uses: actions/setup-node@v4
+        continue-on-error: true
+        with:
+          node-version: 22
+
+      - name: Ler branch, título e commits
+        if: always()
+        id: meta
+        uses: actions/github-script@v7
+        continue-on-error: true
+        with:
+          script: |
+            const fs = require('node:fs')
+            const pull = context.payload.pull_request
+            const commits = []
+            let page = 1
+            try {
+              while (page > 0) {
+                const { data } = await github.rest.pulls.listCommits({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pull.number,
+                  per_page: 100,
+                  page,
+                })
+                for (const commit of data) {
+                  commits.push({
+                    sha: commit.sha,
+                    message: commit.commit.message,
+                    parents: commit.parents.length,
+                  })
+                }
+                page = data.length === 100 ? page + 1 : 0
+              }
+            } catch (error) {
+              core.warning(String(error))
+            }
+            fs.writeFileSync(`${process.env.RUNNER_TEMP}/pr-commits.json`, JSON.stringify(commits))
+            core.setOutput('branch', pull.head.ref)
+            core.setOutput('title', String(pull.title ?? '').split(/\r?\n/, 1)[0])
+
+      - name: Compilar, testar e buildar
+        if: always()
+        id: maven
+        continue-on-error: true
+        run: |
+          set +e
+          set -o pipefail
+          if [ -f mvnw ]; then chmod +x mvnw; fi
+          $CI_COMMAND 2>&1 | tee "$RUNNER_TEMP/ci.out"
+          ci=${PIPESTATUS[0]}
+          if [ "$ci" -eq 0 ]; then
+            $TEST_COMMAND 2>&1 | tee "$RUNNER_TEMP/test.out"
+            test_code=${PIPESTATUS[0]}
+            $BUILD_COMMAND 2>&1 | tee "$RUNNER_TEMP/build.out"
+            build_code=${PIPESTATUS[0]}
+            test_ran=1
+            build_ran=1
+          else
+            test_code=1
+            build_code=1
+            test_ran=0
+            build_ran=0
+          fi
+          {
+            echo "ci_code=$ci"
+            echo "test_code=$test_code"
+            echo "build_code=$build_code"
+            echo "test_ran=$test_ran"
+            echo "build_ran=$build_ran"
+          } >> "$GITHUB_OUTPUT"
+          python3 - <<'PY'
+          import pathlib
+          root = pathlib.Path("target/surefire-reports")
+          lines = []
+          found = False
+          if root.is_dir():
+              for path in sorted(root.glob("TEST-*.xml")):
+                  text = path.read_text(errors="replace")
+                  positions = [i for i in (text.find("<error"), text.find("<failure")) if i != -1]
+                  if not positions:
+                      continue
+                  lines.append("LLT-285 PRIMEIRA CAUSA")
+                  lines.append(str(path))
+                  lines.append(text[min(positions):min(positions) + 8000])
+                  found = True
+                  break
+          if not found:
+              lines.append("LLT-285 sem erro nos relatorios do Surefire")
+          message = "\n".join(lines) + "\n"
+          print(message, end="")
+          root.mkdir(parents=True, exist_ok=True)
+          (root / "primeira-causa.txt").write_text(message)
+          PY
+          exit 0
+
+      - name: Publicar relatórios do Surefire
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Montar o comentário
+        if: always()
+        continue-on-error: true
+        env:
+          PR_BASE: ${{ github.base_ref }}
+          PR_BRANCH: ${{ steps.meta.outputs.branch || github.head_ref }}
+          PR_TITLE: ${{ steps.meta.outputs.title || github.event.pull_request.title }}
+          PR_COMMITS_FILE: ${{ runner.temp }}/pr-commits.json
+          CI_CODE: ${{ steps.maven.outputs.ci_code }}
+          TEST_CODE: ${{ steps.maven.outputs.test_code }}
+          BUILD_CODE: ${{ steps.maven.outputs.build_code }}
+          TEST_RAN: ${{ steps.maven.outputs.test_ran }}
+          BUILD_RAN: ${{ steps.maven.outputs.build_ran }}
+          CI_OUT: ${{ runner.temp }}/ci.out
+          TEST_OUT: ${{ runner.temp }}/test.out
+          BUILD_OUT: ${{ runner.temp }}/build.out
+        run: |
+          if [ ! -f "$PR_COMMITS_FILE" ]; then printf '[]' > "$PR_COMMITS_FILE"; fi
+          node scripts/pr-validation.mjs --env "$RUNNER_TEMP/pr-validation-comment.md"
+          exit 0
+
+      - name: Publicar ou atualizar o comentário
+        if: always()
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs')
+            const marker = '<!-- llt-285-validacao-prs -->'
+            const body = fs.readFileSync(`${process.env.RUNNER_TEMP}/pr-validation-comment.md`, 'utf8')
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              per_page: 100,
+            })
+            const existing = comments.find((comment) => String(comment.body ?? '').includes(marker))
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              })
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body,
+              })
+            }

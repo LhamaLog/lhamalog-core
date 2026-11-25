@@ -139,7 +139,8 @@ class CompanySettingsTests {
 		CompanyRepository companies = mock(CompanyRepository.class);
 		CompanyLogoRepository logos = mock(CompanyLogoRepository.class);
 		when(companies.findById(any())).thenAnswer(invocation -> Optional.ofNullable(
-				stored.get() != null && stored.get().id().equals(invocation.getArgument(0)) ? stored.get() : null));
+				stored.get() != null && stored.get().id().equals(invocation.getArgument(0)) ? stored.get()
+						: existingTenant(invocation.getArgument(0))));
 		when(companies.save(any())).thenAnswer(invocation -> persist(stored, invocation.getArgument(0)));
 		when(logos.save(any())).thenAnswer(invocation -> {
 			logo.set(invocation.getArgument(0));
@@ -171,15 +172,15 @@ class CompanySettingsTests {
 	@Test
 	void unavailableActionsStayHonest() {
 		CompanySessionResolver resolver = mock(CompanySessionResolver.class);
-		when(resolver.resolve(any())).thenReturn(new CompanySession("org_a", "user_a", false));
+		when(resolver.current()).thenReturn(new CompanySession("org_a", "user_a", false));
 		CompanyController controller = new CompanyController(mock(CompanyService.class), resolver);
-		ResponseStatusException error = assertThrows(ResponseStatusException.class, () -> controller.exportPdf(null));
+		ResponseStatusException error = assertThrows(ResponseStatusException.class, () -> controller.exportPdf());
 		assertEquals(HttpStatus.NOT_IMPLEMENTED, error.getStatusCode());
 		assertFalse(error.getReason().toLowerCase().contains("sucesso"));
 		assertEquals(HttpStatus.NOT_IMPLEMENTED, assertThrows(ResponseStatusException.class,
-				() -> controller.sync(null)).getStatusCode());
+				() -> controller.sync()).getStatusCode());
 		assertEquals(HttpStatus.NOT_IMPLEMENTED, assertThrows(ResponseStatusException.class,
-				() -> controller.postalCode(null, "87000000")).getStatusCode());
+				() -> controller.postalCode("87000000")).getStatusCode());
 	}
 
 	private static boolean webWouldConfirm(JsonNode sent, JsonNode response) {
@@ -219,7 +220,8 @@ class CompanySettingsTests {
 		CompanyRepository companies = mock(CompanyRepository.class);
 		CompanyLogoRepository logos = mock(CompanyLogoRepository.class);
 		when(companies.findById(any())).thenAnswer(invocation -> Optional.ofNullable(
-				stored.get() != null && stored.get().id().equals(invocation.getArgument(0)) ? stored.get() : null));
+				stored.get() != null && stored.get().id().equals(invocation.getArgument(0)) ? stored.get()
+						: existingTenant(invocation.getArgument(0))));
 		when(companies.save(any())).thenAnswer(invocation -> persist(stored, invocation.getArgument(0)));
 		when(logos.save(any())).thenAnswer(invocation -> {
 			logo.set(invocation.getArgument(0));
@@ -233,9 +235,15 @@ class CompanySettingsTests {
 	private CompanyService service(AtomicReference<Company> stored) {
 		CompanyRepository companies = mock(CompanyRepository.class);
 		when(companies.findById(any())).thenAnswer(invocation -> Optional.ofNullable(
-				stored.get() != null && stored.get().id().equals(invocation.getArgument(0)) ? stored.get() : null));
+				stored.get() != null && stored.get().id().equals(invocation.getArgument(0)) ? stored.get()
+						: existingTenant(invocation.getArgument(0))));
 		when(companies.save(any())).thenAnswer(invocation -> persist(stored, invocation.getArgument(0)));
 		return new CompanyService(companies, mock(CompanyLogoRepository.class), mock(CompanyContextRevisionRepository.class));
+	}
+
+	/** The tenant always exists (security only grants ACTIVE tenants); before the first save it has no company data. */
+	private static Company existingTenant(String tenantId) {
+		return new Company(tenantId, tenantId, null, null, null, null, null, null, null, null, null);
 	}
 
 	private static Company persist(AtomicReference<Company> stored, Company company) {

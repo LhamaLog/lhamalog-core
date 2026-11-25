@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
+import br.com.lhamalog.core.shared.ApiStatusException;
 import br.com.lhamalog.core.shared.CompanySession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,14 +18,19 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ProductService {
+	/** Business 403 code: the Web keeps the session for any 403 that carries a code (spec 008, FR-010). */
+	static final String NOT_ADMIN_CODE = "not_admin";
 	private static final Logger log = LoggerFactory.getLogger(ProductService.class);
 	private static final String NAME_IN_USE = "Já existe um produto com este nome nesta empresa. Ele pode estar arquivado.";
 
 	private final ProductRepository products;
 	private final ProductAccessRepository accesses;
-	public ProductService(ProductRepository products, ProductAccessRepository accesses) {
+	private final ProductContextRevisionRepository revisions;
+	public ProductService(ProductRepository products, ProductAccessRepository accesses,
+			ProductContextRevisionRepository revisions) {
 		this.products = products;
 		this.accesses = accesses;
+		this.revisions = revisions;
 	}
 
 	public List<Product> list(CompanySession session) { return list(session, false); }
@@ -53,8 +59,9 @@ public class ProductService {
 		String id = UUID.randomUUID().toString();
 		ProductAccess access = new ProductAccess(id + ":" + session.userId(), session.tenantId(), id, session.userId());
 		accesses.insert(access);
+		Product created;
 		try {
-			return saveWithUniqueName("product.create.name_in_use", session.tenantId(), id,
+			created = saveWithUniqueName("product.create.name_in_use", session.tenantId(), id,
 					() -> products.insert(new Product(id, session.tenantId(), request.name().trim(),
 							Product.normalizeName(request.name()), request.description(), request.category(),
 							request.productVersion(), "CONFIGURING", Instant.now(), null, request.context(), null)));
@@ -64,6 +71,22 @@ public class ProductService {
 			catch (RuntimeException cleanupFailure) { exception.addSuppressed(cleanupFailure); }
 			throw exception;
 		}
+		// Feature 009: a context with content at registration becomes version 1. If that write fails, the product
+		// and its access are removed, so no product is left without the version of its initial context.
+		final Product product = created;
+		if (product.context() != null && product.context().hasContent()) {
+			try {
+				recordContextRevision(product, session);
+			}
+			catch (RuntimeException exception) {
+				undoAfterRevisionFailure(exception, "create", product, () -> {
+					products.deleteById(product.id());
+					accesses.deleteById(access.id());
+				});
+				throw exception;
+			}
+		}
+		return product;
 	}
 
 	/** Updates name, description, category and business version. Context, status and archive state stay as they are. */
@@ -82,9 +105,72 @@ public class ProductService {
 		Product current = get(session, id);
 		requireActive(current);
 		requireCurrentVersion(current, request.version());
-		return products.save(new Product(current.id(), current.tenantId(), current.name(), current.normalizedName(),
+		Product saved = products.save(new Product(current.id(), current.tenantId(), current.name(), current.normalizedName(),
 				current.description(), current.category(), current.productVersion(), current.status(),
 				current.createdAt(), current.archivedAt(), request.context(), current.version()));
+		// Feature 009: a new version only when the (normalized) context changed. Written after the product, so a
+		// stale version is refused above before any revision exists. If the version cannot be written, the previous
+		// context is put back, so the product never shows a context without its version.
+		if (!Objects.equals(current.context(), saved.context())) {
+			try {
+				recordContextRevision(saved, session);
+			}
+			catch (RuntimeException exception) {
+				undoAfterRevisionFailure(exception, "update", saved, () -> products.save(new Product(saved.id(),
+						saved.tenantId(), saved.name(), saved.normalizedName(), saved.description(), saved.category(),
+						saved.productVersion(), saved.status(), saved.createdAt(), saved.archivedAt(), current.context(),
+						saved.version())));
+				throw exception;
+			}
+		}
+		return saved;
+	}
+
+	/** Versions of the product context, newest first. Same access rules as {@link #get}; archived products too. */
+	public List<ProductContextRevision> contextRevisions(CompanySession session, String id) {
+		Product product = get(session, id);
+		return revisions.findByTenantIdAndProductIdOrderByRevisionDesc(product.tenantId(), product.id());
+	}
+
+	public ProductContextRevision contextRevision(CompanySession session, String id, long revision) {
+		Product product = get(session, id);
+		return revisions.findByTenantIdAndProductIdAndRevision(product.tenantId(), product.id(), revision)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+						"Revisão de contexto não encontrada."));
+	}
+
+	/** Text section for the AI built from the current context. No call to the LLM is made. */
+	public ProductContextPrompt contextPrompt(CompanySession session, String id) {
+		return ProductContextPrompt.from(get(session, id));
+	}
+
+	private void recordContextRevision(Product product, CompanySession session) {
+		long next = revisions.findFirstByProductIdOrderByRevisionDesc(product.id())
+				.map(ProductContextRevision::revision).orElse(0L) + 1L;
+		revisions.insert(ProductContextRevision.of(product, next, Instant.now().truncatedTo(ChronoUnit.MILLIS),
+				session.userId()));
+		// Business event (constitution VI): ids and number only, never the context text.
+		log.info("event=product.context.revision.created | Product context version saved | tenantId={} productId={} revision={}",
+				product.tenantId(), product.id(), next);
+	}
+
+	/**
+	 * Compensation when the context version could not be written after the product write: runs {@code undo} and
+	 * logs the outcome. The caller rethrows {@code failure}, which keeps the usual HTTP answer (409 for a duplicate
+	 * version number, 500 for an unavailable database). A failed undo is attached to {@code failure} as suppressed.
+	 */
+	private static void undoAfterRevisionFailure(RuntimeException failure, String operation, Product product,
+			Runnable undo) {
+		try {
+			undo.run();
+			log.warn("event=product.context.revision.failed | Context version not saved; product write undone | tenantId={} productId={} operation={}",
+					product.tenantId(), product.id(), operation);
+		}
+		catch (RuntimeException undoFailure) {
+			failure.addSuppressed(undoFailure);
+			log.error("event=product.context.revision.undo_failed | Context version not saved and product write not undone; product and versions diverge | tenantId={} productId={} operation={}",
+					product.tenantId(), product.id(), operation);
+		}
 	}
 
 	/** Owners/admins only. Archiving an already archived product changes nothing. */
@@ -142,8 +228,8 @@ public class ProductService {
 
 	private static void requireAdministrator(CompanySession session) {
 		if (!session.administrator()) {
-			throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-					"Somente donos e administradores podem arquivar ou desarquivar produtos.");
+			throw new ApiStatusException(HttpStatus.FORBIDDEN,
+					"Somente donos e administradores podem arquivar ou desarquivar produtos.", NOT_ADMIN_CODE);
 		}
 	}
 

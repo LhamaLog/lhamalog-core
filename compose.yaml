@@ -30,10 +30,19 @@ services:
       OTLP_METRICS_URL: ${OTLP_METRICS_URL:-http://openobserve:5080/api/default/v1/metrics}
       OTLP_TRACES_URL: ${OTLP_TRACES_URL:-http://openobserve:5080/api/default/v1/traces}
       OPENOBSERVE_AUTH: ${OPENOBSERVE_AUTH:-}
-      CLERK_ISSUER: ${CLERK_ISSUER:-}
+      CLERK_ISSUER: ${CLERK_ISSUER:?defina CLERK_ISSUER (Frontend API URL da Clerk) no .env}
       CLERK_JWKS_URI: ${CLERK_JWKS_URI:-}
       CLERK_AUTHORIZED_PARTIES: ${CLERK_AUTHORIZED_PARTIES:-http://localhost:5173}
       CLERK_ADMIN_ROLES: ${CLERK_ADMIN_ROLES:-admin}
+      # Opcionais no local: sem a secret key o 403 nao revoga sessoes; sem o signing secret os webhooks sao rejeitados.
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
+      CLERK_WEBHOOK_SIGNING_SECRET: ${CLERK_WEBHOOK_SIGNING_SECRET:-}
+      # Cria um Tenant ACTIVE para esta organizacao ao subir (sem Tenant, toda chamada responde 403 e desloga).
+      DEV_TENANT_CLERK_ORG_ID: ${DEV_TENANT_CLERK_ORG_ID:-}
+      # Contratacao com o Asaas simulado (LLT-289). Sem token, o Core gera um ao subir.
+      ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN:-}
+      BILLING_RETURN_URL: ${BILLING_RETURN_URL:-http://localhost:5173/empresa}
+      BILLING_FAKE_CHECKOUT_BASE_URL: http://localhost:${API_PORT:-8080}
     ports:
       - "127.0.0.1:${API_PORT:-8080}:8080"
     depends_on:
