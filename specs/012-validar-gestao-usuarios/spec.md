@@ -20,7 +20,7 @@ Esta feature não entrega produto. Ela prova o aceite das duas entregas de ponta
 ### Mudanças desde o documento-base (17/11/2026)
 
 - A LLT-168 do Core **já está na `Development`** (PR #10). O estado validado é a própria `Development` (`a64559d`), e não um merge local.
-- A pasta `specs/006` foi ocupada por `006-nome-unico-produto` (LLT-177). Pela numeração sequencial do Spec Kit, esta spec é a `007`.
+- A pasta `specs/006` foi ocupada por `006-nome-unico-produto` (LLT-177). Pela numeração sequencial do Spec Kit, esta spec é a `007`. **Em 25/11/2026 foi renumerada para `012`**: a `007` passou a ser a de notificação (LLT-173), e a `011` é a LLT-120.
 - A branch LLT-163 do Felipe foi atualizada em 16/11, às 23:44. Ela já trouxe a `Development` com a 168 para dentro dela e mudou o comportamento da 168. Detalhes no achado R-12.
 - O `lhamalog-web` local está na `main`, que não tem a tela `/equipe` nem testes.
 
@@ -32,6 +32,17 @@ Esta feature não entrega produto. Ela prova o aceite das duas entregas de ponta
 - Q: D2, D4, D5 e D6 já têm resposta do time? → A: Todas pendentes com o time.
 - Q: O `lhamalog-web` pode ser trocado agora para a branch da LLT-168? → A: Agora não. A T010 (`npm ci`, `npm test`, `npm run build`) e a parte Web do roteiro ficam Bloqueadas.
 - Q: D3. A instância Clerk de desenvolvimento, as contas e os 7 dias estão prontos para o E2E? → A: Ainda não. D3 continua aberta e os E2E ficam Bloqueados. O roteiro fica pronto no `quickstart.md`.
+
+### Session 2026-11-25
+
+- Atualização das respostas de 17/11, com o detalhe no `relatorio-aceite.md` (seção "Decisões"):
+  - D1 está aplicada no código pela LLT-163; a ADR, a unificação e a migração seguem com o time.
+  - D3 foi resolvida na prática: E2E com a instância Clerk de dev do time e contas por apelido.
+  - D4 foi decidida: padrão `LLT-XXX-slug` (LLT-285). A constituição 2.1.0 ainda pede `feature/`, o que exige emenda pelo time.
+  - D6 foi resolvida: o Web foi mergeado.
+  - D2 e D5 continuam pendentes com o time.
+- O `lhamalog-web` foi para a `Development` (`309e417`), que já tem a 167 e a 168. A antiga T010 rodou como T030.
+- A LLT-163 entrou na `Development` (PR #6), e a classe de aceite foi migrada (T026).
 
 ### Consequências da D1 para esta validação
 
@@ -126,7 +137,7 @@ Cada critério vem da LLT-167 ou da LLT-168. A coluna "Prova" do documento-base 
 - **AC-05**: Quem aceita MUST ficar só na empresa do convite, com o cargo escolhido (167 FR-005). Prova: E2E-08.
 - **AC-06**: O membro MUST NOT convidar, listar pendentes, revogar nem reenviar (167 FR-009). Prova: E2E-16.
 - **AC-07**: A lista MUST mostrar nome, e-mail, cargo, status e último acesso, só da própria empresa (168 FR-001/002). Prova: `CompanyMemberHttpTests` e E2E-09.
-- **AC-08**: O membro MUST receber 403 `not_admin`; sem sessão, 401; sem empresa, "Selecione uma empresa para continuar." (168 FR-012/013). Prova: testes existentes e AT-03.
+- **AC-08**: O membro MUST receber 403 `not_admin`; sem sessão, 401; sem empresa, ~~"Selecione uma empresa para continuar."~~ 403 `{"error":"forbidden"}` com revogação da sessão (LLT-163, atualizado em 25/11) (168 FR-012/013). Prova: testes existentes e AT-03.
 - **AC-09**: O último acesso MUST ser regravado só depois de 5 minutos ou quando o cargo muda (168 FR-004). Prova: `keepsLastAccessUntilFiveMinutesPass`.
 - **AC-10**: A requisição recusada por desativação MUST NOT atualizar o último acesso nem o cargo (168 FR-004). Prova: AT-01.
 - **AC-11**: Quem foi desativado MUST perder o acesso na próxima requisição, com o token ainda válido; os outros MUST seguir normais (168 FR-005). Prova: teste existente e E2E-11.
@@ -142,11 +153,11 @@ Cada critério vem da LLT-167 ou da LLT-168. A coluna "Prova" do documento-base 
 
 ### Requisitos da validação
 
-- **FR-001**: A validação MUST registrar, no `relatorio-aceite.md`, o status de cada AC-01 a AC-20 (OK, Falhou, Bloqueado ou Risco aceito), com a prova usada.
+- **FR-001**: A validação MUST registrar, no `relatorio-aceite.md`, o status de cada AC-01 a AC-20 (OK, Parcial, Falhou, Bloqueado ou Risco aceito), com a prova usada. Parcial = a parte do Core está provada e falta a parte do Web/E2E (incluído em 25/11).
 - **FR-002**: Os testes de aceite novos MUST ficar só em código de teste, numa classe própria no pacote `member` do Core, sem alterar código de produção.
 - **FR-003**: Os testes de aceite MUST usar o próprio container de teste. Eles MUST NOT usar os bancos `lhamalog_core` nem `lhamalog_teste`.
 - **FR-004**: Um teste que falha por comportamento do código de produção MUST continuar como está e MUST virar achado no relatório.
-- **FR-005**: Cada achado R-01 a R-14 MUST terminar como Confirmado, Descartado ou Risco aceito, com evidência de arquivo e linha ou de execução.
+- **FR-005**: Cada achado R-01 a R-16 MUST terminar como Confirmado, Descartado, Resolvido ou Risco aceito, com evidência de arquivo e linha ou de execução. O R-15 e o R-16 surgiram no E2E de 25/11, e "Resolvido" é o achado que deixou de existir porque outra entrega o corrigiu (incluídos em 25/11).
 - **FR-006**: A validação MUST NOT alterar, commitar nem fazer push nas branches `LLT-167-*`, `LLT-168-*` e `LLT-163-*`, em nenhum dos repositórios. No `lhamalog-web`, o agente MUST NOT rodar Git.
 - **FR-007**: Nenhum segredo MUST entrar em arquivo novo: `CLERK_SECRET_KEY`, valores que começam com `sk_` ou o JWT copiado do navegador.
 - **FR-008**: Os comentários de revisão MUST ficar só como rascunho em `revisao-prs.md`. Publicar é decisão do desenvolvedor.
@@ -197,7 +208,7 @@ Cada critério vem da LLT-167 ou da LLT-168. A coluna "Prova" do documento-base 
 ### Measurable Outcomes
 
 - **SC-001**: 20 de 20 critérios de aceite têm status e prova registrados no relatório.
-- **SC-002**: 14 de 14 achados (R-01 a R-14) têm status final e evidência.
+- **SC-002**: 16 de 16 achados (R-01 a R-16) têm status final e evidência (eram 14 até 25/11).
 - **SC-003**: 3 lacunas da matriz (AC-08 nas rotas de escrita, AC-10 e AC-18) passam a ter teste automatizado.
 - **SC-004**: O teste exploratório do R-01 roda pelo menos 20 vezes, e o número de execuções que violam a regra (0 ou mais) fica registrado.
 - **SC-005**: 0 arquivos novos com segredo, chave secreta ou token.

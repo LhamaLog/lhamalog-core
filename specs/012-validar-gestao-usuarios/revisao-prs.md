@@ -129,4 +129,4 @@ Os itens abaixo vêm da leitura do documento-base de 16/11 e **ainda não foram 
 
 ### 18. T011 (roteiro manual com a Clerk) pendente
 
-> O roteiro E2E da LLT-119 (`specs/007-validar-gestao-usuarios/quickstart.md`) cobre a T011 do Web. Se ele substitui a T011 é a decisão D6.
+> O roteiro E2E da LLT-119 (`specs/012-validar-gestao-usuarios/quickstart.md`) cobre a T011 do Web. Se ele substitui a T011 é a decisão D6.

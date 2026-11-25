@@ -2,6 +2,14 @@
 
 Guia para repetir a validação: a preparação, os comandos do Core e do Web e o roteiro E2E. O resultado de cada passo vai para [relatorio-aceite.md](relatorio-aceite.md).
 
+> **Atualização de 25/11/2026: como o roteiro foi rodado.**
+> - **Web:** fica na `Development` (`309e417`), que já tem a 167 e a 168. Não é preciso a branch da 168 (passo 0.3).
+> - **Core:** fica na `LLT-119-validar-gestao-usuarios`, com a `Development` mesclada, e roda com o banco `lhamalog_llt119_local` no `mongo-teste`, sem `CLERK_SECRET_KEY` e com OTLP desligado. Para ter várias pessoas logadas no mesmo navegador, cada uma usa um endereço: `localhost`, `bruno.localhost` e `carla.localhost`, todos na porta 5173. O `CLERK_AUTHORIZED_PARTIES` lista as quatro origens.
+> - **D3:** resolvida com a instância Clerk de dev do time e contas por apelido do Gmail (`+bruno119` e `+carla119`). O link do convite vem para o portal da Clerk (R-15); para aceitar no endereço certo, troque o começo do link pelo `bruno.localhost:5173` ou `carla.localhost:5173`.
+> - **Ana é Dono, e não Administrador.** Com a LLT-120, quem cria a empresa é o Dono, e a linha do Dono não tem rebaixar nem desativar.
+> - **Último admin:** a regra só vale em empresa **sem Dono**. O E2E-14 (parte "Ana tenta desativar a si mesma") e o E2E-15 rodam numa empresa sem Dono com um único admin, por exemplo a organização de dev (`DEV_TENANT_CLERK_ORG_ID`). Por segurança, intercepte no navegador as chamadas de rebaixar e desativar durante o teste.
+> - **`window.confirm` do Desativar:** trava a automação por extensão. Substitua antes por `window.confirm = () => true`, ou por `false` para cancelar.
+
 ## Passo 0: preparar
 
 O documento-base foi escrito antes de a LLT-168 entrar na `Development`. O passo 0 atualizado:
@@ -47,6 +55,13 @@ Só os testes do `member` (o original e o de aceite):
 ```
 
 O que cada teste de aceite prova está no relatório, na seção "Testes de aceite explicados".
+
+> **Atualização de 25/11/2026:** com a `Development` atual, todos os testes rodam no Testcontainers e nada fica ignorado. O `TEST_MONGODB_URI` não é mais necessário.
+>
+> | Execução (25/11) | Rodados | Falhas | Erros | Ignorados |
+> |---|---|---|---|---|
+> | `-Dtest=CompanyMemberAcceptanceTests,CompanyMemberHttpTests,CompanyRegistrationHttpTests` | 36 | 0 | 0 | 0 |
+> | `.\mvnw.cmd -B clean verify` | 460 | 0 | 0 | 0 |
 
 ## Web: testes e build
 

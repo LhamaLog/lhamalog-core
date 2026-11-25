@@ -2,9 +2,17 @@
 
 **Branch**: `LLT-119-validar-gestao-usuarios` | **Date**: 2026-11-17 | **Spec**: [spec.md](spec.md)
 
-**Input**: Feature specification from `/specs/007-validar-gestao-usuarios/spec.md`
+**Input**: Feature specification from `/specs/012-validar-gestao-usuarios/spec.md`
 
 **Note**: Esta feature não muda produto. Ela acrescenta uma classe de teste e os documentos da validação. A branch foi criada pelo Pedro a partir da `Development` (`a64559d`), que já contém a LLT-167 e a LLT-168. Sem commit, push nem PR nesta sessão (instrução do Pedro em 17/11).
+
+> **Atualização de 25/11/2026.** O texto abaixo é de 17/11. Desde então:
+> - **III. Testes:** passa **sem ressalva**. O R-14 foi resolvido pela LLT-163, e o `clean verify` deu 460 testes, 0 falhas, 0 erros e 0 ignorados.
+> - **V. Segredos:** os testes não usam mais JWT sintético. Desde a T026, usam token assinado (`TestJwks`/`TestTenants`), como a `CompanyMemberHttpTests`. A varredura de 25/11 não achou nenhum segredo.
+> - **Fluxo:** a D4 adotou `LLT-XXX-slug` (LLT-285), mas a constituição 2.1.0 ainda pede `feature/`. A violação continua no Complexity Tracking até a emenda pelo time (analyze de 25/11, C1).
+> - **Risco "a LLT-163 entra antes do fechamento":** aconteceu e foi tratado pela T026.
+> - **Sequência:** a numeração de tarefas válida é a do `tasks.md` (T001 a T041). As Phases 8 a 11 foram acrescentadas em 22/11.
+> - **E2E (frente 2):** em 25/11, quem executou foi o agente, no Chrome do Pedro, pela extensão, com a conta do Pedro no papel da Ana. As adaptações estão no `relatorio-aceite.md`.
 
 ## Summary
 
@@ -65,7 +73,7 @@ Constituição do Core 2.1.0 (16/11/2026):
 ### Documentation (this feature)
 
 ```text
-specs/007-validar-gestao-usuarios/
+specs/012-validar-gestao-usuarios/
 ├── spec.md                  # specify + clarify
 ├── plan.md                  # este arquivo
 ├── research.md              # Fase 0: evidência arquivo:linha de R-01 a R-14 e linha de base

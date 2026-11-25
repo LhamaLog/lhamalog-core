@@ -10,9 +10,10 @@ Leitura feita em 17/11/2026 na branch `LLT-119-validar-gestao-usuarios`, que est
 
 ## Numeração da spec
 
-- **Decision**: `specs/007-validar-gestao-usuarios`.
+- **Decision**: `specs/012-validar-gestao-usuarios`.
 - **Rationale**: `init-options.json` usa `feature_numbering: sequential`. Na `Development` já existem `001` a `006`, e o `006` foi ocupado por `006-nome-unico-produto` (LLT-177, commit `afa883b`). O documento-base pedia "a próxima depois de 005", que hoje é a `007`.
 - **Alternatives considered**: `006-validar-gestao-usuarios`. Duplicaria o número. A constituição cita uma "spec 007 (LLT-183)" no Sync Impact Report, mas essa pasta não existe em nenhuma branch do Core nem no Collector. Fica registrado no R-07/D4.
+- **Atualização (25/11/2026)**: renumerada de `007` para `012` depois do merge da `Development`, que já usava de `007` a `011` (`007` LLT-173, `008` LLT-163, `009` LLT-178, `010` LLT-179 e LLT-289, `011` LLT-120).
 
 ## Linha de base da suíte (T001)
 
@@ -86,6 +87,11 @@ Leitura feita em 17/11/2026 na branch `LLT-119-validar-gestao-usuarios`, que est
 
 - **Leitura**: Não verificados nesta sessão. O `lhamalog-web` local está na `main`, que não tem `features/team`, `TeamPage.tsx` nem `tests/`, e o agente não roda Git nesse repositório (`lhamalog-web/docs/instrucoes-agentes.md`). O Pedro preferiu não trocar de branch agora (clarify de 17/11).
 - **Status**: **Pendente de confirmação**. Ficam com a leitura do documento-base, de 16/11 no GitHub, até a T003 rodar com o Web na branch da 168.
+- **Leitura de 25/11 (T029)**: Web na `Development` (`309e417`), lido sem Git.
+  - **R-09 (processo): resolvido.** As histórias que vinham juntas na branch da 168 (122, 176, 174 e 167) já estão na `Development`.
+  - **R-10 (baixa): confirmado.** `members.ts:23-24` devolve o `identifier` como e-mail, e a linha 39 usa isso na coluna. Com login só por e-mail, como na instância de teste, o valor é um e-mail. Com telefone ou username, a coluna mostraria outra coisa.
+  - **R-11 (info): confirmado.** `resendPlan` (`invitations.ts:46-56`) revoga todos os pendentes do e-mail e monta um convite novo. O `TeamPage.tsx` (262-293) executa isso e mostra "Convite enviado para ... Ele expira em 7 dias.", sem avisar que o link anterior deixa de funcionar.
+  - **R-13 (média): descartado no código.** O efeito que carrega os convites (`TeamPage.tsx:179-204`) depende de `invitationKey` (string montada por `teamLoadKey`, linha 165), `organizationId` e `page`, e lê a organização por `organizationRef`. Assim, uma organização com nova identidade a cada renderização não dispara o efeito de novo, que era a causa do carregamento infinito. O commit `f9a1a5f` não pode ser conferido sem Git, mas o comportamento existe. O E2E-04 confirma na Phase 10.
 
 ### R-12 LLT-163 × 167/168 (D1)
 
