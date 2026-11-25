@@ -30,8 +30,8 @@ description: "Task list for melhorar a tela de perfil do usuário"
 
 **Purpose**: Confirmar que a entrega reusa o Core e não abre stack, SDK nem segredo
 
-- [ ] T001 [P] Confirmar que `pom.xml` permanece em Java 25 e Spring Boot 4.1.1, sem dependência nova e sem SDK da Clerk
-- [ ] T002 [P] Confirmar que `src/main/resources/application.properties`, `.env.example`, `.env.prod.example`, `compose.yaml` e `compose.prod.yaml` não ganham `CLERK_SECRET_KEY` nem outra variável de segredo. Não alterar `src/main/java/br/com/lhamalog/core/config/SecurityConfig.java` nem `src/main/java/br/com/lhamalog/core/identity/adapter/in/security/SessionRevokingAccessDeniedHandler.java`
+- [X] T001 [P] Confirmar que `pom.xml` permanece em Java 25 e Spring Boot 4.1.1, sem dependência nova e sem SDK da Clerk
+- [X] T002 [P] Confirmar que `src/main/resources/application.properties`, `.env.example`, `.env.prod.example`, `compose.yaml` e `compose.prod.yaml` não ganham `CLERK_SECRET_KEY` nem outra variável de segredo. Não alterar `src/main/java/br/com/lhamalog/core/config/SecurityConfig.java` nem `src/main/java/br/com/lhamalog/core/identity/adapter/in/security/SessionRevokingAccessDeniedHandler.java`
 
 ---
 
@@ -41,8 +41,8 @@ description: "Task list for melhorar a tela de perfil do usuário"
 
 **⚠️ CRITICAL**: Nenhuma história começa antes desta fase
 
-- [ ] T003 [P] Criar os componentes `bio` e `jobTitle` em `src/main/java/br/com/lhamalog/core/profile/UserProfile.java`, ambos `String` anulável, na ordem `id`, `displayName`, `language`, `timezone`, `bio`, `jobTitle`, `updatedAt`, `version`. Não acrescentar tema, acessibilidade, foto, e-mail, função, organização, senha nem sessão. Não alterar `src/main/java/br/com/lhamalog/core/profile/UserProfileRepository.java`
-- [ ] T004 [P] Estender `src/main/java/br/com/lhamalog/core/profile/UserProfileRules.java` com leitura opcional de `bio` e `jobTitle`, sem chamar `CompanyProfiles` nem `CompanyService`. Cada campo: chave ausente não é erro (`present` falso); `null`, `""` ou texto que o trim deixa vazio fica presente e vazio; texto restante é o trim. Máximo 160 em `bio` e 80 em `jobTitle`, por `String.length()` depois do trim. Caractere de controle (código menor que 32, exceto tabulação), inclusive quebra de linha, ou texto acima do limite, marca o campo com "O texto excede o limite permitido." Tipo que não é texto marca o campo com "Confira o preenchimento deste campo." `<` e `>` permanecem. A mensagem geral continua "Confira os campos informados." `displayName`, `language`, `timezone` e `version` não mudam de regra
+- [X] T003 [P] Criar os componentes `bio` e `jobTitle` em `src/main/java/br/com/lhamalog/core/profile/UserProfile.java`, ambos `String` anulável, na ordem `id`, `displayName`, `language`, `timezone`, `bio`, `jobTitle`, `updatedAt`, `version`. Não acrescentar tema, acessibilidade, foto, e-mail, função, organização, senha nem sessão. Não alterar `src/main/java/br/com/lhamalog/core/profile/UserProfileRepository.java`
+- [X] T004 [P] Estender `src/main/java/br/com/lhamalog/core/profile/UserProfileRules.java` com leitura opcional de `bio` e `jobTitle`, sem chamar `CompanyProfiles` nem `CompanyService`. Cada campo: chave ausente não é erro (`present` falso); `null`, `""` ou texto que o trim deixa vazio fica presente e vazio; texto restante é o trim. Máximo 160 em `bio` e 80 em `jobTitle`, por `String.length()` depois do trim. Caractere de controle (código menor que 32, exceto tabulação), inclusive quebra de linha, ou texto acima do limite, marca o campo com "O texto excede o limite permitido." Tipo que não é texto marca o campo com "Confira o preenchimento deste campo." `<` e `>` permanecem. A mensagem geral continua "Confira os campos informados." `displayName`, `language`, `timezone` e `version` não mudam de regra
 
 **Checkpoint**: O documento aceita os dois campos e a validação distingue omissão, vazio e texto
 
@@ -58,12 +58,12 @@ description: "Task list for melhorar a tela de perfil do usuário"
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T005 [P] [US1] Acrescentar `savesBioAndJobTitle` em `src/test/java/br/com/lhamalog/core/profile/UserProfileHttpTests.java`, na classe que já tem `@CoreIntegrationTest` (Testcontainers, `mongo:8.0.34`, nunca `latest`, sem `TEST_MONGODB_URI` e sem segredo). O teste falha até T007. Cobrir: `PUT /api/user/profile` com `bio` de 160 caracteres e `jobTitle` de 80, mais nome, idioma, fuso e versão vigente, e o `GET` devolve esses textos; `jobTitle` "Administrador" não cria `role`, `function`, `organization` nem `memberSince`; bio de 161 responde 400 `fieldErrors.bio` "O texto excede o limite permitido."; cargo de 81 responde 400 `fieldErrors.jobTitle` com a mesma mensagem; bio com quebra de linha responde 400 nessa mensagem e o `GET` fica no último salvamento; bio `"<b>oi</b>"` é aceita e devolvida com `<` e `>`; bio numérica responde 400 "Confira o preenchimento deste campo."; `PUT` com a versão antiga e outra bio responde 409 "Os dados foram alterados. Recarregue antes de salvar novamente." e a bio anterior permanece
+- [X] T005 [P] [US1] Acrescentar `savesBioAndJobTitle` em `src/test/java/br/com/lhamalog/core/profile/UserProfileHttpTests.java`, na classe que já tem `@CoreIntegrationTest` (Testcontainers, `mongo:8.0.34`, nunca `latest`, sem `TEST_MONGODB_URI` e sem segredo). O teste falha até T007. Cobrir: `PUT /api/user/profile` com `bio` de 160 caracteres e `jobTitle` de 80, mais nome, idioma, fuso e versão vigente, e o `GET` devolve esses textos; `jobTitle` "Administrador" não cria `role`, `function`, `organization` nem `memberSince`; bio de 161 responde 400 `fieldErrors.bio` "O texto excede o limite permitido."; cargo de 81 responde 400 `fieldErrors.jobTitle` com a mesma mensagem; bio com quebra de linha responde 400 nessa mensagem e o `GET` fica no último salvamento; bio `"<b>oi</b>"` é aceita e devolvida com `<` e `>`; bio numérica responde 400 "Confira o preenchimento deste campo."; `PUT` com a versão antiga e outra bio responde 409 "Os dados foram alterados. Recarregue antes de salvar novamente." e a bio anterior permanece
 
 ### Implementation for User Story 1
 
-- [ ] T006 [P] [US1] Incluir `bio` e `jobTitle` em `src/main/java/br/com/lhamalog/core/profile/UserProfileView.java`, depois de `timezone` e antes de `version`. `empty()` devolve `""` nos dois. `from` converte `null` ou branco em `""`. Não omitir string vazia na serialização
-- [ ] T007 [US1] Gravar e ler os dois campos em `src/main/java/br/com/lhamalog/core/profile/UserProfileService.java`. Chave ausente mantém o valor corrente, ou `null` quando ainda não há documento, para os `PUT` antigos de `UserProfileHttpTests` continuarem válidos. Texto presente e vazio grava `null`. Texto presente e não vazio grava o trim. Nome, idioma, fuso e a versão otimista permanecem: divergência lança `OptimisticLockingFailureException` e o envio inteiro, inclusive bio e cargo, não grava. Não logar `bio`, `jobTitle` nem `displayName`
+- [X] T006 [P] [US1] Incluir `bio` e `jobTitle` em `src/main/java/br/com/lhamalog/core/profile/UserProfileView.java`, depois de `timezone` e antes de `version`. `empty()` devolve `""` nos dois. `from` converte `null` ou branco em `""`. Não omitir string vazia na serialização
+- [X] T007 [US1] Gravar e ler os dois campos em `src/main/java/br/com/lhamalog/core/profile/UserProfileService.java`. Chave ausente mantém o valor corrente, ou `null` quando ainda não há documento, para os `PUT` antigos de `UserProfileHttpTests` continuarem válidos. Texto presente e vazio grava `null`. Texto presente e não vazio grava o trim. Nome, idioma, fuso e a versão otimista permanecem: divergência lança `OptimisticLockingFailureException` e o envio inteiro, inclusive bio e cargo, não grava. Não logar `bio`, `jobTitle` nem `displayName`
 
 **Checkpoint**: A pessoa grava e relê bio e cargo. A suíte anterior, que omite as duas chaves, continua aceita
 
@@ -77,11 +77,11 @@ description: "Task list for melhorar a tela de perfil do usuário"
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T008 [US2] Acrescentar `legacyProfileStaysReadable` e `optionalTextKeepsOrClears` em `src/test/java/br/com/lhamalog/core/profile/UserProfileHttpTests.java`. O primeiro falha até T009: inserir com o `MongoTemplate` já injetado um documento na coleção `UserProfile` sem as chaves `bio` e `jobTitle`, e o `GET /api/user/profile` devolve `bio` `""`, `jobTitle` `""` e o nome gravado; um segundo `GET` não cria versão nova além da que o documento já tinha. O segundo falha até T007 ter o vazio gravado como `null`: gravar os dois textos, omitir `jobTitle` num `PUT` que muda `bio` e ver o cargo permanecer, enviar `jobTitle` `""` e ver o `GET` com `""`, enviar `bio` `null` e ver `""`, e enviar bio só com espaços e ver `""`. `GET` sem documento devolve os dois como `""` e `UserProfileRepository.findById` continua vazio
+- [X] T008 [US2] Acrescentar `legacyProfileStaysReadable` e `optionalTextKeepsOrClears` em `src/test/java/br/com/lhamalog/core/profile/UserProfileHttpTests.java`. O primeiro falha até T009: inserir com o `MongoTemplate` já injetado um documento na coleção `UserProfile` sem as chaves `bio` e `jobTitle`, e o `GET /api/user/profile` devolve `bio` `""`, `jobTitle` `""` e o nome gravado; um segundo `GET` não cria versão nova além da que o documento já tinha. O segundo falha até T007 ter o vazio gravado como `null`: gravar os dois textos, omitir `jobTitle` num `PUT` que muda `bio` e ver o cargo permanecer, enviar `jobTitle` `""` e ver o `GET` com `""`, enviar `bio` `null` e ver `""`, e enviar bio só com espaços e ver `""`. `GET` sem documento devolve os dois como `""` e `UserProfileRepository.findById` continua vazio
 
 ### Implementation for User Story 2
 
-- [ ] T009 [US2] Ajustar `src/main/java/br/com/lhamalog/core/profile/UserProfile.java` e `src/main/java/br/com/lhamalog/core/profile/UserProfileService.java` para o documento sem as chaves desserializar com `null`, e para `""`, `null` e só espaços gravarem `null`. `src/main/java/br/com/lhamalog/core/profile/UserProfileView.java` segue devolvendo `""`. Sem migração e sem backfill
+- [X] T009 [US2] Ajustar `src/main/java/br/com/lhamalog/core/profile/UserProfile.java` e `src/main/java/br/com/lhamalog/core/profile/UserProfileService.java` para o documento sem as chaves desserializar com `null`, e para `""`, `null` e só espaços gravarem `null`. `src/main/java/br/com/lhamalog/core/profile/UserProfileView.java` segue devolvendo `""`. Sem migração e sem backfill
 
 **Checkpoint**: Perfil antigo, omissão e apagamento se provam no mesmo `GET` e `PUT`
 
@@ -95,11 +95,11 @@ description: "Task list for melhorar a tela de perfil do usuário"
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T010 [P] [US3] Acrescentar `accountAndAppearanceStayOut` em `src/test/java/br/com/lhamalog/core/profile/UserProfileHttpTests.java`, falhando até T011 se a resposta passar a expor esses dados. `PUT` com `bio`, `jobTitle` e `theme` responde 200 sem `theme`, `accessibility`, `photo`, `email`, `role`, `organization`, `memberSince`, `password` ou `sessions`. O `GET` seguinte também não os traz. Reusar `assertCoreDoesNotCallClerk`. Não definir `CLERK_SECRET_KEY`
+- [X] T010 [P] [US3] Acrescentar `accountAndAppearanceStayOut` em `src/test/java/br/com/lhamalog/core/profile/UserProfileHttpTests.java`, falhando até T011 se a resposta passar a expor esses dados. `PUT` com `bio`, `jobTitle` e `theme` responde 200 sem `theme`, `accessibility`, `photo`, `email`, `role`, `organization`, `memberSince`, `password` ou `sessions`. O `GET` seguinte também não os traz. Reusar `assertCoreDoesNotCallClerk`. Não definir `CLERK_SECRET_KEY`
 
 ### Implementation for User Story 3
 
-- [ ] T011 [P] [US3] Confirmar que `src/main/java/br/com/lhamalog/core/profile/UserProfileController.java` permanece com `GET /api/user/profile` e `PUT /api/user/profile` apenas, e que `UserProfile`, `UserProfileView`, `UserProfileRules` e `UserProfileService` não ganham tema, acessibilidade, cliente HTTP, SDK nem campo de conta. Não criar tela. Não alterar pacotes de notificação nem `src/main/java/br/com/lhamalog/core/company/`
+- [X] T011 [P] [US3] Confirmar que `src/main/java/br/com/lhamalog/core/profile/UserProfileController.java` permanece com `GET /api/user/profile` e `PUT /api/user/profile` apenas, e que `UserProfile`, `UserProfileView`, `UserProfileRules` e `UserProfileService` não ganham tema, acessibilidade, cliente HTTP, SDK nem campo de conta. Não criar tela. Não alterar pacotes de notificação nem `src/main/java/br/com/lhamalog/core/company/`
 
 **Checkpoint**: A fronteira da conta e do navegador permanece, com bio e cargo gravados
 
@@ -109,8 +109,8 @@ description: "Task list for melhorar a tela de perfil do usuário"
 
 **Purpose**: Mensagens atuais e o portão de teste
 
-- [ ] T012 [P] Confirmar que `src/main/java/br/com/lhamalog/core/shared/ApiExceptionHandler.java` não ganha handler novo e que as mensagens continuam "Confira os campos informados.", "O texto excede o limite permitido.", "Confira o preenchimento deste campo." e "Os dados foram alterados. Recarregue antes de salvar novamente."
-- [ ] T013 Executar `./mvnw verify` (ou `.\mvnw.cmd verify` no Windows) conforme `specs/295-melhorar-a-tela-de-perfil-do-usuario/quickstart.md` e registrar o resultado nesse arquivo. A tag do Mongo permanece `mongo:8.0.34`
+- [X] T012 [P] Confirmar que `src/main/java/br/com/lhamalog/core/shared/ApiExceptionHandler.java` não ganha handler novo e que as mensagens continuam "Confira os campos informados.", "O texto excede o limite permitido.", "Confira o preenchimento deste campo." e "Os dados foram alterados. Recarregue antes de salvar novamente."
+- [X] T013 Executar `./mvnw verify` (ou `.\mvnw.cmd verify` no Windows) conforme `specs/295-melhorar-a-tela-de-perfil-do-usuario/quickstart.md` e registrar o resultado nesse arquivo. A tag do Mongo permanece `mongo:8.0.34`
 
 ---
 

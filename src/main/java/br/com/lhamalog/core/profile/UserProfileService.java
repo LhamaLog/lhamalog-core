@@ -32,7 +32,19 @@ public class UserProfileService {
 			throw new OptimisticLockingFailureException("User profile version conflict");
 		}
 		UserProfile saved = profiles.save(new UserProfile(userId, draft.displayName(), draft.language(), draft.timezone(),
-				Instant.now(), currentVersion));
+				storedText(draft.bio(), current == null ? null : current.bio()),
+				storedText(draft.jobTitle(), current == null ? null : current.jobTitle()), Instant.now(),
+				currentVersion));
 		return UserProfileView.from(saved);
+	}
+
+	private static String storedText(UserProfileRules.OptionalText text, String current) {
+		if (!text.present()) {
+			return current;
+		}
+		if (text.value() == null || text.value().isBlank()) {
+			return null;
+		}
+		return text.value();
 	}
 }

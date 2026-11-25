@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
+import org.bson.Document;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
@@ -29,6 +30,8 @@ import tools.jackson.databind.ObjectMapper;
 class UserProfileHttpTests {
 	private static final String CONFLICT = "Os dados foram alterados. Recarregue antes de salvar novamente.";
 	private static final String CHECK_FIELDS = "Confira os campos informados.";
+	private static final String TOO_LONG = "O texto excede o limite permitido.";
+	private static final String CHECK_VALUE = "Confira o preenchimento deste campo.";
 
 	@Autowired MockMvc mvc;
 	@Autowired ObjectMapper mapper;
@@ -238,6 +241,184 @@ class UserProfileHttpTests {
 				.andExpect(jsonPath("$.settings.data.language").value("pt-BR"));
 	}
 
+	@Test
+	void savesBioAndJobTitle() throws Exception {
+		String user = userId();
+		RequestPostProcessor session = session(organization(), user, "member");
+		String bio = "B".repeat(160);
+		String job = "J".repeat(80);
+		MvcResult saved = mvc.perform(put("/api/user/profile").with(session).contentType(MediaType.APPLICATION_JSON)
+				.content(profile("Ana Souza", "pt-BR", "America/Sao_Paulo", null, field("bio", bio) + "," + field("jobTitle", job))))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.displayName").value("Ana Souza"))
+				.andExpect(jsonPath("$.bio").value(bio))
+				.andExpect(jsonPath("$.jobTitle").value(job)).andReturn();
+		long version = version(saved);
+		mvc.perform(get("/api/user/profile").with(session)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.bio").value(bio))
+				.andExpect(jsonPath("$.jobTitle").value(job))
+				.andExpect(jsonPath("$.version").value(version));
+
+		MvcResult titled = mvc.perform(put("/api/user/profile").with(session).contentType(MediaType.APPLICATION_JSON)
+				.content(profile("Ana Souza", "pt-BR", "America/Sao_Paulo", version,
+						field("bio", bio) + "," + field("jobTitle", "Administrador"))))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.jobTitle").value("Administrador"))
+				.andExpect(jsonPath("$.role").doesNotExist())
+				.andExpect(jsonPath("$.function").doesNotExist())
+				.andExpect(jsonPath("$.organization").doesNotExist())
+				.andExpect(jsonPath("$.memberSince").doesNotExist()).andReturn();
+		long current = version(titled);
+
+		mvc.perform(put("/api/user/profile").with(session).contentType(MediaType.APPLICATION_JSON)
+				.content(profile("Ana Souza", "pt-BR", "America/Sao_Paulo", current,
+						field("bio", "B".repeat(161)) + "," + field("jobTitle", "Administrador"))))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value(CHECK_FIELDS))
+				.andExpect(jsonPath("$.fieldErrors.bio").value(TOO_LONG));
+		mvc.perform(put("/api/user/profile").with(session).contentType(MediaType.APPLICATION_JSON)
+				.content(profile("Ana Souza", "pt-BR", "America/Sao_Paulo", current,
+						field("bio", bio) + "," + field("jobTitle", "J".repeat(81)))))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.fieldErrors.jobTitle").value(TOO_LONG));
+		mvc.perform(put("/api/user/profile").with(session).contentType(MediaType.APPLICATION_JSON)
+				.content(profile("Ana Souza", "pt-BR", "America/Sao_Paulo", current,
+						"\"bio\":\"linha\\nquebrada\"," + field("jobTitle", "Administrador"))))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.fieldErrors.bio").value(TOO_LONG));
+		mvc.perform(get("/api/user/profile").with(session))
+				.andExpect(jsonPath("$.bio").value(bio))
+				.andExpect(jsonPath("$.jobTitle").value("Administrador"))
+				.andExpect(jsonPath("$.version").value(current));
+
+		MvcResult markup = mvc.perform(put("/api/user/profile").with(session).contentType(MediaType.APPLICATION_JSON)
+				.content(profile("Ana Souza", "pt-BR", "America/Sao_Paulo", current,
+						field("bio", "<b>oi</b>") + "," + field("jobTitle", "Administrador"))))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.bio").value("<b>oi</b>")).andReturn();
+		mvc.perform(get("/api/user/profile").with(session)).andExpect(jsonPath("$.bio").value("<b>oi</b>"));
+		long marked = version(markup);
+
+		mvc.perform(put("/api/user/profile").with(session).contentType(MediaType.APPLICATION_JSON)
+				.content(profile("Ana Souza", "pt-BR", "America/Sao_Paulo", marked, "\"bio\":12," + field("jobTitle", "Administrador"))))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value(CHECK_FIELDS))
+				.andExpect(jsonPath("$.fieldErrors.bio").value(CHECK_VALUE));
+		mvc.perform(put("/api/user/profile").with(session).contentType(MediaType.APPLICATION_JSON)
+				.content(profile("Ana Souza", "pt-BR", "America/Sao_Paulo", current, field("bio", "Outra bio"))))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.message").value(CONFLICT));
+		mvc.perform(get("/api/user/profile").with(session))
+				.andExpect(jsonPath("$.bio").value("<b>oi</b>"))
+				.andExpect(jsonPath("$.jobTitle").value("Administrador"))
+				.andExpect(jsonPath("$.version").value(marked));
+	}
+
+	@Test
+	void legacyProfileStaysReadable() throws Exception {
+		String user = userId();
+		mongo.insert(new Document("_id", user).append("displayName", "Ana Souza").append("language", "pt-BR")
+				.append("timezone", "America/Sao_Paulo").append("version", 0L), "UserProfile");
+		RequestPostProcessor session = session(organization(), user, "member");
+		mvc.perform(get("/api/user/profile").with(session)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.bio").value(""))
+				.andExpect(jsonPath("$.jobTitle").value(""))
+				.andExpect(jsonPath("$.displayName").value("Ana Souza"))
+				.andExpect(jsonPath("$.language").value("pt-BR"))
+				.andExpect(jsonPath("$.timezone").value("America/Sao_Paulo"))
+				.andExpect(jsonPath("$.version").value(0));
+		mvc.perform(get("/api/user/profile").with(session)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.bio").value(""))
+				.andExpect(jsonPath("$.jobTitle").value(""))
+				.andExpect(jsonPath("$.version").value(0));
+	}
+
+	@Test
+	void optionalTextKeepsOrClears() throws Exception {
+		String untouched = userId();
+		RequestPostProcessor emptySession = session(organization(), untouched, "member");
+		mvc.perform(get("/api/user/profile").with(emptySession)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.bio").value(""))
+				.andExpect(jsonPath("$.jobTitle").value(""));
+		assertTrue(profiles.findById(untouched).isEmpty());
+
+		RequestPostProcessor session = session(organization(), userId(), "member");
+		MvcResult created = mvc.perform(put("/api/user/profile").with(session).contentType(MediaType.APPLICATION_JSON)
+				.content(profile("Ana Souza", "pt-BR", "America/Sao_Paulo", null,
+						field("bio", "Cuida da operação.") + "," + field("jobTitle", "Coordenadora"))))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.bio").value("Cuida da operação."))
+				.andExpect(jsonPath("$.jobTitle").value("Coordenadora")).andReturn();
+		long version = version(created);
+
+		MvcResult changed = mvc.perform(put("/api/user/profile").with(session).contentType(MediaType.APPLICATION_JSON)
+				.content(profile("Ana Souza", "pt-BR", "America/Sao_Paulo", version, field("bio", "Bio nova"))))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.bio").value("Bio nova"))
+				.andExpect(jsonPath("$.jobTitle").value("Coordenadora")).andReturn();
+		mvc.perform(get("/api/user/profile").with(session)).andExpect(jsonPath("$.jobTitle").value("Coordenadora"));
+
+		MvcResult clearedJob = mvc.perform(put("/api/user/profile").with(session).contentType(MediaType.APPLICATION_JSON)
+				.content(profile("Ana Souza", "pt-BR", "America/Sao_Paulo", version(changed), field("jobTitle", ""))))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.bio").value("Bio nova"))
+				.andExpect(jsonPath("$.jobTitle").value("")).andReturn();
+		mvc.perform(get("/api/user/profile").with(session)).andExpect(jsonPath("$.jobTitle").value(""));
+
+		MvcResult clearedBio = mvc.perform(put("/api/user/profile").with(session).contentType(MediaType.APPLICATION_JSON)
+				.content(profile("Ana Souza", "pt-BR", "America/Sao_Paulo", version(clearedJob), "\"bio\":null")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.bio").value(""))
+				.andExpect(jsonPath("$.jobTitle").value("")).andReturn();
+		mvc.perform(get("/api/user/profile").with(session)).andExpect(jsonPath("$.bio").value(""));
+
+		MvcResult restored = mvc.perform(put("/api/user/profile").with(session).contentType(MediaType.APPLICATION_JSON)
+				.content(profile("Ana Souza", "pt-BR", "America/Sao_Paulo", version(clearedBio), field("bio", "De novo"))))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.bio").value("De novo")).andReturn();
+		mvc.perform(put("/api/user/profile").with(session).contentType(MediaType.APPLICATION_JSON)
+				.content(profile("Ana Souza", "pt-BR", "America/Sao_Paulo", version(restored), field("bio", "   "))))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.bio").value(""));
+		mvc.perform(get("/api/user/profile").with(session))
+				.andExpect(jsonPath("$.bio").value(""))
+				.andExpect(jsonPath("$.jobTitle").value(""));
+	}
+
+	@Test
+	void accountAndAppearanceStayOut() throws Exception {
+		assertCoreDoesNotCallClerk();
+		RequestPostProcessor session = session(organization(), userId(), "member");
+		String extra = field("bio", "Cuida da operação.") + "," + field("jobTitle", "Coordenadora") + ",\"theme\":\"light\"";
+		mvc.perform(put("/api/user/profile").with(session).contentType(MediaType.APPLICATION_JSON)
+				.content(profile("Ana Souza", "pt-BR", "America/Sao_Paulo", null, extra)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.bio").value("Cuida da operação."))
+				.andExpect(jsonPath("$.jobTitle").value("Coordenadora"))
+				.andExpect(jsonPath("$.theme").doesNotExist())
+				.andExpect(jsonPath("$.accessibility").doesNotExist())
+				.andExpect(jsonPath("$.photo").doesNotExist())
+				.andExpect(jsonPath("$.email").doesNotExist())
+				.andExpect(jsonPath("$.role").doesNotExist())
+				.andExpect(jsonPath("$.organization").doesNotExist())
+				.andExpect(jsonPath("$.memberSince").doesNotExist())
+				.andExpect(jsonPath("$.password").doesNotExist())
+				.andExpect(jsonPath("$.sessions").doesNotExist());
+		mvc.perform(get("/api/user/profile").with(session))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.bio").value("Cuida da operação."))
+				.andExpect(jsonPath("$.jobTitle").value("Coordenadora"))
+				.andExpect(jsonPath("$.theme").doesNotExist())
+				.andExpect(jsonPath("$.accessibility").doesNotExist())
+				.andExpect(jsonPath("$.photo").doesNotExist())
+				.andExpect(jsonPath("$.email").doesNotExist())
+				.andExpect(jsonPath("$.role").doesNotExist())
+				.andExpect(jsonPath("$.organization").doesNotExist())
+				.andExpect(jsonPath("$.memberSince").doesNotExist())
+				.andExpect(jsonPath("$.password").doesNotExist())
+				.andExpect(jsonPath("$.sessions").doesNotExist());
+	}
+
 	private void assertCoreDoesNotCallClerk() throws Exception {
 		String properties;
 		try (var input = getClass().getResourceAsStream("/application.properties")) {
@@ -267,10 +448,19 @@ class UserProfileHttpTests {
 	}
 
 	private static String profile(String displayName, String language, String timezone, Long version) {
+		return profile(displayName, language, timezone, version, "");
+	}
+
+	private static String profile(String displayName, String language, String timezone, Long version, String extra) {
 		String versionJson = version == null ? "null" : Long.toString(version);
+		String fields = extra == null || extra.isBlank() ? "" : extra + ",";
 		return """
-				{"displayName":"%s","language":"%s","timezone":"%s","version":%s}
-				""".formatted(displayName, language, timezone, versionJson);
+				{"displayName":"%s","language":"%s","timezone":"%s",%s"version":%s}
+				""".formatted(displayName, language, timezone, fields, versionJson);
+	}
+
+	private static String field(String name, String value) {
+		return "\"" + name + "\":\"" + value + "\"";
 	}
 
 	private static String company(String timezone, String language) {

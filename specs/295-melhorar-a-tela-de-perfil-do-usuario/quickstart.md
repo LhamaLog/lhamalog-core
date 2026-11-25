@@ -38,4 +38,12 @@ Os status e os corpos estão no contrato. Cada item abaixo precisa aparecer na s
 
 ## Fora desta validação
 
-Não há cenário de tela. Não há `user.update`, SDK da Clerk nem `CLERK_SECRET_KEY`. Não há verificação de tema no navegador. Esta rodada não registra resultado de `verify` porque o código ainda não foi escrito.
+Não há cenário de tela. Não há `user.update`, SDK da Clerk nem `CLERK_SECRET_KEY`. Não há verificação de tema no navegador.
+
+## Resultado
+
+`./mvnw verify` em 2026-11-25, JDK Temurin 25.0.5.1. O wrapper está com modo `100644` neste checkout, então a invocação foi `bash ./mvnw verify`. Testcontainers subiu `mongo:8.0.34` (tag fixa; sem `latest` e sem `TEST_MONGODB_URI`). Também subiram `redis:8.2.10` e `grafana/otel-lgtm:0.37.0`, que a suíte já usa.
+
+- `UserProfileHttpTests`: 10 testes, 0 falhas, 0 erros, 0 ignorados.
+- Suíte: 441 testes, 0 falhas, 0 erros, 0 ignorados.
+- `BUILD SUCCESS` em 52,502 s, término 2026-11-25T15:38:29Z.
