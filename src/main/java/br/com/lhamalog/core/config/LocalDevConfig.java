@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.mongodb.core.MongoTemplate;
 
+import br.com.lhamalog.core.occurrence.infrastructure.LocalOccurrenceSampleSeeder;
 import br.com.lhamalog.core.tenant.adapter.out.mongo.LocalDevTenantSeeder;
 
 /**
@@ -31,6 +32,20 @@ public class LocalDevConfig {
 	ApplicationRunner localDevTenantRunner(LocalDevTenantSeeder seeder,
 			@Value("${lhamalog.dev-tenant.clerk-org-id:}") String clerkOrgIds) {
 		return (args) -> seedAll(seeder, clerkOrgIds);
+	}
+
+	/** Spec 012: sample occurrences for every product, only when {@code OCCURRENCE_SAMPLE_DATA=true}. */
+	@Bean
+	LocalOccurrenceSampleSeeder localOccurrenceSampleSeeder(MongoTemplate mongoTemplate) {
+		return new LocalOccurrenceSampleSeeder(mongoTemplate);
+	}
+
+	@Bean
+	ApplicationRunner localOccurrenceSampleRunner(LocalOccurrenceSampleSeeder seeder,
+			@Value("${lhamalog.occurrences.sample-data.enabled:false}") boolean enabled) {
+		return (args) -> {
+			if (enabled) seeder.seed();
+		};
 	}
 
 	static void seedAll(LocalDevTenantSeeder seeder, String clerkOrgIds) {
