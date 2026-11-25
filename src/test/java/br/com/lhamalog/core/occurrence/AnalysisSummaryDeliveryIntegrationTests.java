@@ -108,6 +108,8 @@ class AnalysisSummaryDeliveryIntegrationTests {
 		assertThat(detail.get("samples").get(0).asString()).isEqualTo("linha 2");
 		assertThat(detail.get("attributes").toString()).contains("http.route").contains("/api/pay").contains("line_number");
 		assertThat(detail.get("statusHistory").get(0).get("changedBy").get("type").asString()).isEqualTo("SYSTEM");
+		// Spec 014 fix: the author id written by the Module is read back (it was mapped to _id and came back empty).
+		assertThat(detail.get("statusHistory").get(0).get("changedBy").get("id").asString()).isEqualTo("modulo-ocorrencia");
 
 		Document stored = mongo.getCollection("ReciboResumoAnalise")
 			.find(Filters.eq("reciboId", receipt.get("reciboId").asString()))
@@ -316,6 +318,45 @@ class AnalysisSummaryDeliveryIntegrationTests {
 			world.call(InternalModuleWorld.DELIVERY, recomputed).andExpect(status().isCreated());
 			assertThat(occurrence(company, signature).get("count")).isEqualTo(18L);
 		}
+	}
+
+	// Spec 014, US3
+
+	@Test
+	void findingOfAnArchivedOccurrenceBringsItBackOpen() throws Exception {
+		InternalModuleWorld world = world();
+		Company company = world.company();
+		String signature = InternalModuleWorld.signature("arquivada");
+		world.call(InternalModuleWorld.DELIVERY, InternalModuleWorld.summary(company)
+				.finding(InternalModuleWorld.finding(signature)).build())
+			.andExpect(status().isCreated());
+		String id = occurrence(company, signature).getString("_id");
+		JsonNode detail = world.json(mvc.perform(get("/api/occurrences/" + id).with(company.admin())));
+		JsonNode analysed = world.json(mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+				.put("/api/occurrences/" + id + "/status").with(company.admin())
+				.contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+				.content("{\"status\":\"EM_ANALISE\",\"revision\":\"" + detail.get("revision").asString() + "\"}"))
+			.andExpect(status().isOk()));
+		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+				.post("/api/occurrences/" + id + "/archive").with(company.admin())
+				.contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+				.content("{\"revision\":\"" + analysed.get("revision").asString() + "\"}"))
+			.andExpect(status().isOk());
+		assertThat(world.json(mvc.perform(get("/api/occurrences").with(company.admin()))).get("totalItems").asLong())
+			.isZero();
+
+		world.call(InternalModuleWorld.DELIVERY, InternalModuleWorld.summary(company)
+				.finding(InternalModuleWorld.finding(signature).count(7).revision(revision(world, company, signature)))
+				.build())
+			.andExpect(status().isCreated());
+		JsonNode back = world.json(mvc.perform(get("/api/occurrences/" + id).with(company.admin())));
+		assertThat(back.get("archived").asBoolean()).isFalse();
+		assertThat(back.get("status").asString()).isEqualTo("ABERTA");
+		JsonNode history = back.get("statusHistory");
+		assertThat(history.get(history.size() - 1).get("from").asString()).isEqualTo("EM_ANALISE");
+		assertThat(history.get(history.size() - 1).get("changedBy").get("type").asString()).isEqualTo("SYSTEM");
+		assertThat(world.json(mvc.perform(get("/api/occurrences").with(company.admin()))).get("totalItems").asLong())
+			.isEqualTo(1);
 	}
 
 	private static List<Integer> runTogether(List<Callable<Integer>> calls) throws Exception {

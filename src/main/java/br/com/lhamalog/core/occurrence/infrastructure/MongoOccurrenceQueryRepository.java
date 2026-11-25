@@ -16,6 +16,7 @@ import br.com.lhamalog.core.occurrence.application.OccurrenceQueryRepository;
 import br.com.lhamalog.core.occurrence.application.OccurrenceRecord;
 import br.com.lhamalog.core.occurrence.application.OccurrenceStatus;
 import br.com.lhamalog.core.occurrence.application.OccurrenceType;
+import br.com.lhamalog.core.occurrence.application.OccurrenceWriteRepository;
 
 /**
  * Queries on the {@code Ocorrencia} collection. The list only matches valid documents (known type and status, required
@@ -71,6 +72,9 @@ class MongoOccurrenceQueryRepository implements OccurrenceQueryRepository {
 				: criteria.and(OccurrenceDocument.FIRST_SEEN_AT).lte(filter.to());
 		criteria = filter.from() == null ? criteria.and(OccurrenceDocument.LAST_SEEN_AT).ne(null)
 				: criteria.and(OccurrenceDocument.LAST_SEEN_AT).gte(filter.from());
+		// Spec 014: archived occurrences only on request; documents without the field are active.
+		criteria = filter.archived() ? criteria.and(OccurrenceDocument.ARCHIVED_AT).ne(null)
+				: criteria.and(OccurrenceDocument.ARCHIVED_AT).is(null);
 		if (filter.text() != null) {
 			Pattern pattern = Pattern.compile(Pattern.quote(filter.text()),
 					Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
@@ -110,6 +114,10 @@ class MongoOccurrenceQueryRepository implements OccurrenceQueryRepository {
 				Boolean.TRUE.equals(document.recurring()), document.count(), document.firstSeenAt(),
 				document.lastSeenAt(), document.samples(), document.hostName(), document.traceId(),
 				document.correlationId(), document.moduleId(), document.lineNumber(), document.extractedFields(),
-				document.sensitiveData(), history);
+				document.sensitiveData(), history,
+				document.revision() == null || document.revision().isEmpty() ? OccurrenceWriteRepository.NO_REVISION
+						: document.revision(),
+				document.archivedAt(), document.archivedBy() == null ? null : document.archivedBy().type(),
+				document.archivedBy() == null ? null : document.archivedBy().id());
 	}
 }

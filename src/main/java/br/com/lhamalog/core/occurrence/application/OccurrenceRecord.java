@@ -12,12 +12,17 @@ public record OccurrenceRecord(String id, String productId, OccurrenceType type,
 		String summary, OccurrenceStatus status, boolean recurring, long count, Instant firstSeenAt, Instant lastSeenAt,
 		List<String> samples, String hostName, String traceId, String correlationId, String moduleId,
 		Integer lineNumber, Map<String, String> extractedFields, Boolean sensitiveData,
-		List<StatusChange> statusHistory) {
+		List<StatusChange> statusHistory, String revision, Instant archivedAt, String archivedByType,
+		String archivedById) {
 
 	public OccurrenceRecord {
 		samples = samples == null ? List.of() : List.copyOf(samples);
 		extractedFields = extractedFields == null ? Map.of() : Map.copyOf(extractedFields);
 		statusHistory = statusHistory == null ? List.of() : List.copyOf(statusHistory);
+	}
+
+	public boolean archived() {
+		return archivedAt != null;
 	}
 
 	/** One status change; values are kept as stored so a history entry never hides the occurrence. */

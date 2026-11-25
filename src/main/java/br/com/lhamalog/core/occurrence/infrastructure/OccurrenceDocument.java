@@ -8,6 +8,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
 
 /**
  * Occurrence as written by the Occurrence Module from the Finder {@code AchadoAnalise} (contract DN-009-2, see
@@ -26,7 +27,8 @@ public record OccurrenceDocument(@Id String id, String tenantId, String productI
 		String title, String summary, String status, Boolean recurring, Long count, Instant firstSeenAt,
 		Instant lastSeenAt, List<String> samples, String hostName, String traceId, String correlationId,
 		String moduleId, Integer lineNumber, Map<String, String> extractedFields, Boolean sensitiveData,
-		String rulesVersion, String revision, List<StatusChange> statusHistory) {
+		String rulesVersion, String revision, List<StatusChange> statusHistory, Instant archivedAt,
+		ChangedBy archivedBy) {
 
 	static final String TENANT_ID = "tenantId";
 	static final String PRODUCT_ID = "productId";
@@ -38,9 +40,14 @@ public record OccurrenceDocument(@Id String id, String tenantId, String productI
 	static final String COUNT = "count";
 	static final String FIRST_SEEN_AT = "firstSeenAt";
 	static final String LAST_SEEN_AT = "lastSeenAt";
+	static final String ARCHIVED_AT = "archivedAt";
 
 	public record StatusChange(String from, String to, Instant changedAt, ChangedBy changedBy) {}
 
-	/** {@code type} is {@code USER} (id = Clerk user id) or {@code SYSTEM} (id = service name). */
-	public record ChangedBy(String type, String id) {}
+	/**
+	 * {@code type} is {@code USER} (id = Clerk user id) or {@code SYSTEM} (id = service name). The field is stored as
+	 * {@code id}, as in the contract; without {@code @Field} Spring Data would map it to {@code _id} and read the value
+	 * written by the Occurrence Module as empty (found in spec 014).
+	 */
+	public record ChangedBy(String type, @Field("id") String id) {}
 }

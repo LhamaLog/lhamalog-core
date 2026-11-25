@@ -69,12 +69,18 @@ public final class OccurrenceMerge {
 				: new ArrayList<>(samples.subList(samples.size() - maxSamples, samples.size()));
 	}
 
-	/** Created as ABERTA; FECHADA (or an unknown status) reopens; ABERTA and EM_ANALISE stay. */
+	/**
+	 * Created as ABERTA; FECHADA (or an unknown status) reopens; ABERTA and EM_ANALISE stay. An archived occurrence is
+	 * unarchived and reopened as ABERTA, so a problem that happens again is not hidden (spec 014, research R5).
+	 */
 	private static void status(Document before, Document after, Instant now) {
 		List<Object> history = new ArrayList<>();
 		if (before != null && before.get("statusHistory") instanceof List<?> previous) history.addAll(previous);
 		Object current = before == null ? null : before.get("status");
-		boolean keeps = OPEN.equals(current) || IN_ANALYSIS.equals(current);
+		boolean archived = before != null && before.get("archivedAt") != null;
+		after.remove("archivedAt");
+		after.remove("archivedBy");
+		boolean keeps = OPEN.equals(current) || (IN_ANALYSIS.equals(current) && !archived);
 		if (!keeps) {
 			history.add(new Document("from", current instanceof String text ? text : null).append("to", OPEN)
 				.append("changedAt", Date.from(now))

@@ -94,4 +94,17 @@ class OccurrenceFilterTest {
 		assertThat(invalid(() -> OccurrenceFilter.parse(null, null, null, null, null, null, null, "x".repeat(201)))
 			.fieldErrors()).containsEntry("q", "A busca aceita até 200 caracteres.");
 	}
+
+	// Spec 014: archived
+
+	@Test
+	void archivedIsFalseByDefaultAndAcceptsOnlyTrueOrFalse() {
+		assertThat(OccurrenceFilter.parse(null, null, null, null, null, null, null, null).archived()).isFalse();
+		assertThat(OccurrenceFilter.parse(null, null, null, null, null, null, null, null, "true").archived()).isTrue();
+		assertThat(OccurrenceFilter.parse(null, null, null, null, null, null, null, null, "false").archived()).isFalse();
+		assertThat(OccurrenceFilter.parse(null, null, null, null, null, null, null, null, " ").archived()).isFalse();
+		assertThat(invalid(() -> OccurrenceFilter.parse(null, null, null, null, null, null, null, null, "talvez"))
+			.fieldErrors()).containsEntry("archived", "Use true ou false.");
+	}
+
 }

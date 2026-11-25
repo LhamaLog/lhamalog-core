@@ -17,7 +17,7 @@ import br.com.lhamalog.core.shared.FieldValidationException;
  * {@code from}, {@code to} and {@code text} are {@code null} when absent.
  */
 public record OccurrenceFilter(int page, int size, Set<OccurrenceType> types, Set<OccurrenceStatus> statuses,
-		Set<String> productIds, Instant from, Instant to, String text) {
+		Set<String> productIds, Instant from, Instant to, String text, boolean archived) {
 
 	public static final int DEFAULT_SIZE = 20;
 
@@ -31,9 +31,19 @@ public record OccurrenceFilter(int page, int size, Set<OccurrenceType> types, Se
 		productIds = Set.copyOf(productIds);
 	}
 
-	/** Parses the raw query parameters; every invalid one is reported together in a 400 with field errors. */
+	/** Same as the full parse, listing the active occurrences (spec 012 callers). */
 	public static OccurrenceFilter parse(String page, String size, List<String> types, List<String> statuses,
 			List<String> productIds, String from, String to, String text) {
+		return parse(page, size, types, statuses, productIds, from, to, text, null);
+	}
+
+	/**
+	 * Parses the raw query parameters; every invalid one is reported together in a 400 with field errors.
+	 * {@code archived} is {@code true} for the archived occurrences only, absent or {@code false} for the active ones
+	 * (spec 014).
+	 */
+	public static OccurrenceFilter parse(String page, String size, List<String> types, List<String> statuses,
+			List<String> productIds, String from, String to, String text, String archived) {
 		Map<String, String> errors = new LinkedHashMap<>();
 		int pageNumber = parsePage(page, errors);
 		int pageSize = parseSize(size, errors);
@@ -65,9 +75,16 @@ public record OccurrenceFilter(int page, int size, Set<OccurrenceType> types, Se
 			errors.put("q", "A busca aceita até 200 caracteres.");
 		}
 
+		boolean archivedOnly = false;
+		if (archived != null && !archived.isBlank()) {
+			String value = archived.trim();
+			if (value.equalsIgnoreCase("true")) archivedOnly = true;
+			else if (!value.equalsIgnoreCase("false")) errors.put("archived", "Use true ou false.");
+		}
+
 		if (!errors.isEmpty()) throw new FieldValidationException(errors);
 		return new OccurrenceFilter(pageNumber, pageSize, typeSet, statusSet, productSet, fromInstant, toInstant,
-				search);
+				search, archivedOnly);
 	}
 
 	private static List<String> values(List<String> raw) {

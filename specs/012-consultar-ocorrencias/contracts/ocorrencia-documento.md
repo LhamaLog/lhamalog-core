@@ -26,3 +26,10 @@ Ver a tabela de campos e a coluna "Origem" em [../data-model.md](../data-model.m
 - Rotas `/internal/v1/ocorrencias/consultas` e `/internal/v1/resumos-analise`, JWT interno, recibo e idempotência: feature do Módulo (gravação), não da LLT-135.
 - Retenção dos recibos, agendamento de reenvio e aviso de falha do OpenObserve (ADR_051): em aberto do lado do Finder e da operação.
 - Gravidade/criticidade (Módulo, ADR_062) e arquivamento (LLT-207).
+
+## Mudanças da spec 014 (LLT-136, 25/11/2026)
+
+- Campos opcionais `archivedAt` (data) e `archivedBy` (`{type, id}`): documento sem eles é ativo. Só o Core os grava (ação do usuário).
+- O Módulo, ao gravar um achado de ocorrência arquivada, remove `archivedAt` e `archivedBy` e deixa o status ABERTA, com a mudança no histórico quando o status muda.
+- `changedBy.id` fica gravado como `id` (não `_id`); ocorrências de exemplo antigas, gravadas com `_id`, mostram o autor vazio até serem recriadas.
+
