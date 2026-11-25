@@ -224,6 +224,13 @@ O Core só **lê** as ocorrências que o Módulo Ocorrência grava na coleção 
 
 Contrato completo em `specs/012-consultar-ocorrencias/contracts/api.md`; roteiro em `quickstart.md`.
 
+**Ciclo de vida (LLT-136, `specs/014-ciclo-de-vida-ocorrencias/`):** quem vê o produto da ocorrência pode mudar o status e arquivar (permissão `OCCURRENCES_MANAGE` da matriz da LLT-120).
+
+- `PUT /api/occurrences/{id}/status` `{status, revision}`: ABERTA, EM_ANALISE ou FECHADA, de qualquer um para qualquer outro; a mudança entra no histórico com o usuário e a data.
+- `POST /api/occurrences/{id}/archive` e `/unarchive` `{revision}`: arquivada sai da lista padrão e aparece com `archived=true`.
+- `revision` é a que o detalhe devolveu; se a ocorrência mudou depois (outra pessoa ou o Finder), a resposta é 409 `occurrence_changed`.
+- Um achado novo do Finder desarquiva e reabre a ocorrência como ABERTA.
+
 ## Módulo Ocorrência (LLT-293)
 
 O Finder grava as ocorrências pelo Módulo Ocorrência, que mora neste Core. [Especificação](specs/013-gravar-ocorrencias/spec.md), [contrato das rotas](specs/013-gravar-ocorrencias/contracts/internal-api.md) e [roteiro](specs/013-gravar-ocorrencias/quickstart.md).

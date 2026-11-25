@@ -120,3 +120,10 @@ Ocorrência inexistente, de outra empresa, de produto sem acesso ou com document
 ```json
 { "message": "Ocorrência não encontrada ou sem acesso." }
 ```
+
+## Mudanças da spec 014 (LLT-136, 25/11/2026)
+
+- `GET /api/occurrences` aceita `archived` (`false` padrão, `true` só arquivadas; outro valor → 400 `fieldErrors.archived`), e cada item ganha `archived`.
+- `GET /api/occurrences/{id}` ganha `revision`, `archived`, `archivedAt` e `archivedBy` (`{type, id}`).
+- Ações novas (`PUT …/status`, `POST …/archive` e `…/unarchive`): ver `specs/014-ciclo-de-vida-ocorrencias/contracts/api.md`.
+
