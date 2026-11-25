@@ -41,6 +41,11 @@ services:
       DEV_TENANT_CLERK_ORG_ID: ${DEV_TENANT_CLERK_ORG_ID:-}
       # Spec 012 (LLT-135): true grava 12 ocorrencias de exemplo por produto ao subir, sem duplicar.
       OCCURRENCE_SAMPLE_DATA: ${OCCURRENCE_SAMPLE_DATA:-false}
+      # Spec 013 (LLT-293): JWT interno das rotas /internal/v1 do Modulo Ocorrencia. Sem segredo, elas recusam tudo.
+      OCCURRENCE_INTERNAL_JWT_SECRETS: ${OCCURRENCE_INTERNAL_JWT_SECRETS:-}
+      OCCURRENCE_INTERNAL_JWT_ISSUER: ${OCCURRENCE_INTERNAL_JWT_ISSUER:-lhamalog-internal}
+      OCCURRENCE_INTERNAL_JWT_AUDIENCE: ${OCCURRENCE_INTERNAL_JWT_AUDIENCE:-lhamalog-modulo-ocorrencia}
+      OCCURRENCE_INTERNAL_JWT_SUBJECTS: ${OCCURRENCE_INTERNAL_JWT_SUBJECTS:-lhamalog-finder}
       # Contratacao com o Asaas simulado (LLT-289). Sem token, o Core gera um ao subir.
       ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN:-}
       BILLING_RETURN_URL: ${BILLING_RETURN_URL:-http://localhost:5173/empresa}
