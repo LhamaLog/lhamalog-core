@@ -14,11 +14,12 @@ public final class OccurrenceResponses {
 	public record ProductRef(String id, String name) {}
 
 	public record ListItem(String id, String type, String title, ProductRef product, long count, String status,
-			boolean recurring, Instant firstSeenAt, Instant lastSeenAt) {}
+			boolean recurring, Instant firstSeenAt, Instant lastSeenAt, boolean archived) {}
 
 	public record Detail(String id, String type, String title, String summary, ProductRef product, long count,
 			String status, boolean recurring, Instant firstSeenAt, Instant lastSeenAt, Boolean sensitiveData,
-			List<String> samples, List<Attribute> attributes, List<StatusChange> statusHistory) {}
+			List<String> samples, List<Attribute> attributes, List<StatusChange> statusHistory, String revision,
+			boolean archived, Instant archivedAt, ChangedBy archivedBy) {}
 
 	public record Attribute(String name, String value) {}
 

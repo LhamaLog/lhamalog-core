@@ -94,7 +94,7 @@ final class OccurrenceFixtures {
 					: type + "|" + message.replace("|", "\\|") + "|" + service + "|" + hostName;
 			mongo.insert(new OccurrenceDocument(id, tenantId, productId, storedSignature, type, title, summary, status,
 					recurring, count, firstSeenAt, lastSeenAt, samples, hostName, traceId, correlationId, moduleId,
-					lineNumber, Map.of(), sensitiveData, "regras-teste-v1", id + "-r1", history));
+					lineNumber, Map.of(), sensitiveData, "regras-teste-v1", id + "-r1", history, null, null));
 			if (!extractedFields.isEmpty()) {
 				// OTel names have dots (http.route): the mapped insert refuses them, an update writes them as they are,
 				// like the local seeder and the Occurrence Module.

@@ -1,11 +1,14 @@
 package br.com.lhamalog.core.occurrence.application;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,10 +16,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import br.com.lhamalog.core.access.application.UserHash;
 import br.com.lhamalog.core.occurrence.api.OccurrenceResponses;
 import br.com.lhamalog.core.product.Product;
 import br.com.lhamalog.core.product.ProductService;
+import br.com.lhamalog.core.shared.ApiStatusException;
 import br.com.lhamalog.core.shared.CompanySession;
+import br.com.lhamalog.core.shared.FieldValidationException;
 
 /**
  * List and detail of occurrences (LLT-135). Visibility follows the product rules of feature 001: owners and admins see
@@ -39,9 +45,20 @@ public class OccurrenceService {
 
 	private final ProductService products;
 
-	public OccurrenceService(OccurrenceQueryRepository occurrences, ProductService products) {
+	private final OccurrenceCommandRepository commands;
+
+	private final Clock clock;
+
+	static final String CHANGED = "A ocorrência mudou desde que você abriu. Recarregue e tente de novo.";
+
+	static final String CHANGED_CODE = "occurrence_changed";
+
+	public OccurrenceService(OccurrenceQueryRepository occurrences, ProductService products,
+			OccurrenceCommandRepository commands, Clock clock) {
 		this.occurrences = occurrences;
 		this.products = products;
+		this.commands = commands;
+		this.clock = clock;
 	}
 
 	public OccurrenceResponses.Page list(CompanySession session, OccurrenceFilter filter) {
@@ -56,6 +73,79 @@ public class OccurrenceService {
 			.map(occurrence -> listItem(occurrence, visible))
 			.toList();
 		return new OccurrenceResponses.Page(items, filter.page(), filter.size(), page.total());
+	}
+
+	/** Spec 014, US1: any of the three statuses, from any other; the same status changes nothing. */
+	public OccurrenceResponses.Detail changeStatus(CompanySession session, String id, String status, String revision) {
+		Map<String, String> errors = new LinkedHashMap<>();
+		OccurrenceStatus target = OccurrenceStatus.parse(status == null ? null : status.trim()).orElse(null);
+		if (target == null) errors.put("status", "Status desconhecido. Use ABERTA, EM_ANALISE ou FECHADA.");
+		requireRevision(revision, errors);
+		if (!errors.isEmpty()) throw new FieldValidationException(errors);
+		Visible current = visible(session, id);
+		if (current.occurrence().status() == target) return detail(current.occurrence(), current.products());
+		boolean changed = commands.changeStatus(session.tenantId(), id, revision.trim(), target.name(),
+				current.occurrence().status().name(), clock.instant(), session.userId(), newRevision());
+		return afterAction(session, id, changed, "event=occurrence.status.changed | Occurrence status changed by a user",
+				"to=" + target.name());
+	}
+
+	/** Spec 014, US2: archiving keeps the status; archiving an archived occurrence changes nothing. */
+	public OccurrenceResponses.Detail archive(CompanySession session, String id, String revision) {
+		requireRevisionOnly(revision);
+		Visible current = visible(session, id);
+		if (current.occurrence().archived()) return detail(current.occurrence(), current.products());
+		Instant now = clock.instant();
+		boolean changed = commands.archive(session.tenantId(), id, revision.trim(), now, session.userId(), newRevision());
+		return afterAction(session, id, changed, "event=occurrence.archived | Occurrence archived by a user", "");
+	}
+
+	public OccurrenceResponses.Detail unarchive(CompanySession session, String id, String revision) {
+		requireRevisionOnly(revision);
+		Visible current = visible(session, id);
+		if (!current.occurrence().archived()) return detail(current.occurrence(), current.products());
+		boolean changed = commands.unarchive(session.tenantId(), id, revision.trim(), newRevision());
+		return afterAction(session, id, changed, "event=occurrence.unarchived | Occurrence unarchived by a user", "");
+	}
+
+	/** Re-reads after a conditional write: changed → new detail; not changed → 404 if gone, else 409 (research R2). */
+	private OccurrenceResponses.Detail afterAction(CompanySession session, String id, boolean changed, String event,
+			String extra) {
+		Visible now = visible(session, id);
+		if (!changed) {
+			log.warn("event=occurrence.action.stale | Occurrence changed since the user opened it; nothing written | tenantId={} occurrenceId={} userHash={}",
+					session.tenantId(), id, UserHash.of(session.userId()));
+			throw new ApiStatusException(HttpStatus.CONFLICT, CHANGED, CHANGED_CODE);
+		}
+		log.info("{} | tenantId={} occurrenceId={} userHash={} {}", event, session.tenantId(), id,
+				UserHash.of(session.userId()), extra);
+		return detail(now.occurrence(), now.products());
+	}
+
+	/** The occurrence as the detail sees it; 404 for another company, a product without access or an invalid one. */
+	private Visible visible(CompanySession session, String id) {
+		if (!(occurrences.findById(session.tenantId(), id) instanceof OccurrenceQueryRepository.Lookup.Found found)) {
+			throw notFound();
+		}
+		Map<String, String> visible = visibleProducts(session);
+		if (!visible.containsKey(found.occurrence().productId())) throw notFound();
+		return new Visible(found.occurrence(), visible);
+	}
+
+	private record Visible(OccurrenceRecord occurrence, Map<String, String> products) {}
+
+	private static void requireRevision(String revision, Map<String, String> errors) {
+		if (revision == null || revision.isBlank()) errors.put("revision", "Informe a revisão que você está vendo.");
+	}
+
+	private static void requireRevisionOnly(String revision) {
+		Map<String, String> errors = new LinkedHashMap<>();
+		requireRevision(revision, errors);
+		if (!errors.isEmpty()) throw new FieldValidationException(errors);
+	}
+
+	private static String newRevision() {
+		return UUID.randomUUID().toString();
 	}
 
 	public OccurrenceResponses.Detail detail(CompanySession session, String id) {
@@ -84,7 +174,7 @@ public class OccurrenceService {
 	private static OccurrenceResponses.ListItem listItem(OccurrenceRecord occurrence, Map<String, String> products) {
 		return new OccurrenceResponses.ListItem(occurrence.id(), occurrence.type().name(), occurrence.displayTitle(),
 				product(occurrence, products), occurrence.count(), occurrence.status().name(), occurrence.recurring(),
-				occurrence.firstSeenAt(), occurrence.lastSeenAt());
+				occurrence.firstSeenAt(), occurrence.lastSeenAt(), occurrence.archived());
 	}
 
 	private static OccurrenceResponses.Detail detail(OccurrenceRecord occurrence, Map<String, String> products) {
@@ -97,7 +187,10 @@ public class OccurrenceService {
 		return new OccurrenceResponses.Detail(occurrence.id(), occurrence.type().name(), occurrence.displayTitle(),
 				blankToNull(occurrence.summary()), product(occurrence, products), occurrence.count(),
 				occurrence.status().name(), occurrence.recurring(), occurrence.firstSeenAt(), occurrence.lastSeenAt(),
-				occurrence.sensitiveData(), samples(occurrence.samples()), attributes(occurrence), history);
+				occurrence.sensitiveData(), samples(occurrence.samples()), attributes(occurrence), history,
+				occurrence.revision(), occurrence.archived(), occurrence.archivedAt(),
+				occurrence.archivedAt() == null ? null
+						: new OccurrenceResponses.ChangedBy(occurrence.archivedByType(), occurrence.archivedById()));
 	}
 
 	private static OccurrenceResponses.ProductRef product(OccurrenceRecord occurrence, Map<String, String> products) {
