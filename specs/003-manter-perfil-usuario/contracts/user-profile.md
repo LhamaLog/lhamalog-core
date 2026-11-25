@@ -2,6 +2,8 @@
 
 Contrato do Core para o Web. Caminhos no estilo já usado por `/api/company` e `/api/products`. A empresa da operação continua sendo a da sessão; a pessoa do perfil é o `sub` dessa sessão.
 
+A LLT-295 acrescenta `bio` e `jobTitle` a este mesmo recurso. O delta está em [user-profile.md](../../295-melhorar-a-tela-de-perfil-do-usuario/contracts/user-profile.md). As seções abaixo já incluem os dois campos. Nome, idioma, fuso, versão e a fronteira com a conta externa permanecem.
+
 Este contrato não altera [o cadastro da empresa](../../002-manter-dados-empresa/contracts/company-registration.md).
 
 ## Recurso
@@ -33,6 +35,8 @@ O 401 é o mesmo dos demais caminhos sem JWT. O teste afirma o status, como já 
 | `displayName` | sim | nome com trim, 1 a 200 caracteres, sem caractere de controle exceto tabulação | `""` |
 | `language` | sim | etiqueta `^[a-z]{2}(-[A-Z]{2})?$` | `pt-BR` |
 | `timezone` | sim | identificador aceito por `ZoneId`, devolvido como `getId()` | `America/Sao_Paulo` |
+| `bio` | não | trim, 0 a 160 caracteres, sem caractere de controle exceto tabulação; vazio não é gravado | `""` |
+| `jobTitle` | não | trim, 0 a 80 caracteres, a mesma regra da bio | `""` |
 | `version` | não; omitido ou `null` na primeira gravação | versão otimista depois da primeira gravação | `null` |
 
 O nome do campo de fuso neste recurso é `timezone`. `timeZone` não é aceito como substituto e não é devolvido aqui. Esse outro nome continua só no cadastro da empresa.
@@ -57,6 +61,8 @@ Sem perfil gravado, 200 e nada é inserido:
   "displayName": "",
   "language": "pt-BR",
   "timezone": "America/Sao_Paulo",
+  "bio": "",
+  "jobTitle": "",
   "version": null
 }
 ```
@@ -68,9 +74,13 @@ Com perfil gravado, 200:
   "displayName": "Ana Souza",
   "language": "pt-BR",
   "timezone": "America/Sao_Paulo",
+  "bio": "Cuida da operação.",
+  "jobTitle": "Coordenadora",
   "version": 0
 }
 ```
+
+Perfil antigo, sem texto de bio nem de cargo, devolve as duas chaves como `""`. A consulta não omite essas chaves.
 
 O `displayName` é o último nome gravado no LhamaLog. Não é lido da Clerk. A resposta do `PUT` aceito devolve o mesmo valor gravado, para o Web atualizar a identidade em seguida.
 
@@ -87,7 +97,11 @@ Primeira gravação:
 }
 ```
 
-Alteração: os três campos e a `version` devolvida na última resposta aceita. Campo omitido entre os três é inválido; não há merge parcial. Os três são substituídos pelos valores válidos enviados.
+Esse corpo omite `bio` e `jobTitle` de propósito. Na primeira gravação os dois ficam sem texto, e a resposta traz `""` nas duas chaves.
+
+Alteração: os três campos obrigatórios e a `version` devolvida na última resposta aceita. Campo omitido entre `displayName`, `language` e `timezone` é inválido; não há merge parcial desses três. Os três são substituídos pelos valores válidos enviados.
+
+`bio` e `jobTitle` ficam de fora desses três. Omitir a chave mantém o valor já guardado. `""`, `null` ou texto que o trim deixa vazio apaga. Texto acima de 160 (`bio`) ou de 80 (`jobTitle`), ou com caractere de controle que não seja tabulação, responde 400 no campo e não grava. `<` e `>` são texto. O Core não interpreta HTML.
 
 Sucesso: 200 com o mesmo formato do `GET`, já com a versão nova.
 
@@ -111,11 +125,13 @@ Formato já usado por `ApiExceptionHandler`:
 | Nome vazio | 400 | Confira os campos informados. | `displayName`: Informe o nome. |
 | Nome acima de 200 caracteres ou com caractere de controle que não seja tabulação | 400 | Confira os campos informados. | `displayName`: O texto excede o limite permitido. |
 | Nome que não é texto | 400 | Confira os campos informados. | `displayName`: Confira o preenchimento deste campo. |
+| Bio acima de 160, ou cargo acima de 80, ou caractere de controle que não seja tabulação (incluindo quebra de linha) | 400 | Confira os campos informados. | `bio` ou `jobTitle`: O texto excede o limite permitido. |
+| Bio ou cargo que não é texto | 400 | Confira os campos informados. | o campo: Confira o preenchimento deste campo. |
 | Idioma vazio | 400 | Confira os campos informados. | `language`: Informe o idioma. |
 | Idioma fora da etiqueta | 400 | Confira os campos informados. | `language`: Informe um idioma válido. |
 | Fuso vazio | 400 | Confira os campos informados. | `timezone`: Informe o fuso horário. |
 | Fuso irreconhecível | 400 | Confira os campos informados. | `timezone`: Informe um fuso horário válido. |
-| Campo ausente ou de tipo errado | 400 | Confira os campos informados. | o campo, com "Confira o preenchimento deste campo." quando não houver mensagem mais específica |
+| `displayName`, `language` ou `timezone` ausente, ou campo de tipo errado | 400 | Confira os campos informados. | o campo, com "Confira o preenchimento deste campo." quando não houver mensagem mais específica. `bio` ou `jobTitle` ausente não entra nesta linha |
 | `version` de tipo errado | 400 | Confira os campos informados. | `version`: Confira o preenchimento deste campo. |
 | Corpo ilegível | 400 | Os dados enviados são inválidos. | objeto vazio |
 | Sem JWT | 401 | o comportamento atual do filtro, sem perfil | |
@@ -153,4 +169,6 @@ O critério de aceite da identidade continua atendido por essa divisão, sem seg
 - Não há painel, agendamento de varredura nem e-mail neste Core. O `timezone` fica disponível nesta resposta para esses consumidores nas entregas deles.
 - O Core não traduz mensagens por causa de `language`. O Web aplica o idioma na interface e só oferece `pt-BR` e `en` na tela. `en-US` continua válido neste contrato.
 - E-mail da pessoa e notificações não têm campo aqui (LLT-172 e LLT-173).
+- Tema e acessibilidade não têm campo aqui (LLT-295). Ficam no navegador.
+- Foto, função, organização, membro desde, senha, verificação em duas etapas e sessões não têm campo aqui.
 - CEP, PDF e sincronização da empresa continuam 501 e não fazem parte deste recurso.

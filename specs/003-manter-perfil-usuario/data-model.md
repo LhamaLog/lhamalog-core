@@ -2,6 +2,8 @@
 
 O perfil é novo. O cadastro da empresa permanece o de [Manter dados da empresa](../002-manter-dados-empresa/data-model.md) e não é atualizado por esta feature.
 
+A LLT-295 acrescenta `bio` e `jobTitle` ao mesmo documento. O modelo desse acréscimo está em [data-model.md](../295-melhorar-a-tela-de-perfil-do-usuario/data-model.md). Os campos abaixo continuam os da LLT-174.
+
 ## Perfil (`UserProfile`)
 
 - **Identidade**: `id` é a pessoa da sessão, o `sub` do JWT (`CompanySession.userId()`). O cliente não escolhe esse id.

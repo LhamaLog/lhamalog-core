@@ -9,12 +9,17 @@ import tools.jackson.databind.JsonNode;
 
 final class UserProfileRules {
 	private static final int NAME_MAX = 200;
+	private static final int BIO_MAX = 160;
+	private static final int JOB_TITLE_MAX = 80;
 	private static final Pattern LANGUAGE = Pattern.compile("^[a-z]{2}(-[A-Z]{2})?$");
 	private static final Map<String, String> LANGUAGES = Map.of("Português (Brasil)", "pt-BR", "Portugues (Brasil)", "pt-BR");
 	private static final Map<String, String> ZONES = Map.of("(UTC-03:00) Brasília", "America/Sao_Paulo",
 			"(UTC-03:00) Brasilia", "America/Sao_Paulo");
 
-	record Draft(String displayName, String language, String timezone, Long version, Map<String, String> errors) {}
+	record OptionalText(boolean present, String value) {}
+
+	record Draft(String displayName, String language, String timezone, OptionalText bio, OptionalText jobTitle,
+			Long version, Map<String, String> errors) {}
 
 	private UserProfileRules() {}
 
@@ -22,10 +27,11 @@ final class UserProfileRules {
 		Map<String, String> errors = new LinkedHashMap<>();
 		if (body == null || !body.isObject()) {
 			errors.put("body", "Os dados enviados são inválidos.");
-			return new Draft("", "", "", null, errors);
+			return new Draft("", "", "", absent(), absent(), null, errors);
 		}
-		return new Draft(displayName(body, errors), language(body, errors), timezone(body, errors), version(body, errors),
-				errors);
+		return new Draft(displayName(body, errors), language(body, errors), timezone(body, errors),
+				optionalText(body, "bio", BIO_MAX, errors), optionalText(body, "jobTitle", JOB_TITLE_MAX, errors),
+				version(body, errors), errors);
 	}
 
 	private static String displayName(JsonNode body, Map<String, String> errors) {
@@ -88,6 +94,29 @@ final class UserProfileRules {
 			return null;
 		}
 		return value.longValue();
+	}
+
+	private static OptionalText optionalText(JsonNode body, String key, int max, Map<String, String> errors) {
+		if (!body.has(key)) {
+			return absent();
+		}
+		JsonNode value = body.get(key);
+		if (value.isNull()) {
+			return new OptionalText(true, "");
+		}
+		if (!value.isTextual()) {
+			errors.put(key, "Confira o preenchimento deste campo.");
+			return new OptionalText(true, "");
+		}
+		String text = value.asText().trim();
+		if (text.length() > max || illegal(text)) {
+			errors.put(key, "O texto excede o limite permitido.");
+		}
+		return new OptionalText(true, text);
+	}
+
+	private static OptionalText absent() {
+		return new OptionalText(false, null);
 	}
 
 	private static String text(JsonNode body, String key, Map<String, String> errors) {
