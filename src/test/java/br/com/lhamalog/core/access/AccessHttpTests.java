@@ -79,10 +79,11 @@ class AccessHttpTests {
 		mvc.perform(get("/api/company/access/me").with(session(org, "user_member", "member")))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.role").value("MEMBER"))
-				.andExpect(jsonPath("$.permissions.length()").value(3))
+				.andExpect(jsonPath("$.permissions.length()").value(4))
 				.andExpect(jsonPath("$.permissions[0]").value("COMPANY_VIEW"))
-				.andExpect(jsonPath("$.permissions[1]").value("PRODUCTS_CREATE"))
-				.andExpect(jsonPath("$.permissions[2]").value("PRODUCTS_EDIT"));
+				.andExpect(jsonPath("$.permissions[1]").value("OCCURRENCES_MANAGE"))
+				.andExpect(jsonPath("$.permissions[2]").value("PRODUCTS_CREATE"))
+				.andExpect(jsonPath("$.permissions[3]").value("PRODUCTS_EDIT"));
 	}
 
 	@Test

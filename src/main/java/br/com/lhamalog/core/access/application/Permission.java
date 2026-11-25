@@ -42,6 +42,9 @@ public enum Permission {
 
 	INGESTION_TOKENS_MANAGE(null, OWNER, ADMIN),
 
+	/** Change the status and archive occurrences (spec 014); visibility still follows product access. */
+	OCCURRENCES_MANAGE("MEMBER só nos produtos liberados", OWNER, ADMIN, MEMBER),
+
 	NOTIFICATION_ROLES_MANAGE(null, OWNER, ADMIN),
 
 	SUBSCRIPTION_MANAGE(Notes.NOT_IN_CORE, OWNER),

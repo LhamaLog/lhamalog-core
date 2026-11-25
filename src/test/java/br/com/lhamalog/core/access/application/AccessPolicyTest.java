@@ -33,6 +33,8 @@ class AccessPolicyTest {
 			Map.entry(Permission.PRODUCTS_VIEW_ALL, EnumSet.of(OWNER, ADMIN)),
 			Map.entry(Permission.PRODUCTS_CREATE, EnumSet.of(OWNER, ADMIN, MEMBER)),
 			Map.entry(Permission.PRODUCTS_EDIT, EnumSet.of(OWNER, ADMIN, MEMBER)),
+			// Spec 014 (LLT-136): change the status and archive occurrences.
+			Map.entry(Permission.OCCURRENCES_MANAGE, EnumSet.of(OWNER, ADMIN, MEMBER)),
 			Map.entry(Permission.PRODUCTS_ARCHIVE, EnumSet.of(OWNER, ADMIN)),
 			Map.entry(Permission.INGESTION_TOKENS_MANAGE, EnumSet.of(OWNER, ADMIN)),
 			Map.entry(Permission.NOTIFICATION_ROLES_MANAGE, EnumSet.of(OWNER, ADMIN)),
@@ -54,7 +56,8 @@ class AccessPolicyTest {
 	@Test
 	void permissionsOfARoleComeInAlphabeticalOrder() {
 		List<Permission> member = AccessPolicy.permissionsOf(MEMBER);
-		assertEquals(List.of(Permission.COMPANY_VIEW, Permission.PRODUCTS_CREATE, Permission.PRODUCTS_EDIT), member);
+		assertEquals(List.of(Permission.COMPANY_VIEW, Permission.OCCURRENCES_MANAGE, Permission.PRODUCTS_CREATE,
+				Permission.PRODUCTS_EDIT), member);
 		List<Permission> owner = AccessPolicy.permissionsOf(OWNER);
 		assertEquals(Permission.values().length, owner.size(), "the owner has every permission");
 		List<String> names = owner.stream().map(Enum::name).toList();
