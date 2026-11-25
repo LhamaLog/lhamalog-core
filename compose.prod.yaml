@@ -67,6 +67,10 @@ services:
       CLERK_WEBHOOK_SIGNING_SECRET: ${PROD_CLERK_WEBHOOK_SIGNING_SECRET:?defina PROD_CLERK_WEBHOOK_SIGNING_SECRET}
       ASAAS_WEBHOOK_TOKEN: ${PROD_ASAAS_WEBHOOK_TOKEN:?defina PROD_ASAAS_WEBHOOK_TOKEN}
       BILLING_RETURN_URL: ${PROD_BILLING_RETURN_URL:?defina PROD_BILLING_RETURN_URL}
+      # Upload manual (LLT-292). Placeholders: sem valor e sem :? até o Collector existir.
+      # URL vazia ou sem esquema http/https não cai no default localhost:8080; o Core registra WARN e o upload responde 503.
+      LHAMALOG_MANUAL_UPLOAD_COLLECTOR_URL: ${LHAMALOG_MANUAL_UPLOAD_COLLECTOR_URL:-}
+      LHAMALOG_CORE_COLLECTOR_TOKEN: ${LHAMALOG_CORE_COLLECTOR_TOKEN:-}
     ports:
       - "${PROD_API_BIND_ADDRESS:?defina PROD_API_BIND_ADDRESS, por exemplo 127.0.0.1}:${PROD_API_PORT:-8080}:8080"
     depends_on:

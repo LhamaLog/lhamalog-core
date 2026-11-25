@@ -60,6 +60,7 @@ public class CompanyController {
 		if (file == null || file.isEmpty()) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Envie o arquivo do logotipo.");
 		}
+		LogoFiles.rejectIfTooLarge(file.getSize());
 		return service.saveLogo(session.tenantId(), session.userId(), version, file.getOriginalFilename(), file.getBytes());
 	}
 
