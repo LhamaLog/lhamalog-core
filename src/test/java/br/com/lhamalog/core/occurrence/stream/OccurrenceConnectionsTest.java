@@ -55,7 +55,7 @@ class OccurrenceConnectionsTest {
 	}
 
 	private static OccurrenceEvent event(String tenant, String product) {
-		return new OccurrenceEvent(tenant, product, "o-1", "ERROR", OccurrenceEvent.Change.CREATED, NOW);
+		return new OccurrenceEvent(tenant, product, "o-1", "ERROR", "ERROR", OccurrenceEvent.Change.CREATED, NOW);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -77,6 +77,42 @@ class OccurrenceConnectionsTest {
 		assertThat(sent(other)).isEqualTo(1);
 		assertThat(sent(otherCompany)).isEqualTo(1);
 		verify(pending, never()).sendMessage(any());
+	}
+
+	@Test
+	void finderAlertUsesTheSameAudienceAndKeepsItsBody() throws Exception {
+		WebSocketSession sees = ready("a", "t-1", "u-1", Set.of("p-1"));
+		WebSocketSession other = ready("b", "t-1", "u-2", Set.of("p-2"));
+		connections.dispatchFinderAlert("t-1", "p-1", "batch-1", "consulta_openobserve_indisponivel");
+		ArgumentCaptor<WebSocketMessage<?>> captor = ArgumentCaptor.forClass(WebSocketMessage.class);
+		verify(sees, org.mockito.Mockito.atLeastOnce()).sendMessage(captor.capture());
+		String notice = captor.getAllValues().stream()
+			.filter(TextMessage.class::isInstance)
+			.map(message -> ((TextMessage) message).getPayload())
+			.filter(payload -> payload.contains("FINDER_ALERT"))
+			.findFirst()
+			.orElseThrow();
+		assertThat(notice).contains("\"tenantId\":\"t-1\"")
+			.contains("\"productId\":\"p-1\"")
+			.contains("\"batchId\":\"batch-1\"")
+			.contains("\"motivo\":\"consulta_openobserve_indisponivel\"");
+		assertThat(sent(other)).isEqualTo(1);
+	}
+
+	@Test
+	void occurrenceNoticeCarriesSeverityAndOmitsTheTenant() throws Exception {
+		WebSocketSession sees = ready("s", "t-1", "u-1", Set.of("p-1"));
+		connections.dispatch(event("t-1", "p-1"));
+		ArgumentCaptor<WebSocketMessage<?>> captor = ArgumentCaptor.forClass(WebSocketMessage.class);
+		verify(sees, org.mockito.Mockito.atLeastOnce()).sendMessage(captor.capture());
+		String notice = captor.getAllValues().stream()
+			.filter(TextMessage.class::isInstance)
+			.map(message -> ((TextMessage) message).getPayload())
+			.filter(payload -> payload.contains("\"type\":\"occurrence\""))
+			.findFirst()
+			.orElseThrow();
+		assertThat(notice).contains("\"gravidade\":\"ERROR\"").contains("\"occurrenceType\":\"ERROR\"");
+		assertThat(notice).doesNotContain("tenantId");
 	}
 
 	@Test

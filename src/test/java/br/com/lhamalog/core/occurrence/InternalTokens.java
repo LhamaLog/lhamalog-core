@@ -16,7 +16,7 @@ import com.nimbusds.jwt.SignedJWT;
  * Internal JWTs for the Occurrence Module tests (spec 013). The secrets are the fictitious ones of
  * {@code src/test/resources/config/application.properties}; nothing here is a real credential.
  */
-final class InternalTokens {
+public final class InternalTokens {
 
 	static final String CURRENT_SECRET = "segredo-ficticio-de-teste-do-modulo-ocorrencia-1";
 
@@ -40,11 +40,11 @@ final class InternalTokens {
 			.expirationTime(Date.from(now.plusSeconds(300)));
 	}
 
-	static InternalTokens finder() {
+	public static InternalTokens finder() {
 		return new InternalTokens();
 	}
 
-	static String bearer() {
+	public static String bearer() {
 		return "Bearer " + finder().sign();
 	}
 
@@ -58,12 +58,12 @@ final class InternalTokens {
 		return this;
 	}
 
-	InternalTokens claim(String name, Object value) {
+	public InternalTokens claim(String name, Object value) {
 		claims.claim(name, value instanceof Instant instant ? Date.from(instant) : value);
 		return this;
 	}
 
-	String sign() {
+	public String sign() {
 		try {
 			SignedJWT jwt = new SignedJWT(new JWSHeader(algorithm), claims.build());
 			byte[] key = secret.getBytes(StandardCharsets.UTF_8);

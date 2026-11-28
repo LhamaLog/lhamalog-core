@@ -38,6 +38,7 @@ public final class OccurrenceMerge {
 		after.put("productId", productId);
 		after.put("signature", finding.key().signature());
 		after.put("type", finding.key().type());
+		after.put("gravidade", finding.key().type());
 		after.put("count", finding.count());
 		after.put("firstSeenAt", Date.from(finding.firstSeenAt()));
 		after.put("lastSeenAt", Date.from(finding.lastSeenAt()));

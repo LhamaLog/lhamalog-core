@@ -14,4 +14,8 @@ public final class InternalServiceSecurityConfigurationAccess {
 		return InternalServiceSecurityConfiguration.decoder(auth);
 	}
 
+	public static JwtDecoder decoder(OccurrenceModuleProperties.InternalAuth auth, String requiredAudience) {
+		return InternalServiceSecurityConfiguration.decoder(auth, requiredAudience);
+	}
+
 }

@@ -24,7 +24,7 @@ import org.springframework.data.mongodb.core.mapping.Field;
 				def = "{'tenantId': 1, 'productId': 1, 'signature': 1, 'type': 1}", unique = true)
 })
 public record OccurrenceDocument(@Id String id, String tenantId, String productId, String signature, String type,
-		String title, String summary, String status, Boolean recurring, Long count, Instant firstSeenAt,
+		String gravidade, String title, String summary, String status, Boolean recurring, Long count, Instant firstSeenAt,
 		Instant lastSeenAt, List<String> samples, String hostName, String traceId, String correlationId,
 		String moduleId, Integer lineNumber, Map<String, String> extractedFields, Boolean sensitiveData,
 		String rulesVersion, String revision, List<StatusChange> statusHistory, Instant archivedAt,

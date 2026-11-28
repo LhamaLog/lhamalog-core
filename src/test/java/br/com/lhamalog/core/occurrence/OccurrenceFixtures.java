@@ -92,7 +92,7 @@ final class OccurrenceFixtures {
 		String insert() {
 			String storedSignature = signature != null ? signature
 					: type + "|" + message.replace("|", "\\|") + "|" + service + "|" + hostName;
-			mongo.insert(new OccurrenceDocument(id, tenantId, productId, storedSignature, type, title, summary, status,
+			mongo.insert(new OccurrenceDocument(id, tenantId, productId, storedSignature, type, type, title, summary, status,
 					recurring, count, firstSeenAt, lastSeenAt, samples, hostName, traceId, correlationId, moduleId,
 					lineNumber, Map.of(), sensitiveData, "regras-teste-v1", id + "-r1", history, null, null));
 			if (!extractedFields.isEmpty()) {
