@@ -17,11 +17,16 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
  * Product of the active company. {@code archivedAt} null means active; filled means archived.
  * Documents saved before this field existed have no {@code archivedAt} and count as active.
  * {@code normalizedName} is the form of the name that must be unique per company; archived products keep it.
+ * Stored in {@code products}, the collection the Collector reads; {@link ProductCollectorFields} adds
+ * {@code productId} to every saved document (feature 013).
  */
-@Document("Produto")
+@Document("products")
 @CompoundIndexes({
 		@CompoundIndex(name = "product_tenant_name", def = "{'tenantId': 1, 'name': 1, '_id': 1}"),
-		@CompoundIndex(name = "product_tenant_normalized_name", def = "{'tenantId': 1, 'normalizedName': 1}", unique = true)
+		@CompoundIndex(name = "product_tenant_normalized_name", def = "{'tenantId': 1, 'normalizedName': 1}", unique = true),
+		// Lookup of the Collector (feature 013); partial so older documents without the field never block startup.
+		@CompoundIndex(name = "product_collector_product_id", def = "{'productId': 1}", unique = true,
+				partialFilter = "{'productId': {$exists: true}}")
 })
 public record Product(@Id String id, String tenantId, String name, @JsonIgnore String normalizedName, String description,
 		String category, String productVersion, String status, Instant createdAt, Instant archivedAt,

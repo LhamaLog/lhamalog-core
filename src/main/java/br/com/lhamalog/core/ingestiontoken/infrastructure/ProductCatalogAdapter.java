@@ -5,7 +5,7 @@ import br.com.lhamalog.core.ingestiontoken.application.ProductCatalog;
 import br.com.lhamalog.core.product.ProductRepository;
 import org.springframework.stereotype.Component;
 
-/** Reads the product of the company from the product module (collection {@code Produto}). */
+/** Reads the product of the company from the product module (collection {@code products}, feature 013). */
 @Component
 public class ProductCatalogAdapter implements ProductCatalog {
 	private final ProductRepository products;
