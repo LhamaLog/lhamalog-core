@@ -49,6 +49,19 @@ class OccurrenceMergeTest {
 	}
 
 	@Test
+	void severityIsTheClassAndTheTypeStays() {
+		for (String type : List.of("ERROR", "WARNING", "INFO")) {
+			Finding finding = new Finding(new OccurrenceKey("sig|" + type, type), "host-2", 1,
+					Instant.parse("2026-11-20T10:00:00Z"), Instant.parse("2026-11-25T11:00:00Z"), false, List.of(), null,
+					null, null, null, null, null, null, null, null);
+			Document after = OccurrenceMerge.merge(null, finding, "tenant-1", "product-1", "regras-v2", NOW, "rev-new", 20);
+			assertThat(after.getString("type")).isEqualTo(type);
+			assertThat(after.getString("gravidade")).isEqualTo(type);
+			assertThat(after.getString("gravidade")).isNotIn("critico", "alto");
+		}
+	}
+
+	@Test
 	void createsAnOpenOccurrenceWithItsCreationInTheHistory() {
 		Document after = merge(null, finding(List.of("l1"), "Falha", Map.of("http.route", "/x"), true));
 		assertThat(after.getString("_id")).isNotBlank();

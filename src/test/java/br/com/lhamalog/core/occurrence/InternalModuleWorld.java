@@ -25,7 +25,7 @@ import tools.jackson.databind.ObjectMapper;
  * Test helper of the Occurrence Module (spec 013): a company with a product created through the API, calls of the
  * internal routes with the internal JWT, and builders of the contract bodies.
  */
-final class InternalModuleWorld {
+public final class InternalModuleWorld {
 
 	static final String LOOKUP = "/internal/v1/ocorrencias/consultas";
 
@@ -37,14 +37,14 @@ final class InternalModuleWorld {
 
 	private final TestTenants tenants;
 
-	InternalModuleWorld(MockMvc mvc, ObjectMapper mapper, MongoTemplate mongo) {
+	public InternalModuleWorld(MockMvc mvc, ObjectMapper mapper, MongoTemplate mongo) {
 		this.mvc = mvc;
 		this.mapper = mapper;
 		this.tenants = new TestTenants(mongo);
 	}
 
 	/** Organization, tenant, admin session and one product. */
-	Company company() throws Exception {
+	public Company company() throws Exception {
 		String organization = "org_test_" + UUID.randomUUID();
 		String tenantId = tenants.tenantId(organization);
 		RequestPostProcessor admin = tenants.session(organization, "admin_" + UUID.randomUUID(), "admin");
@@ -58,20 +58,20 @@ final class InternalModuleWorld {
 		return new Company(organization, tenantId, productId, admin);
 	}
 
-	record Company(String organization, String tenantId, String productId, RequestPostProcessor admin) {}
+	public record Company(String organization, String tenantId, String productId, RequestPostProcessor admin) {}
 
-	ResultActions call(String path, Object body) throws Exception {
+	public ResultActions call(String path, Object body) throws Exception {
 		return call(path, body, InternalTokens.bearer());
 	}
 
-	ResultActions call(String path, Object body, String authorization) throws Exception {
+	public ResultActions call(String path, Object body, String authorization) throws Exception {
 		var request = post(path).contentType(MediaType.APPLICATION_JSON)
 			.content(body instanceof String text ? text : mapper.writeValueAsString(body));
 		if (authorization != null) request.header(HttpHeaders.AUTHORIZATION, authorization);
 		return mvc.perform(request);
 	}
 
-	JsonNode json(ResultActions result) throws Exception {
+	public JsonNode json(ResultActions result) throws Exception {
 		return mapper.readTree(result.andReturn().getResponse().getContentAsString());
 	}
 
@@ -188,6 +188,11 @@ final class InternalModuleWorld {
 
 		Finding set(String field, Object value) {
 			body.put(field, value);
+			return this;
+		}
+
+		Finding recurring(boolean value) {
+			body.put("recorrente", value);
 			return this;
 		}
 

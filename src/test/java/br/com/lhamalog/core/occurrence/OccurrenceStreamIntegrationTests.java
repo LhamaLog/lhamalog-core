@@ -179,6 +179,7 @@ class OccurrenceStreamIntegrationTests {
 		assertThat(first.get("change").asString()).isEqualTo("CREATED");
 		assertThat(first.get("productId").asString()).isEqualTo(company.productId());
 		assertThat(first.get("occurrenceType").asString()).isEqualTo("ERROR");
+		assertThat(first.get("gravidade").asString()).isEqualTo("ERROR");
 		assertThat(first.toString()).doesNotContain("reaberta").doesNotContain("tenantId");
 
 		mongo.getCollection("Ocorrencia").updateOne(Filters.eq("signature", reopened),
@@ -222,6 +223,65 @@ class OccurrenceStreamIntegrationTests {
 				.finding(InternalModuleWorld.finding(InternalModuleWorld.signature("do membro"))).build())
 			.andExpect(status().isCreated());
 		assertThat(next(client).get("productId").asString()).isEqualTo(productId);
+	}
+
+	@Test
+	void recurrentNoticeIsTheOnlyChangeWhenItIsTheStrongestAndCarriesSeverity() throws Exception {
+		InternalModuleWorld world = new InternalModuleWorld(mvc, mapper, mongo);
+		InternalModuleWorld.Company company = world.company();
+		Client admin = ready(company.organization(), "admin_recurrent", "admin");
+
+		String born = InternalModuleWorld.signature("nasce " + UUID.randomUUID());
+		world.call(InternalModuleWorld.DELIVERY, InternalModuleWorld.summary(company)
+				.finding(InternalModuleWorld.finding(born).recurring(true)).build())
+			.andExpect(status().isCreated());
+		JsonNode created = next(admin);
+		assertThat(created.get("change").asString()).isEqualTo("CREATED");
+		assertThat(created.get("gravidade").asString()).isEqualTo("ERROR");
+		assertThat(created.get("occurrenceType").asString()).isEqualTo("ERROR");
+		assertThat(created.has("tenantId")).isFalse();
+
+		String closed = InternalModuleWorld.signature("fecha " + UUID.randomUUID());
+		world.call(InternalModuleWorld.DELIVERY, InternalModuleWorld.summary(company)
+				.finding(InternalModuleWorld.finding(closed)).build())
+			.andExpect(status().isCreated());
+		assertThat(next(admin).get("change").asString()).isEqualTo("CREATED");
+		mongo.getCollection("Ocorrencia").updateOne(Filters.eq("signature", closed),
+				new Document("$set", new Document("status", "FECHADA")));
+		String closedRevision = world.json(world.call(InternalModuleWorld.LOOKUP,
+				InternalModuleWorld.lookup(company, closed, "ERROR"))).get("estado").get("revisao").asString();
+		world.call(InternalModuleWorld.DELIVERY, InternalModuleWorld.summary(company)
+				.finding(InternalModuleWorld.finding(closed).count(6).revision(closedRevision).recurring(true)).build())
+			.andExpect(status().isCreated());
+		JsonNode reopened = next(admin);
+		assertThat(reopened.get("change").asString()).isEqualTo("REOPENED");
+		assertThat(reopened.get("gravidade").asString()).isEqualTo("ERROR");
+		assertThat(admin.messages.poll(300, TimeUnit.MILLISECONDS)).isNull();
+
+		String open = InternalModuleWorld.signature("aberta " + UUID.randomUUID());
+		world.call(InternalModuleWorld.DELIVERY, InternalModuleWorld.summary(company)
+				.finding(InternalModuleWorld.finding(open).type("WARNING")).build())
+			.andExpect(status().isCreated());
+		assertThat(next(admin).get("change").asString()).isEqualTo("CREATED");
+		String openRevision = world.json(world.call(InternalModuleWorld.LOOKUP,
+				InternalModuleWorld.lookup(company, open, "WARNING"))).get("estado").get("revisao").asString();
+		long started = System.nanoTime();
+		world.call(InternalModuleWorld.DELIVERY, InternalModuleWorld.summary(company)
+				.finding(InternalModuleWorld.finding(open).type("WARNING").count(8).revision(openRevision).recurring(true))
+				.build())
+			.andExpect(status().isCreated());
+		String payload = admin.messages.poll(3, TimeUnit.SECONDS);
+		assertThat(payload).isNotNull();
+		assertThat(java.time.Duration.ofNanos(System.nanoTime() - started)).isLessThan(java.time.Duration.ofSeconds(3));
+		JsonNode recurrent = mapper.readTree(payload);
+		assertThat(recurrent.get("change").asString()).isEqualTo("RECURRENT");
+		assertThat(recurrent.get("gravidade").asString()).isEqualTo("WARNING");
+		assertThat(recurrent.get("occurrenceType").asString()).isEqualTo("WARNING");
+		assertThat(recurrent.has("tenantId")).isFalse();
+		assertThat(admin.messages.poll(300, TimeUnit.MILLISECONDS)).isNull();
+		Document stored = mongo.getCollection("Ocorrencia").find(Filters.eq("signature", open)).first();
+		assertThat(stored.getString("gravidade")).isEqualTo("WARNING");
+		assertThat(stored.getString("type")).isEqualTo("WARNING");
 	}
 
 }

@@ -16,17 +16,19 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record OccurrenceModuleProperties(InternalAuth internalAuth, Delivery delivery) {
 
 	public OccurrenceModuleProperties {
-		internalAuth = internalAuth != null ? internalAuth : new InternalAuth(null, null, null, null);
+		internalAuth = internalAuth != null ? internalAuth : new InternalAuth(null, null, null, null, null);
 		delivery = delivery != null ? delivery : new Delivery(null, null, null, null);
 	}
 
 	/**
 	 * @param secrets HS256 secrets, current first; up to two are kept for rotation
 	 * @param issuer expected {@code iss}
-	 * @param audience expected value inside {@code aud}
+	 * @param audience expected value inside {@code aud} of the module routes
 	 * @param subjects services ({@code sub}) allowed to call the routes
+	 * @param coreAudience expected value inside {@code aud} of {@code POST /internal/v1/alertas/finder} only
 	 */
-	public record InternalAuth(List<String> secrets, String issuer, String audience, List<String> subjects) {
+	public record InternalAuth(List<String> secrets, String issuer, String audience, List<String> subjects,
+			String coreAudience) {
 
 		public InternalAuth {
 			secrets = secrets == null ? List.of()
@@ -35,6 +37,7 @@ public record OccurrenceModuleProperties(InternalAuth internalAuth, Delivery del
 			audience = blankTo(audience, "lhamalog-modulo-ocorrencia");
 			subjects = subjects == null || subjects.isEmpty() ? List.of("lhamalog-finder")
 					: subjects.stream().filter(subject -> subject != null && !subject.isBlank()).map(String::strip).toList();
+			coreAudience = blankTo(coreAudience, "lhamalog-core");
 		}
 
 	}

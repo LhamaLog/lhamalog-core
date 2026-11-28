@@ -77,6 +77,7 @@ public class RedisOccurrenceEventPublisher implements OccurrenceEventPublisher, 
 		message.put("productId", event.productId());
 		message.put("occurrenceId", event.occurrenceId());
 		message.put("occurrenceType", event.occurrenceType());
+		message.put("gravidade", event.gravidade());
 		message.put("change", event.change().name());
 		message.put("at", String.valueOf(event.at()));
 		return message;

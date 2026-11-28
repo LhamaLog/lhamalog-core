@@ -111,7 +111,10 @@ public class AnalysisSummaryDeliveryService {
 		}
 	}
 
-	/** Spec 015: news for the screens, only after the receipt; a failure here never fails the delivery. */
+	/**
+	 * Spec 015 and spec 016: the only publish of a delivery, after the receipt is confirmed. {@code CREATED},
+	 * {@code REOPENED} and {@code RECURRENT} share this path. A failure here never fails the delivery.
+	 */
 	private void notifyScreens(DeliveryKey key, List<JournalEntry> journal, Instant at) {
 		try {
 			List<OccurrenceEvent> news = OccurrenceChangeDetector.detect(key.tenantId(), key.productId(), journal, at);

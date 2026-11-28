@@ -32,8 +32,12 @@ public class RedisOccurrenceEventListener implements MessageListener {
 	public void onMessage(Message message, byte[] pattern) {
 		try {
 			JsonNode node = mapper.readTree(new String(message.getBody(), StandardCharsets.UTF_8));
+			String type = node.path("occurrenceType").asString();
+			JsonNode severity = node.get("gravidade");
+			String gravidade = severity == null || severity.isNull() || severity.asString().isBlank() ? type
+					: severity.asString();
 			connections.dispatch(new OccurrenceEvent(node.path("tenantId").asString(), node.path("productId").asString(),
-					node.path("occurrenceId").asString(), node.path("occurrenceType").asString(),
+					node.path("occurrenceId").asString(), type, gravidade,
 					OccurrenceEvent.Change.valueOf(node.path("change").asString()), Instant.parse(node.path("at").asString())));
 		}
 		catch (RuntimeException invalid) {

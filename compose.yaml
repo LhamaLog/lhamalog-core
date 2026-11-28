@@ -45,6 +45,8 @@ services:
       OCCURRENCE_INTERNAL_JWT_SECRETS: ${OCCURRENCE_INTERNAL_JWT_SECRETS:-}
       OCCURRENCE_INTERNAL_JWT_ISSUER: ${OCCURRENCE_INTERNAL_JWT_ISSUER:-lhamalog-internal}
       OCCURRENCE_INTERNAL_JWT_AUDIENCE: ${OCCURRENCE_INTERNAL_JWT_AUDIENCE:-lhamalog-modulo-ocorrencia}
+      # Só a rota POST /internal/v1/alertas/finder exige esta audiência. Não é segredo.
+      OCCURRENCE_INTERNAL_JWT_CORE_AUDIENCE: ${OCCURRENCE_INTERNAL_JWT_CORE_AUDIENCE:-lhamalog-core}
       OCCURRENCE_INTERNAL_JWT_SUBJECTS: ${OCCURRENCE_INTERNAL_JWT_SUBJECTS:-lhamalog-finder}
       # Contratacao com o Asaas simulado (LLT-289). Sem token, o Core gera um ao subir.
       ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN:-}
@@ -63,3 +65,24 @@ services:
       timeout: 5s
       retries: 12
       start_period: 60s
+
+  # TLS local do Finder (spec 016): HTTPS na frente do Core, que segue em HTTP na porta 8080.
+  # A base do Finder é https:// sem caminho. A CA local (SSL_CERT_FILE) fica na spec do Finder.
+  # Tag fixa; sem segredo neste serviço.
+  caddy:
+    image: caddy:2.10.2
+    container_name: lhamalog-core-caddy
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${CADDY_HTTPS_PORT:-8443}:443"
+    command:
+      - caddy
+      - reverse-proxy
+      - --from
+      - https://:443
+      - --to
+      - http://api:8080
+      - --internal-certs

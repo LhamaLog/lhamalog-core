@@ -50,13 +50,22 @@ class AnalysisSummaryDeliveryServiceTest {
 			new OccurrenceModuleProperties(null, null), clock, published::addAll);
 
 	private static Finding finding(String signature, long count, String consultedRevision) {
+		return finding(signature, count, consultedRevision, false);
+	}
+
+	private static Finding finding(String signature, long count, String consultedRevision, boolean recurring) {
 		return new Finding(new OccurrenceKey(signature, "ERROR"), "host-1", count, Instant.parse("2026-11-20T10:00:00Z"),
-				Instant.parse("2026-11-20T11:00:00Z"), false, List.of("linha"), consultedRevision, null, null, null, null,
-				null, null, null, null);
+				Instant.parse("2026-11-20T11:00:00Z"), recurring, List.of("linha"), consultedRevision, null, null, null,
+				null, null, null, null, null);
 	}
 
 	private static AnalysisSummary summary(Finding... findings) {
 		return new AnalysisSummary(KEY, "regras-v1", List.of(findings));
+	}
+
+	private static AnalysisSummary delivery(String batchId, Finding... findings) {
+		return new AnalysisSummary(new DeliveryKey(KEY.tenantId(), KEY.productId(), batchId, null), "regras-v1",
+				List.of(findings));
 	}
 
 	private String store(String signature, long count) {
@@ -227,6 +236,37 @@ class AnalysisSummaryDeliveryServiceTest {
 		service.deliver(summary(finding("z", 1, null)));
 		published.clear();
 		service.deliver(summary(finding("z", 1, null)));
+		assertThat(published).isEmpty();
+	}
+
+	@Test
+	void recurrencePublishesOnlyTheStrongestChangeAndKeepsTheClassAsSeverity() {
+		service.deliver(delivery("lote-nova", finding("nova", 1, null, true)));
+		assertThat(published).singleElement().satisfies(event -> {
+			assertThat(event.change()).isEqualTo(OccurrenceEvent.Change.CREATED);
+			assertThat(event.occurrenceType()).isEqualTo("ERROR");
+			assertThat(event.gravidade()).isEqualTo("ERROR");
+		});
+		Document created = occurrences.data.values().iterator().next();
+		assertThat(created.getString("gravidade")).isEqualTo("ERROR");
+		assertThat(created.getString("type")).isEqualTo("ERROR");
+
+		published.clear();
+		store("fechada", 4);
+		occurrences.data.get("occ-fechada").put("status", "FECHADA");
+		service.deliver(delivery("lote-reabre", finding("fechada", 5, "rev-fechada", true)));
+		assertThat(published).extracting(OccurrenceEvent::change).containsExactly(OccurrenceEvent.Change.REOPENED);
+		assertThat(published.getFirst().gravidade()).isEqualTo("ERROR");
+
+		published.clear();
+		store("aberta", 2);
+		service.deliver(delivery("lote-recorrente", finding("aberta", 8, "rev-aberta", true)));
+		assertThat(published).extracting(OccurrenceEvent::change).containsExactly(OccurrenceEvent.Change.RECURRENT);
+		assertThat(published.getFirst().gravidade()).isEqualTo("ERROR");
+		assertThat(occurrences.data.get("occ-aberta").getString("gravidade")).isEqualTo("ERROR");
+
+		published.clear();
+		service.deliver(delivery("lote-contagem", finding("aberta", 9, occurrences.data.get("occ-aberta").getString("revision"), true)));
 		assertThat(published).isEmpty();
 	}
 

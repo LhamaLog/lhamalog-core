@@ -10,9 +10,10 @@ import br.com.lhamalog.core.occurrence.application.DeliveryReceiptRepository.Jou
 import br.com.lhamalog.core.occurrence.application.OccurrenceEvent.Change;
 
 /**
- * Which writes of an accepted delivery are news for the screen (spec 015, research R3): a created occurrence, and one
- * that became ABERTA coming from another status or from archived. A count going up on an active open occurrence is
- * not. Pure: works on the journal of the delivery.
+ * Which writes of an accepted delivery are news for the screen (spec 015, research R3; spec 016): one notice per
+ * occurrence, the strongest change of that delivery. Created beats reopened, which beats became-recurring
+ * ({@link Change#RECURRENT}). A count going up on an active open occurrence is not a notice. Absent or null
+ * {@code recurring} counts as false. Pure: works on the journal of the delivery.
  */
 public final class OccurrenceChangeDetector {
 
@@ -27,8 +28,9 @@ public final class OccurrenceChangeDetector {
 		for (JournalEntry entry : journal) {
 			Change change = change(entry.before(), entry.after());
 			if (change != null) {
-				events.add(new OccurrenceEvent(tenantId, productId, entry.occurrenceId(),
-						entry.after().getString("type"), change, at));
+				String type = entry.after().getString("type");
+				events.add(new OccurrenceEvent(tenantId, productId, entry.occurrenceId(), type, severity(entry.after(), type),
+						change, at));
 			}
 		}
 		return events;
@@ -38,7 +40,19 @@ public final class OccurrenceChangeDetector {
 		if (before == null) return Change.CREATED;
 		boolean openNow = OPEN.equals(after.get("status"));
 		boolean wasHidden = !OPEN.equals(before.get("status")) || before.get("archivedAt") != null;
-		return openNow && wasHidden ? Change.REOPENED : null;
+		if (openNow && wasHidden) return Change.REOPENED;
+		if (!recurring(before) && recurring(after)) return Change.RECURRENT;
+		return null;
+	}
+
+	/** The class copied onto the occurrence. A document written before the field existed still uses {@code type}. */
+	private static String severity(Document after, String type) {
+		String gravidade = after.getString("gravidade");
+		return gravidade == null || gravidade.isBlank() ? type : gravidade;
+	}
+
+	private static boolean recurring(Document document) {
+		return document != null && Boolean.TRUE.equals(document.get("recurring"));
 	}
 
 }

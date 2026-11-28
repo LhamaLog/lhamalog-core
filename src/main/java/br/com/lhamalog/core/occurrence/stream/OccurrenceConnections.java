@@ -3,6 +3,7 @@ package br.com.lhamalog.core.occurrence.stream;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -138,14 +139,37 @@ public class OccurrenceConnections {
 
 	/** Sends a notice to the READY connections of the company that see the product. */
 	public void dispatch(OccurrenceEvent event) {
-		Map<String, Object> message = Map.of("type", "occurrence", "change", event.change().name(), "occurrenceId",
-				event.occurrenceId(), "productId", event.productId(), "occurrenceType", event.occurrenceType(), "at",
-				String.valueOf(event.at()));
+		Map<String, Object> message = new LinkedHashMap<>();
+		message.put("type", "occurrence");
+		message.put("change", event.change().name());
+		message.put("occurrenceId", event.occurrenceId());
+		message.put("productId", event.productId());
+		message.put("occurrenceType", event.occurrenceType());
+		message.put("gravidade", event.gravidade());
+		message.put("at", String.valueOf(event.at()));
+		sendToProduct(event.tenantId(), event.productId(), message);
+	}
+
+	/**
+	 * Screen notice of a Finder alert, on the same socket, only for the first durable write. Not published on the
+	 * occurrence Redis channel. {@code tenantId} is part of this body.
+	 */
+	public void dispatchFinderAlert(String tenantId, String productId, String batchId, String motivo) {
+		Map<String, Object> message = new LinkedHashMap<>();
+		message.put("type", "FINDER_ALERT");
+		message.put("tenantId", tenantId);
+		message.put("productId", productId);
+		message.put("batchId", batchId);
+		message.put("motivo", motivo);
+		sendToProduct(tenantId, productId, message);
+	}
+
+	private void sendToProduct(String tenantId, String productId, Map<String, Object> message) {
 		for (Connection connection : connections.values()) {
 			boolean matches;
 			synchronized (connection) {
-				matches = connection.company != null && connection.company.tenantId().equals(event.tenantId())
-						&& connection.products.contains(event.productId());
+				matches = connection.company != null && connection.company.tenantId().equals(tenantId)
+						&& connection.products.contains(productId);
 			}
 			if (matches) send(connection, message);
 		}

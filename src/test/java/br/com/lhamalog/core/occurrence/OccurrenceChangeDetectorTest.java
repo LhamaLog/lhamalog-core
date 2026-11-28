@@ -20,7 +20,9 @@ class OccurrenceChangeDetectorTest {
 	private static final Instant AT = Instant.parse("2026-11-25T18:00:00Z");
 
 	private static Document occurrence(String status, boolean archived) {
-		Document document = new Document("_id", "o-1").append("type", "WARNING").append("status", status);
+		Document document = new Document("_id", "o-1").append("type", "WARNING")
+			.append("gravidade", "WARNING")
+			.append("status", status);
 		if (archived) document.append("archivedAt", Date.from(AT));
 		return document;
 	}
@@ -33,7 +35,7 @@ class OccurrenceChangeDetectorTest {
 	@Test
 	void createdOccurrenceIsANotice() {
 		List<OccurrenceEvent> events = detect(null, occurrence("ABERTA", false));
-		assertThat(events).containsExactly(new OccurrenceEvent("t-1", "p-1", "o-1", "WARNING", Change.CREATED, AT));
+		assertThat(events).containsExactly(new OccurrenceEvent("t-1", "p-1", "o-1", "WARNING", "WARNING", Change.CREATED, AT));
 	}
 
 	@Test
@@ -52,6 +54,28 @@ class OccurrenceChangeDetectorTest {
 	void countGoingUpOnAnActiveOccurrenceIsNotANotice() {
 		assertThat(detect(occurrence("ABERTA", false), occurrence("ABERTA", false))).isEmpty();
 		assertThat(detect(occurrence("EM_ANALISE", false), occurrence("EM_ANALISE", false))).isEmpty();
+	}
+
+	@Test
+	void becameRecurringIsRecurrentOnlyWhenItIsTheStrongestChange() {
+		Document open = occurrence("ABERTA", false);
+		Document recurrent = occurrence("ABERTA", false).append("recurring", true);
+		assertThat(detect(open, recurrent)).singleElement().satisfies(event -> {
+			assertThat(event.change()).isEqualTo(Change.RECURRENT);
+			assertThat(event.occurrenceType()).isEqualTo("WARNING");
+			assertThat(event.gravidade()).isEqualTo("WARNING");
+		});
+		assertThat(detect(open.append("recurring", null), recurrent)).extracting(OccurrenceEvent::change)
+			.containsExactly(Change.RECURRENT);
+		assertThat(detect(occurrence("ABERTA", false).append("recurring", false), recurrent))
+			.extracting(OccurrenceEvent::change).containsExactly(Change.RECURRENT);
+
+		Document created = occurrence("ABERTA", false).append("recurring", true);
+		assertThat(detect(null, created)).extracting(OccurrenceEvent::change).containsExactly(Change.CREATED);
+
+		Document reopened = occurrence("ABERTA", false).append("recurring", true);
+		assertThat(detect(occurrence("FECHADA", false), reopened)).extracting(OccurrenceEvent::change)
+			.containsExactly(Change.REOPENED);
 	}
 
 }

@@ -10,6 +10,8 @@ import java.util.Set;
 
 import javax.crypto.spec.SecretKeySpec;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -20,6 +22,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
@@ -34,6 +38,7 @@ import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
 import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationProvider;
 import org.springframework.security.web.SecurityFilterChain;
 
 import br.com.lhamalog.core.occurrence.application.InternalApiException;
@@ -52,6 +57,8 @@ public class InternalServiceSecurityConfiguration {
 
 	static final String PATHS = "/internal/v1/**";
 
+	static final String FINDER_ALERT_PATH = "/internal/v1/alertas/finder";
+
 	static final String SERVICE_AUTHORITY = "SERVICE_OCCURRENCE_MODULE";
 
 	private static final int MIN_SECRET_BYTES = 32;
@@ -63,11 +70,12 @@ public class InternalServiceSecurityConfiguration {
 	SecurityFilterChain internalServiceSecurityFilterChain(HttpSecurity http, OccurrenceModuleProperties properties)
 			throws Exception {
 		OccurrenceModuleProperties.InternalAuth auth = properties.internalAuth();
-		JwtDecoder decoder = decoder(auth);
+		AuthenticationManager moduleRoutes = manager(decoder(auth, auth.audience()), auth.subjects());
+		AuthenticationManager finderAlert = manager(decoder(auth, auth.coreAudience()), auth.subjects());
 		http.securityMatcher(PATHS)
 			.authorizeHttpRequests((requests) -> requests.anyRequest().hasAuthority(SERVICE_AUTHORITY))
 			.oauth2ResourceServer((resourceServer) -> resourceServer
-				.jwt((jwt) -> jwt.decoder(decoder).jwtAuthenticationConverter(converter(auth.subjects())))
+				.authenticationManagerResolver((request) -> finderAlert(request) ? finderAlert : moduleRoutes)
 				.authenticationEntryPoint((request, response, failure) -> unauthorized(response))
 				.accessDeniedHandler((request, response, failure) -> forbidden(response)))
 			.exceptionHandling((exceptions) -> exceptions
@@ -81,8 +89,28 @@ public class InternalServiceSecurityConfiguration {
 		return http.build();
 	}
 
-	/** Tries each secret in order; a token signed with any of them and valid for the claims passes. */
+	/**
+	 * {@code POST /internal/v1/alertas/finder} is the only route of this chain that requires {@code core-audience}.
+	 * The other {@code /internal/v1/**} routes keep the module audience. One chain; the check is "contains".
+	 */
+	static boolean finderAlert(HttpServletRequest request) {
+		if (!"POST".equalsIgnoreCase(request.getMethod())) return false;
+		String path = request.getRequestURI();
+		if (path == null) return false;
+		String context = request.getContextPath();
+		if (context != null && !context.isEmpty() && path.startsWith(context)) path = path.substring(context.length());
+		int query = path.indexOf('?');
+		if (query >= 0) path = path.substring(0, query);
+		return FINDER_ALERT_PATH.equals(path);
+	}
+
+	/** Decoder that requires {@code auth.audience()} inside {@code aud}. */
 	static JwtDecoder decoder(OccurrenceModuleProperties.InternalAuth auth) {
+		return decoder(auth, auth.audience());
+	}
+
+	/** Tries each secret in order; a token signed with any of them and valid for the claims passes. */
+	static JwtDecoder decoder(OccurrenceModuleProperties.InternalAuth auth, String requiredAudience) {
 		List<NimbusJwtDecoder> decoders = new ArrayList<>();
 		for (String secret : auth.secrets()) {
 			byte[] bytes = secret.getBytes(StandardCharsets.UTF_8);
@@ -99,7 +127,7 @@ public class InternalServiceSecurityConfiguration {
 					new JwtClaimValidator<Object>(JwtClaimNames.SUB, Objects::nonNull),
 					new JwtTimestampValidator(Duration.ofSeconds(30)), new JwtIssuerValidator(auth.issuer()),
 					new JwtClaimValidator<Object>(JwtClaimNames.AUD,
-							(audience) -> audience instanceof Collection<?> values && values.contains(auth.audience()))));
+							(audience) -> audience instanceof Collection<?> values && values.contains(requiredAudience))));
 			decoders.add(decoder);
 		}
 		if (decoders.isEmpty()) {
@@ -107,7 +135,7 @@ public class InternalServiceSecurityConfiguration {
 		}
 		else {
 			log.info("event=occurrence.auth.configured | Internal JWT ready | secrets={} issuer={} audience={} subjects={}",
-					decoders.size(), auth.issuer(), auth.audience(), auth.subjects().size());
+					decoders.size(), auth.issuer(), requiredAudience, auth.subjects().size());
 		}
 		return (token) -> {
 			JwtException last = new BadJwtException("Internal JWT is not configured");
@@ -121,6 +149,12 @@ public class InternalServiceSecurityConfiguration {
 			}
 			throw last;
 		};
+	}
+
+	private static AuthenticationManager manager(JwtDecoder decoder, List<String> subjects) {
+		JwtAuthenticationProvider provider = new JwtAuthenticationProvider(decoder);
+		provider.setJwtAuthenticationConverter(converter(subjects));
+		return new ProviderManager(provider);
 	}
 
 	/** Only the configured services get the authority of the routes; another valid service gets 403. */
